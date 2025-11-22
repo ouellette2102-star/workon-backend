@@ -1,0 +1,17 @@
+# Railway build configuration for NestJS backend
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "python3"]
+
+[phases.install]
+cmds = [
+  "npm install",
+  "npx prisma generate"
+]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npx prisma migrate deploy && npm run start:prod"
+
