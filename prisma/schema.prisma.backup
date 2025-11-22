@@ -1,0 +1,473 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model audit_events {
+  id         String   @id
+  userId     String?
+  action     String
+  resource   String
+  resourceId String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  users      users?   @relation(fields: [userId], references: [id])
+
+  @@index([createdAt])
+  @@index([resource, resourceId])
+  @@index([userId])
+}
+
+model categories {
+  id                 String     @id
+  name               String     @unique
+  nameEn             String?
+  icon               String?
+  legalNotes         String?
+  residentialAllowed Boolean    @default(true)
+  createdAt          DateTime   @default(now())
+  missions           missions[]
+  skills             skills[]
+}
+
+model client_orgs {
+  id                 String             @id
+  ownerId            String
+  type               ClientOrgType
+  name               String
+  logoUrl            String?
+  billingAddress     Json?
+  taxNumbers         Json?
+  verificationStatus VerificationStatus @default(PENDING)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime
+  users              users              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  missions           missions[]
+
+  @@index([ownerId])
+}
+
+model compliance_documents {
+  id         String                 @id
+  userId     String
+  type       ComplianceDocumentType
+  version    String
+  acceptedAt DateTime
+  createdAt  DateTime               @default(now())
+  users      users                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([type])
+  @@index([userId])
+}
+
+model disputes {
+  id         String        @id
+  missionId  String        @unique
+  openedById String
+  reason     String
+  status     DisputeStatus @default(OPEN)
+  resolution String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime
+  missions   missions      @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  users      users         @relation(fields: [openedById], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+model local_missions {
+  id                                                       String             @id
+  title                                                    String
+  description                                              String
+  category                                                 String
+  status                                                   LocalMissionStatus @default(open)
+  price                                                    Float
+  latitude                                                 Float
+  longitude                                                Float
+  city                                                     String
+  address                                                  String?
+  createdByUserId                                          String
+  assignedToUserId                                         String?
+  createdAt                                                DateTime           @default(now())
+  updatedAt                                                DateTime
+  local_users_local_missions_assignedToUserIdTolocal_users local_users?       @relation("local_missions_assignedToUserIdTolocal_users", fields: [assignedToUserId], references: [id])
+  local_users_local_missions_createdByUserIdTolocal_users  local_users        @relation("local_missions_createdByUserIdTolocal_users", fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@index([assignedToUserId])
+  @@index([category])
+  @@index([city])
+  @@index([createdByUserId])
+  @@index([latitude, longitude])
+  @@index([status])
+}
+
+model local_users {
+  id                                                          String           @id
+  email                                                       String           @unique
+  hashedPassword                                              String
+  firstName                                                   String
+  lastName                                                    String
+  phone                                                       String?
+  city                                                        String?
+  role                                                        LocalUserRole    @default(worker)
+  active                                                      Boolean          @default(true)
+  createdAt                                                   DateTime         @default(now())
+  updatedAt                                                   DateTime
+  local_missions_local_missions_assignedToUserIdTolocal_users local_missions[] @relation("local_missions_assignedToUserIdTolocal_users")
+  local_missions_local_missions_createdByUserIdTolocal_users  local_missions[] @relation("local_missions_createdByUserIdTolocal_users")
+
+  @@index([active])
+  @@index([city])
+  @@index([email])
+  @@index([role])
+}
+
+model matches {
+  id              String          @id
+  missionId       String
+  workerId        String
+  score           Float
+  featuresJSON    Json?
+  createdAt       DateTime        @default(now())
+  missions        missions        @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  worker_profiles worker_profiles @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@index([missionId])
+  @@index([score])
+  @@index([workerId])
+}
+
+model missions {
+  id                                     String           @id
+  authorClientId                         String
+  assigneeWorkerId                       String?
+  clientOrgId                            String?
+  title                                  String
+  description                            String
+  categoryId                             String
+  requiredSkills                         String[]         @default([])
+  locationLat                            Float
+  locationLng                            Float
+  locationAddress                        String?
+  priceType                              String
+  budgetMin                              Float
+  budgetMax                              Float
+  status                                 MissionStatus    @default(DRAFT)
+  startAt                                DateTime?
+  endAt                                  DateTime?
+  createdAt                              DateTime         @default(now())
+  updatedAt                              DateTime
+  deletedAt                              DateTime?
+  workerProfileId                        String?
+  disputes                               disputes?
+  matches                                matches[]
+  users_missions_assigneeWorkerIdTousers users?           @relation("missions_assigneeWorkerIdTousers", fields: [assigneeWorkerId], references: [id])
+  users_missions_authorClientIdTousers   users            @relation("missions_authorClientIdTousers", fields: [authorClientId], references: [id], onDelete: Cascade)
+  categories                             categories       @relation(fields: [categoryId], references: [id])
+  client_orgs                            client_orgs?     @relation(fields: [clientOrgId], references: [id])
+  worker_profiles                        worker_profiles? @relation(fields: [workerProfileId], references: [id])
+  offers                                 offers[]
+  payments                               payments[]
+  reviews                                reviews[]
+
+  @@index([assigneeWorkerId])
+  @@index([authorClientId])
+  @@index([categoryId])
+  @@index([deletedAt])
+  @@index([locationLat, locationLng])
+  @@index([status])
+  @@index([workerProfileId])
+}
+
+model notifications {
+  id          String    @id
+  userId      String
+  type        String
+  payloadJSON Json
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+  users       users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([readAt])
+  @@index([userId])
+}
+
+model offers {
+  id              String          @id
+  missionId       String
+  workerId        String
+  message         String?
+  proposedRate    Float
+  eta             String?
+  status          OfferStatus     @default(PENDING)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime
+  missions        missions        @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  worker_profiles worker_profiles @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@index([missionId])
+  @@index([status])
+  @@index([workerId])
+}
+
+model payments {
+  id                     String        @id
+  missionId              String
+  stripePaymentIntentId  String?       @unique
+  stripeConnectAccountId String?
+  amount                 Float
+  currency               String        @default("CAD")
+  platformFeePct         Float         @default(10)
+  status                 PaymentStatus @default(REQUIRES_ACTION)
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime
+  missions               missions      @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@index([missionId])
+  @@index([status])
+}
+
+model post_likes {
+  id        String   @id
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+  posts     posts    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  users     users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId])
+}
+
+model posts {
+  id              String          @id
+  workerProfileId String
+  title           String?
+  description     String
+  mediaUrl        String
+  likeCount       Int             @default(0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime
+  post_likes      post_likes[]
+  worker_profiles worker_profiles @relation(fields: [workerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([workerProfileId])
+}
+
+model reviews {
+  id                                String           @id
+  authorId                          String
+  targetUserId                      String
+  missionId                         String?
+  rating                            Int
+  comment                           String?
+  moderation                        ReviewModeration @default(OK)
+  createdAt                         DateTime         @default(now())
+  updatedAt                         DateTime
+  users_reviews_authorIdTousers     users            @relation("reviews_authorIdTousers", fields: [authorId], references: [id], onDelete: Cascade)
+  missions                          missions?        @relation(fields: [missionId], references: [id])
+  users_reviews_targetUserIdTousers users            @relation("reviews_targetUserIdTousers", fields: [targetUserId], references: [id], onDelete: Cascade)
+
+  @@index([missionId])
+  @@index([moderation])
+  @@index([targetUserId])
+}
+
+model schedule_slots {
+  id              String          @id
+  workerId        String
+  startAt         DateTime
+  endAt           DateTime
+  available       Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  worker_profiles worker_profiles @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@index([workerId, startAt, endAt])
+}
+
+model skills {
+  id             String          @id
+  name           String
+  nameEn         String?
+  categoryId     String
+  requiresPermit Boolean         @default(false)
+  proofType      String?
+  createdAt      DateTime        @default(now())
+  categories     categories      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  worker_skills  worker_skills[]
+
+  @@unique([name, categoryId])
+}
+
+model subscriptions {
+  id                   String             @id
+  userId               String
+  plan                 SubscriptionPlan   @default(FREE)
+  stripeSubscriptionId String?            @unique
+  startedAt            DateTime           @default(now())
+  renewsAt             DateTime?
+  status               SubscriptionStatus @default(ACTIVE)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime
+  users                users              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([userId])
+}
+
+model user_profiles {
+  id        Int      @id @default(autoincrement())
+  userId    String   @unique
+  role      UserRole
+  name      String
+  phone     String
+  city      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  users     users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model users {
+  id                                        String                 @id
+  clerkId                                   String                 @unique
+  createdAt                                 DateTime               @default(now())
+  updatedAt                                 DateTime
+  audit_events                              audit_events[]
+  client_orgs                               client_orgs[]
+  compliance_documents                      compliance_documents[]
+  disputes                                  disputes[]
+  missions_missions_assigneeWorkerIdTousers missions[]             @relation("missions_assigneeWorkerIdTousers")
+  missions_missions_authorClientIdTousers   missions[]             @relation("missions_authorClientIdTousers")
+  notifications                             notifications[]
+  post_likes                                post_likes[]
+  reviews_reviews_authorIdTousers           reviews[]              @relation("reviews_authorIdTousers")
+  reviews_reviews_targetUserIdTousers       reviews[]              @relation("reviews_targetUserIdTousers")
+  subscriptions                             subscriptions[]
+  user_profiles                             user_profiles?
+  worker_profiles                           worker_profiles?
+}
+
+model worker_profiles {
+  id                 String           @id
+  userId             String           @unique
+  hourlyRate         Float
+  serviceAreas       Json?
+  residentialEnabled Boolean          @default(false)
+  portfolio          Json[]           @default([])
+  availability       Json?
+  completedMissions  Int              @default(0)
+  totalEarnings      Float            @default(0)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime
+  matches            matches[]
+  missions           missions[]
+  offers             offers[]
+  posts              posts[]
+  schedule_slots     schedule_slots[]
+  users              users            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  worker_skills      worker_skills[]
+}
+
+model worker_skills {
+  id              String          @id
+  workerId        String
+  skillId         String
+  verified        Boolean         @default(false)
+  proofUrl        String?
+  createdAt       DateTime        @default(now())
+  skills          skills          @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  worker_profiles worker_profiles @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@unique([workerId, skillId])
+}
+
+enum ClientOrgType {
+  BUSINESS
+  RESIDENTIAL
+}
+
+enum ComplianceDocumentType {
+  TERMS
+  PRIVACY
+  CONTRACT
+  POLICY_LAW25
+}
+
+enum DisputeStatus {
+  OPEN
+  IN_MEDIATION
+  RESOLVED
+  CLOSED
+}
+
+enum LocalMissionStatus {
+  open
+  assigned
+  in_progress
+  completed
+  cancelled
+}
+
+enum LocalUserRole {
+  worker
+  employer
+  residential_client
+}
+
+enum MissionStatus {
+  DRAFT
+  OPEN
+  MATCHED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum PaymentStatus {
+  REQUIRES_ACTION
+  SUCCEEDED
+  REFUNDED
+  DISPUTED
+}
+
+enum ReviewModeration {
+  OK
+  FLAGGED
+}
+
+enum SubscriptionPlan {
+  FREE
+  PRO
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+}
+
+enum UserRole {
+  WORKER
+  EMPLOYER
+  RESIDENTIAL
+  ADMIN
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
