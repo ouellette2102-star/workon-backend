@@ -22,31 +22,58 @@ export class UsersRepository {
     this.logger.log(`Creating user with email: ${createUserDto.email}`);
 
     const id = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    return this.prisma.localUser.create({
-      data: {
+    
+    try {
+      // DEBUG: Log exact data being sent to Prisma
+      this.logger.debug(`[DIAGNOSTIC] Creating LocalUser with data:`, {
         id,
         email: createUserDto.email,
-        hashedPassword,
         firstName: createUserDto.firstName,
         lastName: createUserDto.lastName,
         phone: createUserDto.phone,
         city: createUserDto.city,
         role: createUserDto.role,
-        updatedAt: new Date(),
-      },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        city: true,
-        role: true,
-        createdAt: true,
-        updatedAt: true,
-        // hashedPassword excluded
-      },
-    });
+        roleType: typeof createUserDto.role,
+      });
+
+      return await this.prisma.localUser.create({
+        data: {
+          id,
+          email: createUserDto.email,
+          hashedPassword,
+          firstName: createUserDto.firstName,
+          lastName: createUserDto.lastName,
+          phone: createUserDto.phone,
+          city: createUserDto.city,
+          role: createUserDto.role,
+          updatedAt: new Date(),
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          city: true,
+          role: true,
+          createdAt: true,
+          updatedAt: true,
+          // hashedPassword excluded
+        },
+      });
+    } catch (error) {
+      // DEBUG: Capture full error details
+      this.logger.error(`[DIAGNOSTIC] Prisma error during user creation:`, {
+        errorName: error?.constructor?.name,
+        errorCode: error?.code,
+        errorMessage: error?.message,
+        errorMeta: error?.meta,
+        fullError: JSON.stringify(error, null, 2),
+      });
+      
+      // Re-throw to preserve error handling in service layer
+      throw error;
+    }
   }
 
   /**
