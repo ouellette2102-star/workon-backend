@@ -13,7 +13,7 @@ cmds = [
 cmds = ["npm run build"]
 
 [start]
-# Try Prisma migration, but don't fail if it doesn't work
-# This allows the app to start even if DATABASE_URL is not configured
-cmd = "npx prisma migrate deploy || echo 'Prisma migration skipped' && npm run start:prod"
+# Execute Prisma migrations before starting the app
+# Critical: Migrations MUST succeed for the app to work correctly
+cmd = "npx prisma migrate deploy && npm run start:prod"
 
