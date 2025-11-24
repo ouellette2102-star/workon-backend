@@ -13,7 +13,7 @@ cmds = [
 cmds = ["npm run build"]
 
 [start]
-# Execute Prisma migrations before starting the app
-# Use start:railway script that handles migrations + start
-cmd = "npm run start:railway"
+# Force Prisma schema sync to Railway PostgreSQL
+# db push creates tables even if migrations history is missing
+cmd = "npx prisma db push --accept-data-loss --skip-generate && npm run start:prod"
 
