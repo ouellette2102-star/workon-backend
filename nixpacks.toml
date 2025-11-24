@@ -14,6 +14,6 @@ cmds = ["npm run build"]
 
 [start]
 # Execute Prisma migrations before starting the app
-# Critical: Migrations MUST succeed for the app to work correctly
-cmd = "npx prisma migrate deploy && npm run start:prod"
+# Use start:railway script that handles migrations + start
+cmd = "npm run start:railway"
 
