@@ -21,10 +21,6 @@ export class EnvironmentVariables {
   DATABASE_URL: string;
 
   @IsString()
-  @IsNotEmpty()
-  CLERK_SECRET_KEY: string;
-
-  @IsString()
   @IsIn(['development', 'production', 'test'])
   @IsNotEmpty()
   NODE_ENV: string;
@@ -33,6 +29,10 @@ export class EnvironmentVariables {
   // VARIABLES OPTIONNELLES (DEV/PROD)
   // ========================================
   
+  @IsString()
+  @IsOptional()
+  CLERK_SECRET_KEY?: string;
+
   @IsString()
   @IsOptional()
   CLERK_ISSUER?: string;
@@ -114,7 +114,8 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
     throw new Error(
       `❌ CONFIGURATION ERROR - Missing or invalid environment variables:\n\n${messages.join('\n')}\n\n` +
       `Please check your .env file in backend/ directory.\n` +
-      `Required variables: DATABASE_URL, CLERK_SECRET_KEY, NODE_ENV\n`,
+      `Required variables (all environments): DATABASE_URL, NODE_ENV\n` +
+      `Required variables (production only): JWT_SECRET, JWT_REFRESH_SECRET, CLERK_SECRET_KEY\n`,
     );
   }
 
@@ -138,6 +139,13 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
         '❌ ERROR: JWT_REFRESH_SECRET is required in production. Token refresh will fail.',
       );
       throw new Error('JWT_REFRESH_SECRET is required in production');
+    }
+
+    if (!validatedConfig.CLERK_SECRET_KEY) {
+      console.error(
+        '❌ ERROR: CLERK_SECRET_KEY is required in production.',
+      );
+      throw new Error('CLERK_SECRET_KEY is required in production');
     }
 
     if (!validatedConfig.STRIPE_SECRET_KEY) {
@@ -164,26 +172,33 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
       );
     }
   } else {
-    // Avertissements légers en développement + set defaults for JWT
+    // ========================================
+    // CONFIGURATION DÉVELOPPEMENT
+    // ========================================
+    
+    console.log('\n🔧 Development environment detected - using default values for missing variables\n');
+
+    // Valeurs par défaut pour JWT
     if (!validatedConfig.JWT_SECRET) {
       validatedConfig.JWT_SECRET = 'dev-jwt-secret-change-in-production';
-      console.log(
-        '💡 INFO: JWT_SECRET not set. Using default dev value.',
-      );
+      console.log('💡 INFO: JWT_SECRET not set. Using default dev value.');
     }
 
     if (!validatedConfig.JWT_REFRESH_SECRET) {
       validatedConfig.JWT_REFRESH_SECRET = 'dev-refresh-secret-change-in-production';
-      console.log(
-        '💡 INFO: JWT_REFRESH_SECRET not set. Using default dev value.',
-      );
+      console.log('💡 INFO: JWT_REFRESH_SECRET not set. Using default dev value.');
+    }
+
+    // Avertissements légers (non bloquants)
+    if (!validatedConfig.CLERK_SECRET_KEY) {
+      console.log('💡 INFO: CLERK_SECRET_KEY not set in development. Clerk auth features will be disabled.');
     }
 
     if (!validatedConfig.STRIPE_SECRET_KEY) {
-      console.log(
-        '💡 INFO: STRIPE_SECRET_KEY not set in development. Payment features will be limited.',
-      );
+      console.log('💡 INFO: STRIPE_SECRET_KEY not set in development. Payment features will be limited.');
     }
+
+    console.log(''); // Ligne vide pour meilleure lisibilité
   }
 
   return validatedConfig;

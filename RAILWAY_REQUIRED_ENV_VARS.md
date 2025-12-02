@@ -67,10 +67,27 @@ Liste des domaines autorisés (séparés par des virgules):
 CORS_ORIGIN=http://localhost:3000,https://votre-frontend.vercel.app
 ```
 
-**OU** pour autoriser tous les domaines (INSÉCURE):
+**OU** pour autoriser tous les domaines (INSÉCURE mais pratique pour FlutterFlow):
 ```
 CORS_ORIGIN=*
 ```
+
+---
+
+### 6. ENABLE_SWAGGER_PROD (OPTIONNEL - Documentation API)
+
+Activer Swagger en production sur `/api/docs`:
+
+```
+ENABLE_SWAGGER_PROD=true
+```
+
+**Par défaut:** Swagger est désactivé en production pour la sécurité.
+
+**Quand l'activer:**
+- ✅ Pour tester les routes via l'interface Swagger
+- ✅ Pour partager la documentation API avec FlutterFlow/frontend
+- ⚠️ À désactiver ensuite si exposition publique non souhaitée
 
 ---
 

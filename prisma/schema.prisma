@@ -176,7 +176,6 @@ model Mission {
   workerProfileId  String?
   dispute          Dispute?
   matches          Match[]
-  messages         Message[]
   assigneeWorker   User?          @relation("missions_assigneeWorkerIdTousers", fields: [assigneeWorkerId], references: [id])
   authorClient     User           @relation("missions_authorClientIdTousers", fields: [authorClientId], references: [id], onDelete: Cascade)
   category         Category       @relation(fields: [categoryId], references: [id])
@@ -185,6 +184,8 @@ model Mission {
   offers           Offer[]
   payments         Payment[]
   reviews          Review[]
+  messages         Message[]
+  contract         Contract?
 
   @@index([assigneeWorkerId])
   @@index([authorClientId])
@@ -194,19 +195,6 @@ model Mission {
   @@index([status])
   @@index([workerProfileId])
   @@map("missions")
-}
-
-model Message {
-  id         String            @id
-  missionId  String
-  senderId   String
-  senderRole MessageSenderRole
-  content    String
-  createdAt  DateTime          @default(now())
-  mission    Mission           @relation(fields: [missionId], references: [id], onDelete: Cascade)
-
-  @@index([missionId])
-  @@map("messages")
 }
 
 model Notification {
@@ -386,6 +374,9 @@ model User {
   subscriptions       Subscription[]
   userProfile         UserProfile?
   workerProfile       WorkerProfile?
+  sentMessages        Message[]
+  employerContracts   Contract[]           @relation("contracts_employerIdTousers")
+  workerContracts     Contract[]           @relation("contracts_workerIdTousers")
 
   @@map("users")
 }
@@ -499,11 +490,6 @@ enum SubscriptionStatus {
   EXPIRED
 }
 
-enum MessageSenderRole {
-  WORKER
-  EMPLOYER
-}
-
 enum UserRole {
   WORKER
   EMPLOYER
@@ -515,4 +501,79 @@ enum VerificationStatus {
   PENDING
   VERIFIED
   REJECTED
+}
+
+// ============================================
+// MESSAGES MODULE - Chat entre Worker et Employer
+// ============================================
+
+model Message {
+  id         String            @id
+  missionId  String
+  senderId   String
+  senderRole MessageSenderRole
+  content    String
+  status     MessageStatus     @default(SENT)
+  createdAt  DateTime          @default(now())
+  
+  // Relations
+  mission    Mission           @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  sender     User              @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([missionId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+enum MessageSenderRole {
+  WORKER
+  EMPLOYER
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+}
+
+// ============================================
+// CONTRACTS MODULE - Contrats de mission
+// ============================================
+
+model Contract {
+  id              String         @id
+  missionId       String         @unique
+  employerId      String
+  workerId        String
+  status          ContractStatus @default(DRAFT)
+  amount          Float
+  hourlyRate      Float?
+  startAt         DateTime?
+  endAt           DateTime?
+  signedByWorker  Boolean        @default(false)
+  signedByEmployer Boolean       @default(false)
+  signatureNonce  String?
+  contractUrl     String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  
+  // Relations
+  mission         Mission        @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  employer        User           @relation("contracts_employerIdTousers", fields: [employerId], references: [id], onDelete: Cascade)
+  worker          User           @relation("contracts_workerIdTousers", fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@index([employerId])
+  @@index([workerId])
+  @@index([status])
+  @@map("contracts")
+}
+
+enum ContractStatus {
+  DRAFT
+  PENDING
+  ACCEPTED
+  REJECTED
+  COMPLETED
+  CANCELLED
 }

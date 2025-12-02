@@ -1,290 +1,192 @@
-# 🛠️ Mode Développement WorkOn
+# 🚀 GUIDE DE DÉVELOPPEMENT - WORKON BACKEND
 
-Ce document explique comment travailler avec le backend WorkOn en mode développement local.
+## 📋 Configuration des variables d'environnement
 
-## 🎯 Qu'est-ce qui change en mode développement ?
+### Fichier `.env` requis
 
-En mode développement (`NODE_ENV !== 'production'`), certaines règles métier sont assouplies pour faciliter les tests locaux avec une base de données vide ou incomplete.
+Le backend NestJS nécessite un fichier `.env` dans le dossier `backend/` pour fonctionner.
 
-### Missions API - Règles assouplies en DEV
-
-#### ✅ En DÉVELOPPEMENT
-
-Les endpoints GET de missions (`/missions/available`, `/missions/worker/mine`, `/missions/feed`) :
-- **N'exigent PAS** de profil Worker en base de données
-- Retournent un **tableau vide** au lieu d'une erreur 403
-- Affichent des **warnings clairs** dans les logs backend
-
-```bash
-[DEV WARNING] Worker profile not found for userId=cly...
-[DEV MODE] User cly... has no Worker profile - returning empty missions list
-```
-
-#### ⚠️ En PRODUCTION
-
-Les mêmes endpoints :
-- **EXIGENT** un profil Worker valide en base de données
-- Retournent une **erreur 403** si le profil n'existe pas
-- Bloquent l'accès pour protéger les données
-
-### Pourquoi cette distinction ?
-
-En développement local :
-- La base de données est souvent vide ou incomplète
-- On veut tester l'UI sans créer manuellement tous les profils
-- On veut voir le comportement avec des données vides (tableaux vides, états "Aucune mission")
-
-En production :
-- Les profils sont créés via l'onboarding complet
-- La sécurité doit être stricte
-- Pas d'accès sans profil valide
-
-## 🚀 Démarrage rapide
-
-### 1. Configuration initiale
-
-```bash
-# Backend
-cd backend
-cp .env.example .env  # Ajustez les variables
-npm install
-npx prisma generate
-npx prisma db push
-```
-
-### 2. Seed de développement
-
-Le seed crée des données de test :
-- Un utilisateur worker (lié à votre Clerk ID)
-- Un profil Worker complet
-- Plusieurs missions de test (disponibles, réservées)
-- Un employeur avec quelques missions
-
-**⚠️ IMPORTANT** : Avant de lancer le seed, éditez `prisma/seed.dev.ts` :
-
-```typescript
-// Ligne 27 : Remplacez par votre vrai Clerk ID
-const CLERK_USER_ID = 'user_YOUR_CLERK_ID_HERE'; // <-- ICI
-
-// Ligne 30 : Remplacez par votre vrai email Clerk
-const DEV_EMAIL = 'dev@workon.local'; // <-- ICI
-```
-
-**Comment trouver votre Clerk ID ?**
-
-Option 1 - Logs backend :
-```bash
-npm run start:dev
-# Connectez-vous via le frontend
-# Regardez les logs : [JwtAuthGuard] Clerk verified: user.sub=user_abc123...
-```
-
-Option 2 - Dashboard Clerk :
-- https://dashboard.clerk.com
-- Users → Sélectionnez votre user → Copiez l'ID
-
-Option 3 - Console navigateur :
-```javascript
-// Dans la console du frontend connecté
-await window.Clerk.user.id
-```
-
-**Lancer le seed :**
-
-```bash
-cd backend
-npm run seed:dev
-```
-
-Résultat attendu :
-```
-🌱 Seed de développement WorkOn...
-✅ Utilisateur créé/mis à jour : dev@workon.local
-✅ Profil Worker créé : cly...
-✅ Mission créée : "Ménage appartement 3½" (CREATED)
-✅ Mission créée : "Déménagement studio" (CREATED)
-...
-🎉 Seed de développement terminé avec succès !
-```
-
-### 3. Démarrer les serveurs
-
-**Terminal 1 - Backend :**
-```bash
-cd backend
-npm run start:dev
-```
-
-Vérifiez que vous voyez :
-```
-[Nest] ... LOG [RoutesResolver] MissionsController {/api/v1/missions}:
-[Nest] ... LOG [RouterExplorer] Mapped {/api/v1/missions/available, GET}
-[Nest] ... LOG [RouterExplorer] Mapped {/api/v1/missions/worker/mine, GET}
-...
-```
-
-**Terminal 2 - Frontend :**
-```bash
-# À la racine du projet (pas dans backend/)
-npm run dev
-```
-
-### 4. Tester
-
-1. **Connectez-vous** via Clerk (http://localhost:3000/sign-in)
-
-2. **Dashboard Worker** : http://localhost:3000/worker/dashboard
-   - Devrait charger sans erreur 403
-   - QuickStatsCard affiche vos stats
-   - AvailableMissionsCard affiche les missions disponibles
-
-3. **Page Missions** : http://localhost:3000/worker/missions
-   - Liste des missions créées par le seed
-
-## 🔍 Debugging
-
-### Logs utiles en mode DEV
-
-Le backend affiche des logs détaillés :
-
-```bash
-# Token reçu
-[JwtAuthGuard] Token received: eyJhbGciOiJSUzI1Ni...
-
-# Vérification Clerk
-[JwtAuthGuard] Clerk verified: user.sub=cly..., role=WORKER
-
-# Résolution du rôle
-[ClerkAuthService] User verified: id=cly..., primaryRole=WORKER, effectiveRole=WORKER
-
-# Vérification du guard
-[RolesGuard] DEBUG: user.sub=cly..., user.role=WORKER, requiredRoles=WORKER, decision=ALLOWED
-
-# Worker profile manquant (mode dev tolérant)
-[DEV WARNING] Worker profile not found for userId=cly...
-[DEV MODE] User cly... has no Worker profile - returning empty missions list
-```
-
-### Problèmes courants
-
-#### ❌ Erreur 403 "Accès réservé aux workers WorkOn"
-
-**Cause** : Profil Worker manquant en base de données
-
-**Solution** :
-1. Vérifiez que vous avez lancé `npm run seed:dev`
-2. Vérifiez que `CLERK_USER_ID` dans `seed.dev.ts` correspond à votre vrai Clerk ID
-3. Relancez le seed avec le bon ID
-
-**Vérification** :
-```bash
-# Dans Prisma Studio
-npx prisma studio
-
-# Ou en SQL
-# Vérifiez que votre user existe avec un Worker associé
-SELECT u.id, u.email, u.clerkId, w.id as worker_id 
-FROM users u 
-LEFT JOIN workers w ON w."userId" = u.id 
-WHERE u."clerkId" = 'user_YOUR_CLERK_ID';
-```
-
-#### ❌ Tableau vide de missions
-
-**C'est normal en dev !** Si vous n'avez pas de profil Worker, le backend retourne un tableau vide au lieu d'un 403.
-
-**Solution** : Lancez le seed pour créer des missions de test.
-
-#### ❌ primaryRole NULL
-
-**Cause** : L'onboarding n'a pas défini le `primaryRole`
-
-**Solution** :
-1. Allez sur http://localhost:3000/profile
-2. Sélectionnez "Travailleur" comme rôle principal
-3. Sauvegardez
-
-Ou manuellement en DB :
-```sql
-UPDATE users SET "primaryRole" = 'WORKER' WHERE "clerkId" = 'user_YOUR_ID';
-```
-
-## 📝 Fichiers modifiés pour le mode DEV
-
-### Backend
-
-| Fichier | Changement | Raison |
-|---------|-----------|--------|
-| `src/common/utils/environment.util.ts` | Nouveau | Helpers pour détecter dev vs prod |
-| `src/missions/missions.service.ts` | Modifié | Règles assouplies en dev |
-| `prisma/seed.dev.ts` | Nouveau | Seed de développement |
-| `package.json` | `seed:dev` script | Lancer le seed facilement |
-
-### Logique ajoutée
-
-#### Helper `getWorkerOrNull()`
-
-```typescript
-// En DEV : retourne null si worker manquant (log warning)
-// En PROD : lance ForbiddenException si worker manquant
-
-private async getWorkerOrNull(userId: string): Promise<{ id: string } | null> {
-  const worker = await this.prisma.worker.findUnique({ where: { userId } });
-  
-  if (!worker && isDevEnvironment()) {
-    devWarn(`Worker profile not found for userId=${userId}`);
-    return null; // Tolérant en dev
-  } else if (!worker) {
-    throw new ForbiddenException('Accès réservé aux workers WorkOn'); // Strict en prod
-  }
-  
-  return worker;
-}
-```
-
-#### Endpoints modifiés
-
-- `GET /missions/available` → Retourne `[]` en dev si pas de worker
-- `GET /missions/worker/mine` → Retourne `[]` en dev si pas de worker
-- `GET /missions/feed` → Retourne `[]` en dev si pas de worker
-- `POST /missions/:id/reserve` → Exige un worker même en dev (besoin du `workerId`)
-
-## ✅ Checklist avant de commit
-
-Avant de pousser du code qui utilise le mode développement :
-
-- [ ] Les conditions `isDevEnvironment()` sont bien présentes
-- [ ] Le comportement en **production reste strict** (pas de sécurité affaiblie)
-- [ ] Les logs de debug utilisent `devWarn()` ou `devLog()` (pas de pollution en prod)
-- [ ] Les commentaires expliquent clairement le comportement dev vs prod
-- [ ] Le `seed.dev.ts` est documenté et facile à personnaliser
-
-## 🔒 Sécurité
-
-**IMPORTANT** : Ce mode développement **NE DOIT PAS** affaiblir la sécurité en production.
-
-### Garanties
-
-✅ En production (`NODE_ENV === 'production'`) :
-- Les guards `RolesGuard` et `JwtAuthGuard` restent actifs
-- Profil Worker **obligatoire** pour accéder aux missions
-- Erreurs 403 strictes si le profil est manquant
-- Pas de logs de debug qui révèlent des infos sensibles
-
-✅ La logique `isDevEnvironment()` ne peut pas être contournée :
-- Basée sur `process.env.NODE_ENV`
-- Variable d'environnement contrôlée par le déploiement
-- Pas de paramètre query ou header qui peut forcer le mode dev
-
-## 📚 Ressources
-
-- **Prisma Schema** : `prisma/schema.prisma`
-- **Seed principal** : `prisma/seed.ts` (si existant)
-- **Seed dev** : `prisma/seed.dev.ts`
-- **Guards** : `src/auth/guards/`
-- **Missions Service** : `src/missions/missions.service.ts`
+**⚠️ IMPORTANT :** Ce fichier NE doit JAMAIS être commité dans Git (il est déjà dans `.gitignore`).
 
 ---
 
-**Besoin d'aide ?** Vérifiez les logs du backend et du frontend. Les messages sont explicites en mode développement.
+## 🛠️ Setup initial
 
+### 1. Créer le fichier `.env`
+
+```bash
+cd backend
+copy env.example .env
+```
+
+Ou sur Linux/Mac:
+```bash
+cd backend
+cp env.example .env
+```
+
+### 2. Configurer les variables essentielles
+
+Ouvre `backend/.env` et modifie **au minimum**:
+
+```env
+# DATABASE - Remplace par tes identifiants PostgreSQL locaux
+DATABASE_URL="postgresql://postgres:TON_MOT_DE_PASSE@localhost:5433/workon?schema=public"
+
+# NODE_ENV - Laisse en development pour le local
+NODE_ENV="development"
+
+# JWT - Les valeurs par défaut sont OK pour le dev local
+JWT_SECRET="dev-jwt-secret-change-in-production-min-32-chars-2024-workon"
+JWT_REFRESH_SECRET="dev-refresh-secret-change-in-production-min-32-chars-2024-workon"
+```
+
+---
+
+## ▶️ Démarrer le backend
+
+### Commande de développement
+
+```bash
+cd backend
+npm run start:dev
+```
+
+### Vérification du démarrage
+
+Si tout fonctionne, tu verras:
+
+```
+🔧 Development environment detected - using default values for missing variables
+
+💡 INFO: JWT_SECRET not set. Using default dev value.
+💡 INFO: JWT_REFRESH_SECRET not set. Using default dev value.
+💡 INFO: CLERK_SECRET_KEY not set in development. Clerk auth features will be disabled.
+
+[Nest] LOG [NestFactory] Starting Nest application...
+[Nest] LOG Application is running on: http://localhost:3001
+💚 Health check available at: /healthz
+```
+
+---
+
+## 🔐 Variables d'environnement
+
+### Variables **REQUISES** (tous environnements)
+
+| Variable | Description | Exemple |
+|----------|-------------|---------|
+| `DATABASE_URL` | Connexion PostgreSQL | `postgresql://user:pass@localhost:5433/workon` |
+| `NODE_ENV` | Environnement d'exécution | `development` / `production` / `test` |
+
+### Variables **REQUISES EN PRODUCTION** uniquement
+
+| Variable | Description | Dev | Prod |
+|----------|-------------|-----|------|
+| `JWT_SECRET` | Clé JWT pour les tokens | Valeur par défaut | ❌ Obligatoire |
+| `JWT_REFRESH_SECRET` | Clé JWT refresh | Valeur par défaut | ❌ Obligatoire |
+| `CLERK_SECRET_KEY` | Clé API Clerk | ⚠️ Optionnelle | ❌ Obligatoire |
+
+### Variables **OPTIONNELLES**
+
+| Variable | Description | Valeur par défaut |
+|----------|-------------|-------------------|
+| `PORT` | Port du serveur | `3001` |
+| `API_PREFIX` | Préfixe des routes | `api/v1` |
+| `CORS_ORIGIN` | Domaines autorisés (CORS) | `http://localhost:3000` |
+| `STRIPE_SECRET_KEY` | Clé API Stripe | (vide = paiements désactivés) |
+| `SENTRY_DSN` | URL Sentry pour le tracking | (vide = désactivé) |
+| `LOG_LEVEL` | Niveau de log | `info` |
+
+---
+
+## 🔍 Résolution de problèmes
+
+### Erreur: "CLERK_SECRET_KEY should not be empty"
+
+**Cause :** Le fichier `backend/.env` n'existe pas ou `NODE_ENV` n'est pas défini.
+
+**Solution :**
+1. Vérifie que `backend/.env` existe
+2. Vérifie que `NODE_ENV="development"` est présent dans le fichier
+3. Relance `npm run start:dev`
+
+### Erreur: "DATABASE_URL should not be empty"
+
+**Cause :** `DATABASE_URL` manquante dans `backend/.env`.
+
+**Solution :**
+1. Ouvre `backend/.env`
+2. Ajoute `DATABASE_URL="postgresql://postgres:password@localhost:5433/workon"`
+3. Remplace les identifiants par les tiens
+4. Relance `npm run start:dev`
+
+### Le serveur ne démarre pas
+
+**Checklist :**
+- ✅ Le fichier `backend/.env` existe
+- ✅ `NODE_ENV="development"` est défini
+- ✅ `DATABASE_URL` est définie et correcte
+- ✅ PostgreSQL est démarré (`docker-compose up -d` ou service local)
+- ✅ La base de données `workon` existe
+- ✅ Prisma est synchronisé (`npm run prisma:generate`)
+
+---
+
+## 📚 Commandes utiles
+
+```bash
+# Démarrer le backend en mode watch (recharge auto)
+npm run start:dev
+
+# Build de production
+npm run build
+
+# Démarrer en mode production
+npm run start:prod
+
+# Générer le client Prisma
+npm run prisma:generate
+
+# Appliquer les migrations Prisma
+npm run prisma:migrate:dev
+
+# Ouvrir Prisma Studio (interface graphique DB)
+npm run prisma:studio
+
+# Lancer les tests
+npm run test
+
+# Lancer les tests E2E
+npm run test:e2e
+```
+
+---
+
+## 🎯 Accès aux services
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| **API Backend** | http://localhost:3001 | API REST NestJS |
+| **Swagger Docs** | http://localhost:3001/api/docs | Documentation API interactive |
+| **Health Check** | http://localhost:3001/healthz | Vérification de santé |
+| **Prisma Studio** | http://localhost:5555 | Interface graphique DB |
+
+---
+
+## 🔒 Sécurité
+
+- ✅ Ne **JAMAIS** commiter le fichier `.env` (déjà dans `.gitignore`)
+- ✅ Utiliser des valeurs différentes en production
+- ✅ Changer `JWT_SECRET` et `JWT_REFRESH_SECRET` en production
+- ✅ Garder les clés API (Stripe, Clerk, etc.) secrètes
+
+---
+
+## 📞 Support
+
+En cas de problème, consulte:
+- `backend/README.md` - Documentation générale
+- `backend/AUTH_API_GUIDE.md` - Guide d'authentification
+- `backend/MISSIONS_API_GUIDE.md` - Guide des missions
+- Les logs du terminal (`npm run start:dev`)

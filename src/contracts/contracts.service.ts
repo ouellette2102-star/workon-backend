@@ -1,7 +1,42 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { SignContractDto } from './dto/sign-contract.dto';
-import { randomBytes } from 'crypto';
+import { ContractStatus } from '@prisma/client';
+import { CreateContractDto } from './dto/create-contract.dto';
+import { UpdateContractStatusDto } from './dto/update-contract-status.dto';
+
+export interface ContractResponse {
+  id: string;
+  missionId: string;
+  employerId: string;
+  workerId: string;
+  status: ContractStatus;
+  amount: number;
+  hourlyRate: number | null;
+  startAt: string | null;
+  endAt: string | null;
+  signedByWorker: boolean;
+  signedByEmployer: boolean;
+  createdAt: string;
+  updatedAt: string;
+  mission?: {
+    id: string;
+    title: string;
+  };
+  employer?: {
+    id: string;
+    clerkId: string;
+  };
+  worker?: {
+    id: string;
+    clerkId: string;
+  };
+}
 
 @Injectable()
 export class ContractsService {
@@ -10,15 +45,19 @@ export class ContractsService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Créer ou obtenir un contrat pour une mission
+   * Créer un contrat pour une mission
    */
-  async getOrCreateContract(missionId: string) {
+  async createContract(
+    clerkUserId: string,
+    dto: CreateContractDto,
+  ): Promise<ContractResponse> {
     // Vérifier que la mission existe
     const mission = await this.prisma.mission.findUnique({
-      where: { id: missionId },
+      where: { id: dto.missionId },
       include: {
         authorClient: true,
         assigneeWorker: true,
+        contract: true,
       },
     });
 
@@ -26,177 +65,228 @@ export class ContractsService {
       throw new NotFoundException('Mission non trouvée');
     }
 
-    // Vérifier que la mission a un worker assigné
+    // Vérifier que l'utilisateur est l'employer de la mission
+    if (mission.authorClient.clerkId !== clerkUserId) {
+      throw new ForbiddenException('Seul l\'employer peut créer un contrat');
+    }
+
+    // Vérifier qu'un worker est assigné
     if (!mission.assigneeWorker) {
-      throw new BadRequestException('La mission doit avoir un worker assigné pour créer un contrat');
+      throw new BadRequestException('La mission doit avoir un worker assigné');
     }
 
-    // Vérifier que la mission est en cours ou complétée
-    if (mission.status !== 'IN_PROGRESS' && mission.status !== 'COMPLETED') {
-      throw new BadRequestException('Le contrat ne peut être créé que pour une mission en cours ou complétée');
+    // Vérifier qu'un contrat n'existe pas déjà
+    if (mission.contract) {
+      throw new BadRequestException('Un contrat existe déjà pour cette mission');
     }
 
-    // Vérifier si un contrat existe déjà
-    let contract = mission.contracts[0];
+    // Créer le contrat
+    const contract = await this.prisma.contract.create({
+      data: {
+        id: `contract_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        missionId: mission.id,
+        employerId: mission.authorClientId,
+        workerId: mission.assigneeWorkerId!,
+        amount: dto.amount,
+        hourlyRate: dto.hourlyRate,
+        startAt: dto.startAt ? new Date(dto.startAt) : null,
+        endAt: dto.endAt ? new Date(dto.endAt) : null,
+        status: ContractStatus.DRAFT,
+      },
+      include: {
+        mission: { select: { id: true, title: true } },
+        employer: { select: { id: true, clerkId: true } },
+        worker: { select: { id: true, clerkId: true } },
+      },
+    });
 
-    if (!contract) {
-      // Générer un nonce unique pour la signature
-      const signatureNonce = this.generateNonce();
+    this.logger.log(`Contract created: ${contract.id} for mission ${dto.missionId}`);
 
-      contract = await this.prisma.contract.create({
-        data: {
-          missionId: mission.id,
-          signatureNonce,
-          signedByWorker: false,
-          signedByEmployer: false,
-          // Placeholder pour l'URL du contrat (à générer via service de stockage)
-          contractUrl: null,
-        },
-      });
-
-      this.logger.log(`Contrat créé: ${contract.id} pour mission ${missionId}`);
-    }
-
-    return contract;
+    return this.mapToResponse(contract);
   }
 
   /**
-   * Signer un contrat (worker ou employer)
+   * Récupérer un contrat par ID
    */
-  async signContract(userId: string, userRole: string, missionId: string, signContractDto: SignContractDto) {
-    const { signatureNonce } = signContractDto;
-
-    // Vérifier que la mission existe
-    const mission = await this.prisma.mission.findUnique({
-      where: { id: missionId },
+  async getContractById(
+    clerkUserId: string,
+    contractId: string,
+  ): Promise<ContractResponse> {
+    const contract = await this.prisma.contract.findUnique({
+      where: { id: contractId },
       include: {
-        employer: true,
-        worker: true,
-        contracts: true,
+        mission: { select: { id: true, title: true } },
+        employer: { select: { id: true, clerkId: true } },
+        worker: { select: { id: true, clerkId: true } },
       },
     });
 
-    if (!mission) {
-      throw new NotFoundException('Mission non trouvée');
-    }
-
-    // Vérifier que le contrat existe
-    const contract = mission.contracts[0];
     if (!contract) {
-      throw new NotFoundException('Contrat non trouvé pour cette mission');
+      throw new NotFoundException('Contrat non trouvé');
     }
 
-    // Vérifier le nonce (pour éviter les signatures dupliquées)
-    if (contract.signatureNonce !== signatureNonce) {
-      throw new BadRequestException('Nonce de signature invalide');
+    // Vérifier l'accès
+    if (
+      contract.employer.clerkId !== clerkUserId &&
+      contract.worker.clerkId !== clerkUserId
+    ) {
+      throw new ForbiddenException('Accès non autorisé à ce contrat');
     }
 
-    // Vérifier les permissions
-    if (userRole === 'WORKER') {
-      if (mission.worker?.userId !== userId) {
-        throw new ForbiddenException('Vous ne pouvez pas signer ce contrat');
-      }
-      if (contract.signedByWorker) {
-        throw new BadRequestException('Contrat déjà signé par le worker');
-      }
-    } else if (userRole === 'EMPLOYER') {
-      if (mission.employer.userId !== userId) {
-        throw new ForbiddenException('Vous ne pouvez pas signer ce contrat');
-      }
-      if (contract.signedByEmployer) {
-        throw new BadRequestException('Contrat déjà signé par l\'employer');
-      }
-    } else {
-      throw new ForbiddenException('Seuls les workers et employers peuvent signer un contrat');
+    return this.mapToResponse(contract);
+  }
+
+  /**
+   * Récupérer les contrats d'un utilisateur
+   */
+  async getContractsForUser(clerkUserId: string): Promise<ContractResponse[]> {
+    const user = await this.prisma.user.findUnique({
+      where: { clerkId: clerkUserId },
+      select: { id: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Utilisateur non trouvé');
     }
 
-    // Mettre à jour la signature
-    const updateData: any = {};
-    if (userRole === 'WORKER') {
+    const contracts = await this.prisma.contract.findMany({
+      where: {
+        OR: [
+          { employerId: user.id },
+          { workerId: user.id },
+        ],
+      },
+      include: {
+        mission: { select: { id: true, title: true } },
+        employer: { select: { id: true, clerkId: true } },
+        worker: { select: { id: true, clerkId: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return contracts.map((c) => this.mapToResponse(c));
+  }
+
+  /**
+   * Mettre à jour le statut d'un contrat
+   */
+  async updateContractStatus(
+    clerkUserId: string,
+    contractId: string,
+    dto: UpdateContractStatusDto,
+  ): Promise<ContractResponse> {
+    const contract = await this.prisma.contract.findUnique({
+      where: { id: contractId },
+      include: {
+        employer: { select: { id: true, clerkId: true } },
+        worker: { select: { id: true, clerkId: true } },
+      },
+    });
+
+    if (!contract) {
+      throw new NotFoundException('Contrat non trouvé');
+    }
+
+    const isEmployer = contract.employer.clerkId === clerkUserId;
+    const isWorker = contract.worker.clerkId === clerkUserId;
+
+    if (!isEmployer && !isWorker) {
+      throw new ForbiddenException('Accès non autorisé');
+    }
+
+    // Valider les transitions de statut
+    this.validateStatusTransition(contract.status, dto.status, isEmployer, isWorker);
+
+    // Mettre à jour
+    const updateData: any = { status: dto.status };
+
+    // Si le worker accepte, marquer comme signé par le worker
+    if (dto.status === ContractStatus.ACCEPTED && isWorker) {
       updateData.signedByWorker = true;
-    } else if (userRole === 'EMPLOYER') {
+    }
+
+    // Si l'employer envoie le contrat, marquer comme signé par l'employer
+    if (dto.status === ContractStatus.PENDING && isEmployer) {
       updateData.signedByEmployer = true;
     }
 
-    // Générer un nouveau nonce après signature (pour éviter la réutilisation)
-    updateData.signatureNonce = this.generateNonce();
-
     const updatedContract = await this.prisma.contract.update({
-      where: { id: contract.id },
+      where: { id: contractId },
       data: updateData,
       include: {
-        mission: {
-          include: {
-            employer: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    name: true,
-                  },
-                },
-              },
-            },
-            worker: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    name: true,
-                  },
-                },
-              },
-            },
-          },
-        },
+        mission: { select: { id: true, title: true } },
+        employer: { select: { id: true, clerkId: true } },
+        worker: { select: { id: true, clerkId: true } },
       },
     });
 
-    this.logger.log(`Contrat signé par ${userRole}: ${contract.id} pour mission ${missionId}`);
+    this.logger.log(`Contract ${contractId} status updated to ${dto.status}`);
 
-    // Vérifier si le contrat est complètement signé
-    if (updatedContract.signedByWorker && updatedContract.signedByEmployer) {
-      this.logger.log(`Contrat complètement signé: ${contract.id}`);
-      // Placeholder: Notifier les parties, générer le PDF final, etc.
-    }
-
-    return updatedContract;
+    return this.mapToResponse(updatedContract);
   }
 
   /**
-   * Obtenir le statut d'un contrat
+   * Valider les transitions de statut
    */
-  async getContractStatus(missionId: string) {
-    const mission = await this.prisma.mission.findUnique({
-      where: { id: missionId },
-      include: {
-        contracts: true,
-      },
-    });
+  private validateStatusTransition(
+    currentStatus: ContractStatus,
+    newStatus: ContractStatus,
+    isEmployer: boolean,
+    isWorker: boolean,
+  ): void {
+    const validTransitions: Record<ContractStatus, ContractStatus[]> = {
+      [ContractStatus.DRAFT]: [ContractStatus.PENDING, ContractStatus.CANCELLED],
+      [ContractStatus.PENDING]: [ContractStatus.ACCEPTED, ContractStatus.REJECTED, ContractStatus.CANCELLED],
+      [ContractStatus.ACCEPTED]: [ContractStatus.COMPLETED, ContractStatus.CANCELLED],
+      [ContractStatus.REJECTED]: [],
+      [ContractStatus.COMPLETED]: [],
+      [ContractStatus.CANCELLED]: [],
+    };
 
-    if (!mission) {
-      throw new NotFoundException('Mission non trouvée');
+    if (!validTransitions[currentStatus]?.includes(newStatus)) {
+      throw new BadRequestException(
+        `Transition de ${currentStatus} vers ${newStatus} non autorisée`,
+      );
     }
 
-    const contract = mission.contracts[0];
-    if (!contract) {
-      return { exists: false };
+    // Règles spécifiques
+    if (newStatus === ContractStatus.PENDING && !isEmployer) {
+      throw new ForbiddenException('Seul l\'employer peut envoyer le contrat');
     }
 
+    if (
+      (newStatus === ContractStatus.ACCEPTED || newStatus === ContractStatus.REJECTED) &&
+      !isWorker
+    ) {
+      throw new ForbiddenException('Seul le worker peut accepter/refuser le contrat');
+    }
+
+    if (newStatus === ContractStatus.COMPLETED && !isEmployer) {
+      throw new ForbiddenException('Seul l\'employer peut marquer le contrat comme complété');
+    }
+  }
+
+  /**
+   * Mapper vers la réponse
+   */
+  private mapToResponse(contract: any): ContractResponse {
     return {
-      exists: true,
+      id: contract.id,
+      missionId: contract.missionId,
+      employerId: contract.employerId,
+      workerId: contract.workerId,
+      status: contract.status,
+      amount: contract.amount,
+      hourlyRate: contract.hourlyRate,
+      startAt: contract.startAt?.toISOString() || null,
+      endAt: contract.endAt?.toISOString() || null,
       signedByWorker: contract.signedByWorker,
       signedByEmployer: contract.signedByEmployer,
-      fullySigned: contract.signedByWorker && contract.signedByEmployer,
-      contractUrl: contract.contractUrl,
+      createdAt: contract.createdAt.toISOString(),
+      updatedAt: contract.updatedAt.toISOString(),
+      mission: contract.mission,
+      employer: contract.employer,
+      worker: contract.worker,
     };
   }
-
-  /**
-   * Générer un nonce unique pour la signature
-   */
-  private generateNonce(): string {
-    return randomBytes(32).toString('hex');
-  }
 }
-

@@ -9,11 +9,11 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { MissionsModule } from './missions/missions.module';
 import { PaymentsModule } from './payments/payments.module';
-// import { ContractsModule } from './contracts/contracts.module';
+import { ContractsModule } from './contracts/contracts.module';
 import { AdminModule } from './admin/admin.module';
 import { LoggerModule } from './logger/logger.module';
 import { ProfileModule } from './profile/profile.module';
-import { MessagesModule } from './messages';
+import { MessagesModule } from './messages/messages.module';
 import { NotificationsModule } from './notifications/notifications.module';
 // import { MissionTimeLogsModule } from './mission-time-logs/mission-time-logs.module';
 // import { MissionPhotosModule } from './mission-photos/mission-photos.module';
@@ -29,10 +29,11 @@ import { PaymentsLocalModule } from './payments-local/payments-local.module';
   imports: [
     // Configuration globale avec validation stricte des ENV
     // ⚠️ SÉCURITÉ: Valide les variables requises au démarrage
+    // Charge .env.local en priorité, puis .env (relatif au dossier backend/)
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
-      validate, // Valide DATABASE_URL, CLERK_SECRET_KEY, NODE_ENV, etc.
+      validate, // Valide DATABASE_URL, NODE_ENV (+ JWT_SECRET, CLERK_SECRET_KEY en prod)
     }),
 
     // Rate limiting - Protection contre les abus et attaques par force brute
@@ -109,13 +110,13 @@ import { PaymentsLocalModule } from './payments-local/payments-local.module';
     NotificationsModule,
     // Missions module (re-enabled and fixed for current Prisma schema)
     MissionsModule,
-    // Messages module (re-enabled with minimal implementation)
+    // Messages module (chat between worker and employer)
     MessagesModule,
+    // Contracts module (mission contracts)
+    ContractsModule,
     // Payments & Stripe modules (re-enabled with minimal MVP implementation)
     PaymentsModule,
     StripeModule,
-    // Old modules (temporarily disabled for Prisma alignment)
-    // ContractsModule,
     AdminModule,
     ProfileModule,
     // MissionTimeLogsModule,

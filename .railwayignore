@@ -1,0 +1,18 @@
+# Railway ignore file
+# Ensures critical files are included in deployment
+
+# DO NOT IGNORE these directories (they are needed for migrations)
+# !prisma/
+# !prisma/migrations/
+
+# Ignore only these files/folders
+node_modules/
+.git/
+.env
+.env.local
+*.log
+dist/
+coverage/
+.vscode/
+.idea/
+

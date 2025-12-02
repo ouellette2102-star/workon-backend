@@ -197,4 +197,72 @@ export class MessagesService {
       createdAt: message.createdAt.toISOString(),
     };
   }
+
+  /**
+   * Marquer les messages comme lus pour un utilisateur
+   */
+  async markAsRead(
+    missionId: string,
+    clerkUserId: string,
+  ): Promise<{ count: number }> {
+    const { canAccess, senderRole } = await this.checkMissionAccess(
+      missionId,
+      clerkUserId,
+    );
+
+    if (!canAccess) {
+      throw new ForbiddenException(
+        "Vous n'avez pas accès aux messages de cette mission",
+      );
+    }
+
+    // Marquer comme lus les messages envoyés par l'AUTRE partie
+    const oppositeRole = senderRole === MessageSenderRole.EMPLOYER 
+      ? MessageSenderRole.WORKER 
+      : MessageSenderRole.EMPLOYER;
+
+    const result = await this.prisma.message.updateMany({
+      where: {
+        missionId,
+        senderRole: oppositeRole,
+        status: { not: 'READ' },
+      },
+      data: {
+        status: 'READ',
+      },
+    });
+
+    return { count: result.count };
+  }
+
+  /**
+   * Compter les messages non lus pour un utilisateur
+   */
+  async getUnreadCount(clerkUserId: string): Promise<{ count: number }> {
+    // Trouver l'utilisateur
+    const user = await this.prisma.user.findUnique({
+      where: { clerkId: clerkUserId },
+      select: { id: true },
+    });
+
+    if (!user) {
+      return { count: 0 };
+    }
+
+    // Compter les messages non lus dans les missions où l'user est impliqué
+    const count = await this.prisma.message.count({
+      where: {
+        status: { not: 'READ' },
+        senderId: { not: clerkUserId },
+        mission: {
+          OR: [
+            { authorClient: { clerkId: clerkUserId } },
+            { assigneeWorker: { clerkId: clerkUserId } },
+          ],
+        },
+      },
+    });
+
+    return { count };
+  }
 }
