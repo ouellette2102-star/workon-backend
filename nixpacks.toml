@@ -1,4 +1,5 @@
 # Railway build configuration for NestJS backend
+# WorkOn API - Uber-grade backend
 
 [phases.setup]
 nixPkgs = ["nodejs_20", "python3"]
@@ -10,10 +11,12 @@ cmds = [
 ]
 
 [phases.build]
-cmds = ["npm run build"]
+cmds = [
+  "npm run build",
+  "npx prisma migrate deploy || npx prisma db push --accept-data-loss"
+]
 
 [start]
-# Force Prisma schema sync to Railway PostgreSQL
-# db push creates tables even if migrations history is missing
-cmd = "npx prisma db push --accept-data-loss --skip-generate && npm run start:prod"
+# Start the NestJS application (migrations already applied in build phase)
+cmd = "node dist/main.js"
 
