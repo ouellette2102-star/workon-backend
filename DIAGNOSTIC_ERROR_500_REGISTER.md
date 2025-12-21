@@ -417,3 +417,5 @@ updatedAt DateTime @updatedAt
 
 **⚠️ Attendre confirmation via logs avant d'appliquer!**
 
+
+
