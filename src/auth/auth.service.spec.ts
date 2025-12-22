@@ -3,8 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { UnauthorizedException, ConflictException } from '@nestjs/common';
-import * as bcrypt from 'bcryptjs';
+import { NotImplementedException } from '@nestjs/common';
 
 // Mock Prisma
 const mockPrismaService = {
@@ -61,7 +60,12 @@ describe('AuthService', () => {
   });
 
   describe('signup', () => {
-    it('devrait créer un nouvel utilisateur', async () => {
+    /**
+     * AuthService.signup() est DÉLIBÉRÉMENT deprecated.
+     * Il lance NotImplementedException car l'authentification
+     * doit passer par LocalAuthService ou Clerk.
+     */
+    it('devrait lancer NotImplementedException (méthode deprecated)', async () => {
       const signupDto = {
         email: 'test@example.com',
         password: 'password123',
@@ -69,82 +73,29 @@ describe('AuthService', () => {
         role: 'WORKER' as const,
       };
 
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
-      mockPrismaService.user.create.mockResolvedValue({
-        id: 'user-1',
-        email: signupDto.email,
-        name: signupDto.name,
-        role: signupDto.role,
-        createdAt: new Date(),
-      });
-      mockPrismaService.worker.create.mockResolvedValue({
-        id: 'worker-1',
-        userId: 'user-1',
-      });
-      mockJwtService.signAsync.mockResolvedValue('token');
-
-      const result = await service.signup(signupDto);
-
-      expect(result).toHaveProperty('user');
-      expect(result).toHaveProperty('accessToken');
-      expect(result).toHaveProperty('refreshToken');
-      expect(mockPrismaService.user.create).toHaveBeenCalled();
-    });
-
-    it('devrait échouer si l\'email existe déjà', async () => {
-      const signupDto = {
-        email: 'existing@example.com',
-        password: 'password123',
-        name: 'Test User',
-        role: 'WORKER' as const,
-      };
-
-      mockPrismaService.user.findUnique.mockResolvedValue({
-        id: 'existing-user',
-        email: signupDto.email,
-      });
-
-      await expect(service.signup(signupDto)).rejects.toThrow(ConflictException);
+      await expect(service.signup(signupDto)).rejects.toThrow(NotImplementedException);
+      await expect(service.signup(signupDto)).rejects.toThrow(
+        'AuthService.register() is deprecated',
+      );
     });
   });
 
   describe('login', () => {
-    it('devrait connecter un utilisateur avec des identifiants valides', async () => {
+    /**
+     * AuthService.login() est DÉLIBÉRÉMENT deprecated.
+     * Il lance NotImplementedException car l'authentification
+     * doit passer par LocalAuthService ou Clerk.
+     */
+    it('devrait lancer NotImplementedException (méthode deprecated)', async () => {
       const loginDto = {
         email: 'test@example.com',
         password: 'password123',
       };
 
-      const hashedPassword = await bcrypt.hash(loginDto.password, 10);
-
-      mockPrismaService.user.findUnique.mockResolvedValue({
-        id: 'user-1',
-        email: loginDto.email,
-        name: 'Test User',
-        role: 'WORKER',
-        active: true,
-        profile: {
-          passwordHash: hashedPassword,
-        },
-      });
-      mockJwtService.signAsync.mockResolvedValue('token');
-
-      const result = await service.login(loginDto);
-
-      expect(result).toHaveProperty('user');
-      expect(result).toHaveProperty('accessToken');
-      expect(result).toHaveProperty('refreshToken');
-    });
-
-    it('devrait échouer avec des identifiants invalides', async () => {
-      const loginDto = {
-        email: 'test@example.com',
-        password: 'wrongpassword',
-      };
-
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
-
-      await expect(service.login(loginDto)).rejects.toThrow(UnauthorizedException);
+      await expect(service.login(loginDto)).rejects.toThrow(NotImplementedException);
+      await expect(service.login(loginDto)).rejects.toThrow(
+        'AuthService.login() is deprecated',
+      );
     });
   });
 });
