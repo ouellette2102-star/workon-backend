@@ -136,22 +136,6 @@ model LocalUser {
   @@map("local_users")
 }
 
-model Match {
-  id            String        @id
-  missionId     String
-  workerId      String
-  score         Float
-  featuresJSON  Json?
-  createdAt     DateTime      @default(now())
-  mission       Mission       @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  workerProfile WorkerProfile @relation(fields: [workerId], references: [id], onDelete: Cascade)
-
-  @@index([missionId])
-  @@index([score])
-  @@index([workerId])
-  @@map("matches")
-}
-
 model Mission {
   id               String         @id
   authorClientId   String
@@ -175,7 +159,6 @@ model Mission {
   deletedAt        DateTime?
   workerProfileId  String?
   dispute          Dispute?
-  matches          Match[]
   assigneeWorker   User?          @relation("missions_assigneeWorkerIdTousers", fields: [assigneeWorkerId], references: [id])
   authorClient     User           @relation("missions_authorClientIdTousers", fields: [authorClientId], references: [id], onDelete: Cascade)
   category         Category       @relation(fields: [categoryId], references: [id])
@@ -248,35 +231,6 @@ model Payment {
   @@map("payments")
 }
 
-model PostLike {
-  id        String   @id
-  postId    String
-  userId    String
-  createdAt DateTime @default(now())
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([postId, userId])
-  @@index([userId])
-  @@map("post_likes")
-}
-
-model Post {
-  id              String        @id
-  workerProfileId String
-  title           String?
-  description     String
-  mediaUrl        String
-  likeCount       Int           @default(0)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime
-  likes           PostLike[]
-  workerProfile   WorkerProfile @relation(fields: [workerProfileId], references: [id], onDelete: Cascade)
-
-  @@index([workerProfileId])
-  @@map("posts")
-}
-
 model Review {
   id           String           @id
   authorId     String
@@ -295,19 +249,6 @@ model Review {
   @@index([moderation])
   @@index([targetUserId])
   @@map("reviews")
-}
-
-model ScheduleSlot {
-  id            String        @id
-  workerId      String
-  startAt       DateTime
-  endAt         DateTime
-  available     Boolean       @default(true)
-  createdAt     DateTime      @default(now())
-  workerProfile WorkerProfile @relation(fields: [workerId], references: [id], onDelete: Cascade)
-
-  @@index([workerId, startAt, endAt])
-  @@map("schedule_slots")
 }
 
 model Skill {
@@ -368,7 +309,6 @@ model User {
   assignedMissions    Mission[]            @relation("missions_assigneeWorkerIdTousers")
   authoredMissions    Mission[]            @relation("missions_authorClientIdTousers")
   notifications       Notification[]
-  postLikes           PostLike[]
   authoredReviews     Review[]             @relation("reviews_authorIdTousers")
   receivedReviews     Review[]             @relation("reviews_targetUserIdTousers")
   subscriptions       Subscription[]
@@ -393,11 +333,8 @@ model WorkerProfile {
   totalEarnings      Float          @default(0)
   createdAt          DateTime       @default(now())
   updatedAt          DateTime
-  matches            Match[]
   missions           Mission[]
   offers             Offer[]
-  posts              Post[]
-  scheduleSlots      ScheduleSlot[]
   user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   workerSkills       WorkerSkill[]
 
