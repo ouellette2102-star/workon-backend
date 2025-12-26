@@ -1,0 +1,287 @@
+{
+  "meta": {
+    "generated_at": "2024-12-24T00:00:00Z",
+    "version": "1.0.0",
+    "backend_framework": "NestJS 10.2.7",
+    "database": "PostgreSQL + Prisma 6.0.0"
+  },
+  "routes": [
+    {"method": "GET", "path": "/api/v1", "file": "src/app.controller.ts", "auth": "none", "input": "none", "output": "{message, version}"},
+    {"method": "GET", "path": "/healthz", "file": "src/main.ts", "auth": "none", "input": "none", "output": "{status, timestamp}"},
+    {"method": "GET", "path": "/api/v1/health", "file": "src/health/health.controller.ts", "auth": "none", "input": "none", "output": "{status, timestamp, env, uptime}"},
+    {"method": "GET", "path": "/metrics", "file": "src/main.ts", "auth": "none", "input": "none", "output": "{message: placeholder}"},
+    
+    {"method": "POST", "path": "/api/v1/auth/register", "file": "src/auth/auth.controller.ts", "auth": "none", "input": "RegisterDto(email, password, firstName, lastName, phone?, city?, role)", "output": "AuthResponseDto(accessToken, user)"},
+    {"method": "POST", "path": "/api/v1/auth/login", "file": "src/auth/auth.controller.ts", "auth": "none", "input": "LoginDto(email, password)", "output": "AuthResponseDto(accessToken, user)"},
+    {"method": "GET", "path": "/api/v1/auth/me", "file": "src/auth/auth.controller.ts", "auth": "JWT", "input": "none", "output": "UserResponseDto"},
+    
+    {"method": "GET", "path": "/api/v1/users/me", "file": "src/users/users.controller.ts", "auth": "JWT", "input": "none", "output": "UserResponseDto"},
+    {"method": "PATCH", "path": "/api/v1/users/me", "file": "src/users/users.controller.ts", "auth": "JWT", "input": "UpdateUserProfileDto", "output": "UserResponseDto"},
+    {"method": "GET", "path": "/api/v1/users/:id", "file": "src/users/users.controller.ts", "auth": "JWT", "input": "id (param)", "output": "UserResponseDto"},
+    
+    {"method": "GET", "path": "/api/v1/profile/me", "file": "src/profile/profile.controller.ts", "auth": "JWT", "input": "none", "output": "ProfileResponseDto"},
+    {"method": "PATCH", "path": "/api/v1/profile/me", "file": "src/profile/profile.controller.ts", "auth": "JWT", "input": "UpdateProfileDto", "output": "ProfileResponseDto"},
+    
+    {"method": "POST", "path": "/api/v1/missions", "file": "src/missions-local/missions-local.controller.ts", "auth": "JWT", "input": "CreateMissionDto(title, description, category, price, lat, lng, city, address?)", "output": "MissionResponseDto"},
+    {"method": "GET", "path": "/api/v1/missions/nearby", "file": "src/missions-local/missions-local.controller.ts", "auth": "JWT", "input": "NearbyMissionsQueryDto(latitude, longitude, radiusKm?)", "output": "[MissionResponseDto]"},
+    {"method": "GET", "path": "/api/v1/missions/my-missions", "file": "src/missions-local/missions-local.controller.ts", "auth": "JWT", "input": "none", "output": "[MissionResponseDto]"},
+    {"method": "GET", "path": "/api/v1/missions/my-assignments", "file": "src/missions-local/missions-local.controller.ts", "auth": "JWT", "input": "none", "output": "[MissionResponseDto]"},
+    {"method": "GET", "path": "/api/v1/missions/:id", "file": "src/missions-local/missions-local.controller.ts", "auth": "JWT", "input": "id (param)", "output": "MissionResponseDto"},
+    {"method": "POST", "path": "/api/v1/missions/:id/accept", "file": "src/missions-local/missions-local.controller.ts", "auth": "JWT", "input": "id (param)", "output": "MissionResponseDto"},
+    {"method": "POST", "path": "/api/v1/missions/:id/complete", "file": "src/missions-local/missions-local.controller.ts", "auth": "JWT", "input": "id (param)", "output": "MissionResponseDto"},
+    {"method": "POST", "path": "/api/v1/missions/:id/cancel", "file": "src/missions-local/missions-local.controller.ts", "auth": "JWT", "input": "id (param)", "output": "MissionResponseDto"},
+    
+    {"method": "POST", "path": "/api/v1/missions (legacy)", "file": "src/missions/missions.controller.ts", "auth": "JWT+EMPLOYER", "input": "CreateMissionDto", "output": "Mission"},
+    {"method": "GET", "path": "/api/v1/missions/mine (legacy)", "file": "src/missions/missions.controller.ts", "auth": "JWT+EMPLOYER", "input": "none", "output": "[Mission]"},
+    {"method": "GET", "path": "/api/v1/missions/worker/mine (legacy)", "file": "src/missions/missions.controller.ts", "auth": "JWT+WORKER", "input": "none", "output": "[Mission]"},
+    {"method": "GET", "path": "/api/v1/missions/available (legacy)", "file": "src/missions/missions.controller.ts", "auth": "JWT+WORKER", "input": "ListAvailableMissionsDto", "output": "[Mission]"},
+    {"method": "GET", "path": "/api/v1/missions/feed (legacy)", "file": "src/missions/missions.controller.ts", "auth": "JWT+WORKER", "input": "MissionFeedFiltersDto", "output": "[Mission]"},
+    {"method": "POST", "path": "/api/v1/missions/:id/reserve (legacy)", "file": "src/missions/missions.controller.ts", "auth": "JWT+WORKER", "input": "id (param)", "output": "Mission"},
+    {"method": "PATCH", "path": "/api/v1/missions/:id/status (legacy)", "file": "src/missions/missions.controller.ts", "auth": "JWT+EMPLOYER", "input": "UpdateMissionStatusDto", "output": "Mission"},
+    
+    {"method": "POST", "path": "/api/v1/contracts", "file": "src/contracts/contracts.controller.ts", "auth": "JWT", "input": "CreateContractDto(missionId, amount, hourlyRate?, startAt?, endAt?)", "output": "ContractResponse"},
+    {"method": "GET", "path": "/api/v1/contracts/user/me", "file": "src/contracts/contracts.controller.ts", "auth": "JWT", "input": "none", "output": "[ContractResponse]"},
+    {"method": "GET", "path": "/api/v1/contracts/:id", "file": "src/contracts/contracts.controller.ts", "auth": "JWT", "input": "id (param)", "output": "ContractResponse"},
+    {"method": "PATCH", "path": "/api/v1/contracts/:id/status", "file": "src/contracts/contracts.controller.ts", "auth": "JWT", "input": "UpdateContractStatusDto(status)", "output": "ContractResponse"},
+    
+    {"method": "GET", "path": "/api/v1/messages/thread/:missionId", "file": "src/messages/messages.controller.ts", "auth": "JWT", "input": "missionId (param)", "output": "[MessageResponse]"},
+    {"method": "POST", "path": "/api/v1/messages", "file": "src/messages/messages.controller.ts", "auth": "JWT", "input": "CreateMessageDto(missionId, content)", "output": "MessageResponse"},
+    {"method": "PATCH", "path": "/api/v1/messages/read/:missionId", "file": "src/messages/messages.controller.ts", "auth": "JWT", "input": "missionId (param)", "output": "{count}"},
+    {"method": "GET", "path": "/api/v1/messages/unread-count", "file": "src/messages/messages.controller.ts", "auth": "JWT", "input": "none", "output": "{count}"},
+    
+    {"method": "GET", "path": "/api/v1/notifications", "file": "src/notifications/notifications.controller.ts", "auth": "JWT", "input": "unreadOnly? (query)", "output": "[NotificationResponse]"},
+    {"method": "GET", "path": "/api/v1/notifications/unread-count", "file": "src/notifications/notifications.controller.ts", "auth": "JWT", "input": "none", "output": "{count}"},
+    {"method": "PATCH", "path": "/api/v1/notifications/:id/read", "file": "src/notifications/notifications.controller.ts", "auth": "JWT", "input": "id (param)", "output": "{success}"},
+    {"method": "PATCH", "path": "/api/v1/notifications/read-all", "file": "src/notifications/notifications.controller.ts", "auth": "JWT", "input": "none", "output": "{success}"},
+    
+    {"method": "POST", "path": "/api/v1/payments/intent", "file": "src/payments-local/payments-local.controller.ts", "auth": "JWT", "input": "CreatePaymentIntentDto(missionId)", "output": "PaymentIntentResponseDto"},
+    {"method": "POST", "path": "/api/v1/payments/webhook", "file": "src/payments-local/payments-local.controller.ts", "auth": "Stripe-Signature", "input": "rawBody + signature header", "output": "{received}"},
+    {"method": "POST", "path": "/api/v1/payments/create-intent", "file": "src/stripe/stripe.controller.ts", "auth": "JWT+EMPLOYER|RESIDENTIAL", "input": "CreatePaymentIntentDto(missionId, amount)", "output": "PaymentIntent"},
+    {"method": "GET", "path": "/api/v1/payments/connect/onboarding", "file": "src/stripe/stripe.controller.ts", "auth": "JWT+WORKER", "input": "none", "output": "{url}"},
+    {"method": "GET", "path": "/api/v1/payments/connect/status", "file": "src/stripe/stripe.controller.ts", "auth": "JWT+WORKER", "input": "none", "output": "OnboardingStatus"},
+    {"method": "GET", "path": "/api/v1/payments/worker/history", "file": "src/stripe/stripe.controller.ts", "auth": "JWT+WORKER", "input": "none", "output": "[Payment]"},
+    {"method": "POST", "path": "/api/v1/payments/webhook (Stripe)", "file": "src/stripe/stripe.controller.ts", "auth": "Stripe-Signature", "input": "rawBody + signature header", "output": "{received}"},
+    
+    {"method": "GET", "path": "/api/v1/metrics/ratio", "file": "src/metrics/metrics.controller.ts", "auth": "none", "input": "region? (query)", "output": "RatioResponseDto"},
+    {"method": "GET", "path": "/api/v1/metrics/regions", "file": "src/metrics/metrics.controller.ts", "auth": "none", "input": "none", "output": "[string]"},
+    
+    {"method": "POST", "path": "/api/v1/admin/reconcile-payments", "file": "src/admin/admin.controller.ts", "auth": "JWT+ADMIN", "input": "none", "output": "ReconcileResult"}
+  ],
+  "swagger": {
+    "documented_tags": ["auth", "users", "health", "missions", "payments", "contracts", "messages", "metrics"],
+    "missing_in_swagger": [
+      "/api/v1/notifications (all endpoints) - missing @ApiTags",
+      "/api/v1/profile/me - missing Swagger decorators",
+      "Some legacy mission endpoints missing full documentation"
+    ],
+    "missing_in_code": []
+  },
+  "modules": {
+    "auth": {
+      "status": "OK",
+      "files": ["auth.controller.ts", "auth.module.ts", "local-auth.service.ts", "clerk-auth.service.ts"],
+      "guards": ["jwt-auth.guard.ts", "roles.guard.ts"],
+      "strategies": ["jwt-local.strategy.ts", "jwt.strategy.ts", "local.strategy.ts", "jwt-refresh.strategy.ts"],
+      "notes": "Local auth fully functional. Clerk auth present but disabled. Password hashed with bcrypt (12 rounds)."
+    },
+    "users": {
+      "status": "OK",
+      "files": ["users.controller.ts", "users.module.ts", "users.service.ts", "users.repository.ts"],
+      "notes": "CRUD operations, profile update, email uniqueness check."
+    },
+    "missions": {
+      "status": "OK",
+      "files": ["missions-local.controller.ts", "missions-local.module.ts", "missions-local.service.ts", "missions-local.repository.ts"],
+      "notes": "MVP implementation with LocalMission model. Legacy Mission model also present but uses Clerk IDs."
+    },
+    "contracts": {
+      "status": "OK",
+      "files": ["contracts.controller.ts", "contracts.module.ts", "contracts.service.ts"],
+      "notes": "Contract lifecycle management with status transitions validation."
+    },
+    "messages": {
+      "status": "OK",
+      "files": ["messages.controller.ts", "messages.module.ts", "messages.service.ts"],
+      "notes": "Mission-scoped chat between worker and employer. Creates notifications."
+    },
+    "notifications": {
+      "status": "OK",
+      "files": ["notifications.controller.ts", "notifications.module.ts", "notifications.service.ts"],
+      "notes": "In-app notifications. Missing Swagger documentation."
+    },
+    "payments": {
+      "status": "PARTIAL",
+      "files": ["payments-local.controller.ts", "payments-local.service.ts", "stripe.controller.ts", "stripe.service.ts"],
+      "notes": "Stripe integration present. PaymentIntent creation works. Webhook handling incomplete (TODOs in code). Stripe Connect onboarding implemented."
+    },
+    "ratings": {
+      "status": "NOT_IMPLEMENTED",
+      "files": ["src/ratings/ - directory exists but no controller"],
+      "notes": "Prisma model LocalRating exists but no API endpoints."
+    },
+    "admin": {
+      "status": "MINIMAL",
+      "files": ["admin.controller.ts", "admin.module.ts", "admin.service.ts"],
+      "notes": "Only reconcile-payments endpoint. Requires ADMIN role."
+    },
+    "health": {
+      "status": "OK",
+      "files": ["health.controller.ts", "health.module.ts"],
+      "notes": "Two health endpoints: /healthz (root) and /api/v1/health"
+    },
+    "profile": {
+      "status": "OK",
+      "files": ["profile.controller.ts", "profile.module.ts", "profile.service.ts"],
+      "notes": "Duplicate of users/me functionality. Consider consolidation."
+    },
+    "metrics": {
+      "status": "OK",
+      "files": ["metrics.controller.ts", "metrics.module.ts", "metrics.service.ts"],
+      "notes": "Worker/employer ratio calculation. Public endpoints (no auth)."
+    }
+  },
+  "env": [
+    {"name": "DATABASE_URL", "required": true, "used_in": ["prisma/schema.prisma", "src/prisma/prisma.service.ts"]},
+    {"name": "NODE_ENV", "required": true, "used_in": ["src/config/env.validation.ts", "src/main.ts", "src/app.module.ts"]},
+    {"name": "PORT", "required": false, "default": "8080", "used_in": ["src/main.ts"]},
+    {"name": "API_PREFIX", "required": false, "default": "api/v1", "used_in": ["src/main.ts"]},
+    {"name": "JWT_SECRET", "required": "production", "used_in": ["src/auth/guards/jwt-auth.guard.ts", "src/auth/strategies/jwt-local.strategy.ts", "src/auth/auth.module.ts"]},
+    {"name": "JWT_REFRESH_SECRET", "required": "production", "used_in": ["src/auth/strategies/jwt-refresh.strategy.ts"]},
+    {"name": "JWT_EXPIRES_IN", "required": false, "default": "7d", "used_in": ["src/auth/local-auth.service.ts"]},
+    {"name": "JWT_REFRESH_EXPIRES_IN", "required": false, "default": "7d", "used_in": ["src/auth/auth.module.ts"]},
+    {"name": "CLERK_SECRET_KEY", "required": "production", "used_in": ["src/config/env.validation.ts", "src/auth/clerk-auth.service.ts"]},
+    {"name": "STRIPE_SECRET_KEY", "required": "production", "used_in": ["src/payments-local/payments-local.service.ts", "src/stripe/stripe.service.ts"]},
+    {"name": "STRIPE_WEBHOOK_SECRET", "required": "production", "used_in": ["src/payments-local/payments-local.service.ts", "src/stripe/stripe.service.ts"]},
+    {"name": "CORS_ORIGIN", "required": false, "used_in": ["src/main.ts"]},
+    {"name": "FRONTEND_URL", "required": "production", "used_in": ["src/main.ts"]},
+    {"name": "SENTRY_DSN", "required": false, "used_in": ["src/main.ts"]},
+    {"name": "SENTRY_ENVIRONMENT", "required": false, "used_in": ["src/main.ts"]},
+    {"name": "THROTTLE_TTL", "required": false, "default": "60", "used_in": ["src/app.module.ts"]},
+    {"name": "THROTTLE_LIMIT", "required": false, "default": "20", "used_in": ["src/app.module.ts"]},
+    {"name": "LOG_LEVEL", "required": false, "default": "info", "used_in": ["src/app.module.ts"]},
+    {"name": "BCRYPT_ROUNDS", "required": false, "default": "12", "used_in": ["src/users/users.service.ts"]},
+    {"name": "ENABLE_SWAGGER_PROD", "required": false, "default": "false", "used_in": ["src/main.ts"]}
+  ],
+  "prisma": {
+    "models": [
+      "LocalUser", "LocalMission", "LocalRating", "LocalMissionPhoto", "PasswordResetToken",
+      "User", "UserProfile", "WorkerProfile", "WorkerSkill", "Skill", "Category",
+      "Mission", "Match", "Offer", "Contract", "Message", "Notification",
+      "Payment", "Subscription", "ClientOrg", "AuditEvent", "ComplianceDocument",
+      "Dispute", "Review", "Post", "PostLike", "ScheduleSlot"
+    ],
+    "migrations": [
+      "20251124193015_init",
+      "20251202201222_add_messages_contracts",
+      "20251208234453_add_mvp_hardening_models (untracked)"
+    ],
+    "notes": "Two user models exist: LocalUser (MVP) and User (Clerk-based legacy). Consider migration/consolidation."
+  },
+  "risks": [
+    {
+      "area": "security",
+      "issue": "Metrics endpoints (/api/v1/metrics/*) are public without auth",
+      "severity": "low",
+      "recommendation": "Add rate limiting or require auth if data is sensitive",
+      "fix_pr": "PR-B01"
+    },
+    {
+      "area": "security",
+      "issue": "CORS_ORIGIN='*' warning in production but still allowed",
+      "severity": "med",
+      "recommendation": "Enforce strict CORS in production",
+      "fix_pr": "PR-B02"
+    },
+    {
+      "area": "security",
+      "issue": "Notifications controller missing access control - user can mark any notification as read",
+      "severity": "med",
+      "recommendation": "Verify notification belongs to user before marking read",
+      "fix_pr": "PR-B03"
+    },
+    {
+      "area": "security",
+      "issue": "Users/:id endpoint allows fetching any user profile without ownership check",
+      "severity": "med",
+      "recommendation": "Restrict to self or admin only, or expose limited public fields",
+      "fix_pr": "PR-B04"
+    },
+    {
+      "area": "stability",
+      "issue": "Stripe webhook handling incomplete - TODOs for payment status updates",
+      "severity": "high",
+      "recommendation": "Implement payment_intent.succeeded/failed handlers to update mission payment status",
+      "fix_pr": "PR-B05"
+    },
+    {
+      "area": "stability",
+      "issue": "No idempotency key for Stripe PaymentIntent creation",
+      "severity": "med",
+      "recommendation": "Add idempotency key based on missionId to prevent duplicate charges",
+      "fix_pr": "PR-B06"
+    },
+    {
+      "area": "observability",
+      "issue": "No correlation ID in logs beyond X-Request-ID header",
+      "severity": "low",
+      "recommendation": "Pass requestId to Winston logger context for all service calls",
+      "fix_pr": "PR-B07"
+    },
+    {
+      "area": "observability",
+      "issue": "AuditEvent model exists but not used for critical actions",
+      "severity": "med",
+      "recommendation": "Log audit events for login, register, payment, contract signing",
+      "fix_pr": "PR-B08"
+    },
+    {
+      "area": "api_contract",
+      "issue": "Duplicate /users/me and /auth/me endpoints",
+      "severity": "low",
+      "recommendation": "Document which is canonical or deprecate one",
+      "fix_pr": "PR-B09"
+    },
+    {
+      "area": "api_contract",
+      "issue": "Duplicate /profile/me and /users/me endpoints",
+      "severity": "low",
+      "recommendation": "Consolidate into single endpoint",
+      "fix_pr": "PR-B09"
+    },
+    {
+      "area": "api_contract",
+      "issue": "Notifications endpoints missing Swagger documentation",
+      "severity": "low",
+      "recommendation": "Add @ApiTags, @ApiOperation, @ApiResponse decorators",
+      "fix_pr": "PR-B10"
+    },
+    {
+      "area": "api_contract",
+      "issue": "Ratings module has Prisma model but no API endpoints",
+      "severity": "med",
+      "recommendation": "Implement ratings CRUD for MVP launch",
+      "fix_pr": "PR-B11"
+    },
+    {
+      "area": "stability",
+      "issue": "Legacy Mission module uses Clerk IDs but local auth uses LocalUser IDs - potential confusion",
+      "severity": "med",
+      "recommendation": "Document which modules support which auth, or migrate to single model",
+      "fix_pr": "PR-B12"
+    },
+    {
+      "area": "security",
+      "issue": "Password reset tokens exist in schema but no endpoint to request reset",
+      "severity": "med",
+      "recommendation": "Implement forgot-password flow or remove unused model",
+      "fix_pr": "PR-B13"
+    },
+    {
+      "area": "validation",
+      "issue": "RegisterDto password has @MinLength(8) but no complexity requirements",
+      "severity": "low",
+      "recommendation": "Add regex pattern for complexity (uppercase, number, special char)",
+      "fix_pr": "PR-B14"
+    }
+  ]
+}

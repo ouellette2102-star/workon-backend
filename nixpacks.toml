@@ -13,7 +13,7 @@ cmds = [
 [phases.build]
 cmds = [
   "npm run build",
-  "npx prisma migrate deploy || npx prisma db push --accept-data-loss"
+  "npx prisma migrate deploy"
 ]
 
 [start]

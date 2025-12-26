@@ -1,0 +1,299 @@
+{
+  "plan_version": "1.0",
+  "generated_at": "2024-12-24",
+  "total_prs": 9,
+  "priority_order": "sequential with dependencies noted",
+
+  "prs": [
+    {
+      "id": "PR2",
+      "title": "DB cleanup + pipeline security",
+      "status": "READY",
+      "priority": 1,
+      "scope": [
+        "prisma/migrations/YYYYMMDD_cleanup_orphan_tables/migration.sql",
+        "nixpacks.toml"
+      ],
+      "motivation": "Remove orphan tables (posts, post_likes, matches, schedule_slots) and eliminate destructive fallback in Railway pipeline",
+      "risk": "LOW - tables confirmed unused, migration is DROP only",
+      "rollback_plan": "Restore from DB backup (required before deploy)",
+      "tests": [
+        "npx prisma validate",
+        "npx prisma generate", 
+        "npm run build",
+        "npm run test",
+        "Deploy to staging first"
+      ],
+      "estimation_hours": {
+        "optimistic": 1,
+        "realistic": 2,
+        "prudent": 3
+      },
+      "dependencies": [],
+      "changes": {
+        "create": ["prisma/migrations/YYYYMMDD_cleanup_orphan_tables/migration.sql"],
+        "modify": ["nixpacks.toml"],
+        "delete": []
+      }
+    },
+    {
+      "id": "PR-B3",
+      "title": "Stripe Connect implementation",
+      "status": "PLANNING",
+      "priority": 2,
+      "scope": [
+        "src/stripe/stripe.service.ts",
+        "src/stripe/stripe.controller.ts",
+        "prisma/schema.prisma (add stripeAccountId to User/WorkerProfile)",
+        "prisma/migrations/*"
+      ],
+      "motivation": "Workers must be able to receive payouts. Currently Stripe Connect is stubbed.",
+      "risk": "MEDIUM - Payment flow changes, requires Stripe test mode validation",
+      "rollback_plan": "Revert to direct payments (current behavior)",
+      "tests": [
+        "Stripe Connect onboarding flow in test mode",
+        "PaymentIntent with transfer_data",
+        "Webhook handling for account.updated",
+        "Unit tests for new methods"
+      ],
+      "estimation_hours": {
+        "optimistic": 8,
+        "realistic": 16,
+        "prudent": 24
+      },
+      "dependencies": ["PR2"],
+      "changes": {
+        "create": ["src/stripe/dto/connect-*.dto.ts"],
+        "modify": ["src/stripe/stripe.service.ts", "src/stripe/stripe.controller.ts", "prisma/schema.prisma"],
+        "delete": []
+      }
+    },
+    {
+      "id": "PR-B4",
+      "title": "Swagger documentation completion",
+      "status": "PLANNING",
+      "priority": 3,
+      "scope": [
+        "src/profile/profile.controller.ts",
+        "src/missions/missions.controller.ts",
+        "src/payments/payments.controller.ts",
+        "src/stripe/stripe.controller.ts",
+        "src/admin/admin.controller.ts",
+        "src/notifications/notifications.controller.ts"
+      ],
+      "motivation": "Complete OpenAPI documentation for all endpoints",
+      "risk": "LOW - Documentation only, no logic changes",
+      "rollback_plan": "Revert decorators",
+      "tests": [
+        "npm run build",
+        "Verify /api/docs loads correctly",
+        "Verify all endpoints documented"
+      ],
+      "estimation_hours": {
+        "optimistic": 2,
+        "realistic": 4,
+        "prudent": 6
+      },
+      "dependencies": [],
+      "changes": {
+        "create": [],
+        "modify": ["6 controller files"],
+        "delete": []
+      }
+    },
+    {
+      "id": "PR-B5",
+      "title": "Audit logging implementation",
+      "status": "PLANNING",
+      "priority": 4,
+      "scope": [
+        "src/audit/audit.module.ts",
+        "src/audit/audit.service.ts",
+        "Integration in critical services"
+      ],
+      "motivation": "AuditEvent model exists but is unused. Need to log critical actions for compliance.",
+      "risk": "LOW - Additive only, no existing logic changes",
+      "rollback_plan": "Remove audit calls",
+      "tests": [
+        "Verify audit events created for: login, mission create, payment, status changes",
+        "Verify no sensitive data in logs"
+      ],
+      "estimation_hours": {
+        "optimistic": 4,
+        "realistic": 8,
+        "prudent": 12
+      },
+      "dependencies": [],
+      "changes": {
+        "create": ["src/audit/audit.module.ts", "src/audit/audit.service.ts"],
+        "modify": ["src/app.module.ts", "critical service files"],
+        "delete": []
+      }
+    },
+    {
+      "id": "PR-B6",
+      "title": "Offers system implementation",
+      "status": "PLANNING",
+      "priority": 5,
+      "scope": [
+        "src/offers/offers.module.ts",
+        "src/offers/offers.controller.ts",
+        "src/offers/offers.service.ts",
+        "src/missions/missions.service.ts"
+      ],
+      "motivation": "Offer model exists but unused. Workers currently self-assign via reserveMission. Need employer selection flow.",
+      "risk": "MEDIUM - Changes mission assignment flow",
+      "rollback_plan": "Keep reserveMission as fallback",
+      "tests": [
+        "Worker creates offer",
+        "Employer views offers",
+        "Employer accepts offer",
+        "Mission status transitions"
+      ],
+      "estimation_hours": {
+        "optimistic": 8,
+        "realistic": 12,
+        "prudent": 20
+      },
+      "dependencies": [],
+      "changes": {
+        "create": ["src/offers/offers.module.ts", "src/offers/offers.controller.ts", "src/offers/offers.service.ts"],
+        "modify": ["src/missions/missions.service.ts", "src/app.module.ts"],
+        "delete": []
+      }
+    },
+    {
+      "id": "PR-B7",
+      "title": "Ratings/Reviews implementation",
+      "status": "PLANNING",
+      "priority": 6,
+      "scope": [
+        "src/reviews/reviews.module.ts",
+        "src/reviews/reviews.controller.ts",
+        "src/reviews/reviews.service.ts"
+      ],
+      "motivation": "Review model exists but unused. Ratings essential for marketplace trust.",
+      "risk": "LOW - New feature, no existing logic changes",
+      "rollback_plan": "Remove module",
+      "tests": [
+        "Create review after mission complete",
+        "View reviews for worker",
+        "Average rating calculation",
+        "Moderation flags"
+      ],
+      "estimation_hours": {
+        "optimistic": 6,
+        "realistic": 10,
+        "prudent": 14
+      },
+      "dependencies": [],
+      "changes": {
+        "create": ["src/reviews/reviews.module.ts", "src/reviews/reviews.controller.ts", "src/reviews/reviews.service.ts"],
+        "modify": ["src/app.module.ts"],
+        "delete": []
+      }
+    },
+    {
+      "id": "PR-B8",
+      "title": "Disputes system implementation",
+      "status": "PLANNING",
+      "priority": 7,
+      "scope": [
+        "src/disputes/disputes.module.ts",
+        "src/disputes/disputes.controller.ts",
+        "src/disputes/disputes.service.ts"
+      ],
+      "motivation": "Dispute model exists but unused. Need dispute resolution flow for marketplace compliance.",
+      "risk": "MEDIUM - Affects payment/refund flows",
+      "rollback_plan": "Remove module, handle disputes manually",
+      "tests": [
+        "Open dispute",
+        "View dispute status",
+        "Admin resolution",
+        "Integration with payments (refunds)"
+      ],
+      "estimation_hours": {
+        "optimistic": 8,
+        "realistic": 14,
+        "prudent": 20
+      },
+      "dependencies": ["PR-B3"],
+      "changes": {
+        "create": ["src/disputes/disputes.module.ts", "src/disputes/disputes.controller.ts", "src/disputes/disputes.service.ts"],
+        "modify": ["src/app.module.ts", "src/payments/payments.service.ts"],
+        "delete": []
+      }
+    },
+    {
+      "id": "PR-B9",
+      "title": "DTO validation hardening",
+      "status": "PLANNING",
+      "priority": 8,
+      "scope": [
+        "src/*/dto/*.dto.ts"
+      ],
+      "motivation": "Ensure all DTOs have comprehensive validation decorators",
+      "risk": "LOW - Validation only, may reject some previously accepted inputs",
+      "rollback_plan": "Revert DTO changes",
+      "tests": [
+        "Test invalid inputs rejected",
+        "Test valid inputs accepted",
+        "E2E tests for all endpoints"
+      ],
+      "estimation_hours": {
+        "optimistic": 4,
+        "realistic": 8,
+        "prudent": 12
+      },
+      "dependencies": [],
+      "changes": {
+        "create": [],
+        "modify": ["All DTO files"],
+        "delete": []
+      }
+    },
+    {
+      "id": "PR-B10",
+      "title": "Local modules consolidation",
+      "status": "BACKLOG",
+      "priority": 9,
+      "scope": [
+        "src/missions-local/*",
+        "src/payments-local/*",
+        "prisma/schema.prisma (LocalUser, LocalMission)"
+      ],
+      "motivation": "Dual systems (missions vs missions-local, payments vs payments-local) adds confusion. Consider merging.",
+      "risk": "HIGH - Significant refactor, data migration needed",
+      "rollback_plan": "Keep both systems",
+      "tests": [
+        "Full regression testing",
+        "Data migration verification"
+      ],
+      "estimation_hours": {
+        "optimistic": 16,
+        "realistic": 32,
+        "prudent": 48
+      },
+      "dependencies": ["PR-B3", "PR-B6", "PR-B7", "PR-B8"],
+      "changes": {
+        "create": [],
+        "modify": ["Multiple files"],
+        "delete": ["src/missions-local/*", "src/payments-local/*"]
+      }
+    }
+  ],
+
+  "summary": {
+    "immediate": ["PR2"],
+    "high_priority": ["PR-B3"],
+    "medium_priority": ["PR-B4", "PR-B5", "PR-B6", "PR-B7"],
+    "lower_priority": ["PR-B8", "PR-B9"],
+    "backlog": ["PR-B10"],
+    "total_hours_estimate": {
+      "optimistic": 57,
+      "realistic": 106,
+      "prudent": 159
+    }
+  }
+}
+
