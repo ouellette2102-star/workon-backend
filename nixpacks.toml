@@ -6,12 +6,12 @@ nixPkgs = ["nodejs_20", "python3"]
 
 [phases.install]
 cmds = [
-  "npm install",
-  "npx prisma generate"
+  "npm install"
 ]
 
 [phases.build]
 cmds = [
+  "npx prisma generate",
   "npm run build"
 ]
 
