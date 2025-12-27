@@ -8,6 +8,7 @@ import {
 import { MissionsLocalRepository } from './missions-local.repository';
 import { CreateMissionDto } from './dto/create-mission.dto';
 import { NearbyMissionsQueryDto } from './dto/nearby-missions-query.dto';
+import { MissionsMapQueryDto } from './dto/missions-map-query.dto';
 
 /**
  * Missions Service - Business logic for mission management
@@ -226,6 +227,53 @@ export class MissionsLocalService {
    */
   async findMyAssignments(userId: string) {
     return this.missionsRepository.findByWorker(userId);
+  }
+
+  /**
+   * Find missions within a bounding box (for map view)
+   * 
+   * @param query Bounding box parameters
+   * @returns Lightweight mission list for map pins
+   */
+  async findByBbox(query: MissionsMapQueryDto) {
+    // Validate bbox: north must be > south
+    if (query.north <= query.south) {
+      throw new BadRequestException(
+        'Invalid bounding box: north must be greater than south',
+      );
+    }
+
+    // Validate bbox: east must be > west (simplified, doesn't handle antimeridian)
+    if (query.east <= query.west) {
+      throw new BadRequestException(
+        'Invalid bounding box: east must be greater than west',
+      );
+    }
+
+    const missions = await this.missionsRepository.findByBbox(
+      query.north,
+      query.south,
+      query.east,
+      query.west,
+      query.status || 'open',
+      query.category,
+      query.limit || 200,
+    );
+
+    this.logger.log(
+      `Map query: found ${missions.length} missions in bbox`,
+    );
+
+    return {
+      missions,
+      count: missions.length,
+      bbox: {
+        north: query.north,
+        south: query.south,
+        east: query.east,
+        west: query.west,
+      },
+    };
   }
 }
 
