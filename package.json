@@ -5,8 +5,10 @@
   "author": "WorkOn Team",
   "private": true,
   "license": "UNLICENSED",
+  "prisma": {
+    "schema": "prisma/schema.prisma"
+  },
   "scripts": {
-    "postinstall": "prisma generate",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
