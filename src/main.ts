@@ -8,6 +8,8 @@ import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import * as Sentry from '@sentry/node';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import { GlobalHttpExceptionFilter } from './common/filters';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -129,15 +131,41 @@ async function bootstrap() {
   );
 
   // Request ID middleware (pour traçabilité)
+  // Utilise X-Request-ID du header si présent, sinon génère un UUID
   app.use((req: any, res: any, next: any) => {
-    req.requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    req.requestId = req.headers['x-request-id'] || uuidv4();
     res.setHeader('X-Request-ID', req.requestId);
     next();
   });
 
-  // Health check endpoint
+  // Global Exception Filter (standardise les erreurs API)
+  app.useGlobalFilters(new GlobalHttpExceptionFilter());
+
+  // Health check endpoint (liveness probe)
   app.getHttpAdapter().get('/healthz', (req: any, res: any) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  // Readiness check endpoint (vérifie DB)
+  // Vérifie que la connexion DB est active
+  app.getHttpAdapter().get('/readyz', async (req: any, res: any) => {
+    try {
+      // Import PrismaService dynamiquement pour éviter les problèmes de DI
+      const { PrismaService } = await import('./prisma/prisma.service');
+      const prisma = app.get(PrismaService);
+      await prisma.$queryRaw`SELECT 1`;
+      res.json({ 
+        status: 'ready', 
+        timestamp: new Date().toISOString(),
+        checks: { database: 'ok' }
+      });
+    } catch (error) {
+      res.status(503).json({ 
+        status: 'not_ready', 
+        timestamp: new Date().toISOString(),
+        checks: { database: 'error' }
+      });
+    }
   });
 
   // Metrics placeholder endpoint
