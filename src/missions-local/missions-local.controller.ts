@@ -18,6 +18,8 @@ import {
 import { MissionsLocalService } from './missions-local.service';
 import { CreateMissionDto } from './dto/create-mission.dto';
 import { NearbyMissionsQueryDto } from './dto/nearby-missions-query.dto';
+import { MissionsMapQueryDto } from './dto/missions-map-query.dto';
+import { MissionsMapResponseDto } from './dto/mission-map-item.dto';
 import { MissionResponseDto } from './dto/mission-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { plainToInstance } from 'class-transformer';
@@ -57,6 +59,31 @@ export class MissionsLocalController {
     return plainToInstance(MissionResponseDto, mission, {
       excludeExtraneousValues: true,
     });
+  }
+
+  @Get('map')
+  @ApiOperation({
+    summary: 'Get missions for map view',
+    description:
+      'Returns lightweight mission data for rendering map pins within a bounding box. ' +
+      'More efficient than radius-based search for map rendering.',
+  })
+  @ApiQuery({ name: 'north', required: true, example: 45.55, description: 'Northern boundary latitude' })
+  @ApiQuery({ name: 'south', required: true, example: 45.45, description: 'Southern boundary latitude' })
+  @ApiQuery({ name: 'east', required: true, example: -73.5, description: 'Eastern boundary longitude' })
+  @ApiQuery({ name: 'west', required: true, example: -73.7, description: 'Western boundary longitude' })
+  @ApiQuery({ name: 'status', required: false, example: 'open', description: 'Filter by status (default: open)' })
+  @ApiQuery({ name: 'category', required: false, example: 'plumbing', description: 'Filter by category' })
+  @ApiQuery({ name: 'limit', required: false, example: 200, description: 'Max results (default: 200, max: 500)' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of missions within bounding box',
+    type: MissionsMapResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid bounding box parameters' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async findByMap(@Query() query: MissionsMapQueryDto): Promise<MissionsMapResponseDto> {
+    return this.missionsService.findByBbox(query);
   }
 
   @Get('nearby')
