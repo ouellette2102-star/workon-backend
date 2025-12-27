@@ -12,11 +12,10 @@ cmds = [
 
 [phases.build]
 cmds = [
-  "npm run build",
-  "npx prisma migrate deploy"
+  "npm run build"
 ]
 
 [start]
-# Start the NestJS application (migrations already applied in build phase)
-cmd = "node dist/main.js"
+# Run migrations at RUNTIME (network internal available) then start app
+cmd = "npx prisma migrate deploy && node dist/main.js"
 
