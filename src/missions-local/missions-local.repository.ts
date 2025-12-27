@@ -137,5 +137,72 @@ export class MissionsLocalRepository {
       orderBy: { updatedAt: 'desc' },
     });
   }
+
+  /**
+   * Find missions within a bounding box (for map view)
+   * 
+   * More efficient than radius for map rendering.
+   * Uses simple lat/lng comparison (no Haversine needed for bbox).
+   * 
+   * @param north Northern boundary latitude
+   * @param south Southern boundary latitude
+   * @param east Eastern boundary longitude
+   * @param west Western boundary longitude
+   * @param status Filter by status (default: 'open')
+   * @param category Filter by category (optional)
+   * @param limit Maximum results (default: 200)
+   */
+  async findByBbox(
+    north: number,
+    south: number,
+    east: number,
+    west: number,
+    status: string = 'open',
+    category?: string,
+    limit: number = 200,
+  ) {
+    this.logger.log(
+      `Finding missions in bbox: N=${north}, S=${south}, E=${east}, W=${west}`,
+    );
+
+    // Build where clause
+    const where: any = {
+      latitude: {
+        gte: south,
+        lte: north,
+      },
+      longitude: {
+        gte: west,
+        lte: east,
+      },
+      status: status as any,
+    };
+
+    // Add category filter if provided
+    if (category) {
+      where.category = category;
+    }
+
+    const missions = await this.prisma.localMission.findMany({
+      where,
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        latitude: true,
+        longitude: true,
+        status: true,
+        price: true,
+        city: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(limit, 500), // Hard cap at 500
+    });
+
+    this.logger.log(`Found ${missions.length} missions in bbox`);
+
+    return missions;
+  }
 }
 
