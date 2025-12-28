@@ -29,6 +29,7 @@ import { MissionPhotosModule } from './mission-photos/mission-photos.module';
 import { MediaModule } from './media/media.module';
 import { StorageModule } from './storage/storage.module';
 import { MissionEventsModule } from './mission-events/mission-events.module';
+import { OffersModule } from './offers/offers.module';
 
 @Module({
   imports: [
@@ -153,6 +154,8 @@ import { MissionEventsModule } from './mission-events/mission-events.module';
     MediaModule,
     // Mission lifecycle events (audit + notifications)
     MissionEventsModule,
+    // Offers module (marketplace offers flow)
+    OffersModule,
   ],
   controllers: [AppController],
   providers: [
