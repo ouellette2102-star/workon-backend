@@ -1,0 +1,73 @@
+[
+  {
+    "name": "Entretien",
+    "nameEn": "Cleaning",
+    "icon": "🧼",
+    "residentialAllowed": true,
+    "legalNotes": null
+  },
+  {
+    "name": "Réparation",
+    "nameEn": "Repairs",
+    "icon": "🛠️",
+    "residentialAllowed": true,
+    "legalNotes": "Certains services peuvent exiger permis/licence; preuves requises selon le métier."
+  },
+  {
+    "name": "Commerce",
+    "nameEn": "Retail",
+    "icon": "🛒",
+    "residentialAllowed": false,
+    "legalNotes": null
+  },
+  {
+    "name": "Restauration",
+    "nameEn": "Food Service",
+    "icon": "🍽️",
+    "residentialAllowed": false,
+    "legalNotes": "MAPAQ peut s'appliquer selon le service; preuves/attestations si requis."
+  },
+  {
+    "name": "Construction légère",
+    "nameEn": "Light Construction",
+    "icon": "🧱",
+    "residentialAllowed": true,
+    "legalNotes": "RBQ/CCQ peuvent s'appliquer selon le métier; preuves requises."
+  },
+  {
+    "name": "Éducation",
+    "nameEn": "Education",
+    "icon": "📚",
+    "residentialAllowed": true,
+    "legalNotes": "Vérifications/attestations possibles selon le service (ex. clientèle vulnérable)."
+  },
+  {
+    "name": "Numérique",
+    "nameEn": "Digital",
+    "icon": "💻",
+    "residentialAllowed": true,
+    "legalNotes": null
+  },
+  {
+    "name": "Beauté",
+    "nameEn": "Beauty",
+    "icon": "💇",
+    "residentialAllowed": true,
+    "legalNotes": "Certaines pratiques peuvent exiger formation/attestation; preuves requises selon le métier."
+  },
+  {
+    "name": "Culture",
+    "nameEn": "Culture",
+    "icon": "🎭",
+    "residentialAllowed": true,
+    "legalNotes": null
+  },
+  {
+    "name": "Services à la personne",
+    "nameEn": "Personal Services",
+    "icon": "🤝",
+    "residentialAllowed": true,
+    "legalNotes": "Certaines prestations peuvent exiger formation/attestation; preuves requises selon le métier."
+  }
+]
+
