@@ -7,7 +7,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
 
 @ApiTags('Admin')
-@Controller('admin')
+@Controller('api/v1/admin')
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
