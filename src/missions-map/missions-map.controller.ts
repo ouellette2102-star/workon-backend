@@ -16,7 +16,7 @@ import {
 
 @ApiTags('Missions')
 @ApiExtraModels(MissionPinDto, MissionDetailDto, MissionsHealthDto)
-@Controller('api/v1/missions')
+@Controller('api/v1/missions-map')
 export class MissionsMapController {
   constructor(private readonly missionsMapService: MissionsMapService) {}
 

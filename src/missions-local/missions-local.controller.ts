@@ -25,7 +25,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { plainToInstance } from 'class-transformer';
 
 @ApiTags('Missions')
-@Controller('missions')
+@Controller('api/v1/missions-local')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class MissionsLocalController {

@@ -21,7 +21,7 @@ import { MissionFeedFiltersDto } from './dto/mission-feed.dto';
 import { UserRole } from '@prisma/client';
 
 @ApiTags('Missions')
-@Controller('missions')
+@Controller('api/v1/missions')
 export class MissionsController {
   constructor(private readonly missionsService: MissionsService) {}
 

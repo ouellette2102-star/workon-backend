@@ -12,7 +12,7 @@ import { MissionTimeLogsService } from './mission-time-logs.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Missions')
-@Controller('missions/:missionId/time-logs')
+@Controller('api/v1/missions/:missionId/time-logs')
 @UseGuards(JwtAuthGuard)
 export class MissionTimeLogsController {
   constructor(
