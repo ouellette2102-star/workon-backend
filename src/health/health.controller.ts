@@ -2,6 +2,7 @@ import { Controller, Get, Res, HttpStatus, Logger } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
+import { SkipThrottle } from '@nestjs/throttler';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface ServiceCheck {
@@ -26,6 +27,7 @@ export interface HealthResponse {
 
 @ApiTags('Health')
 @Controller('api/v1')
+@SkipThrottle() // Exclure les health checks du rate limiting
 export class HealthController {
   private readonly logger = new Logger(HealthController.name);
 
