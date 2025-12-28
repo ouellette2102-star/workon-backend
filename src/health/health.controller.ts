@@ -20,7 +20,7 @@ interface ReadinessResponse {
   error?: string;
 }
 
-@ApiTags('health')
+@ApiTags('Health')
 @Controller('health')
 export class HealthController {
   constructor(

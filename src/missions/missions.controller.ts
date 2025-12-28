@@ -9,6 +9,7 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { MissionsService } from './missions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -19,6 +20,7 @@ import { UpdateMissionStatusDto } from './dto/update-mission-status.dto';
 import { MissionFeedFiltersDto } from './dto/mission-feed.dto';
 import { UserRole } from '@prisma/client';
 
+@ApiTags('Missions')
 @Controller('missions')
 export class MissionsController {
   constructor(private readonly missionsService: MissionsService) {}

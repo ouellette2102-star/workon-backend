@@ -19,7 +19,7 @@ import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { PaymentIntentResponseDto } from './dto/payment-intent-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-@ApiTags('payments')
+@ApiTags('Payments')
 @Controller('payments')
 export class PaymentsLocalController {
   constructor(private readonly paymentsService: PaymentsLocalService) {}

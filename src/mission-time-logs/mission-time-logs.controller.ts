@@ -7,9 +7,11 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { MissionTimeLogsService } from './mission-time-logs.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
+@ApiTags('Missions')
 @Controller('missions/:missionId/time-logs')
 @UseGuards(JwtAuthGuard)
 export class MissionTimeLogsController {

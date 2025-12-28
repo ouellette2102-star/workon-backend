@@ -20,7 +20,7 @@ import { CreateContractDto } from './dto/create-contract.dto';
 import { UpdateContractStatusDto } from './dto/update-contract-status.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-@ApiTags('contracts')
+@ApiTags('Contracts')
 @ApiBearerAuth()
 @Controller('contracts')
 @UseGuards(JwtAuthGuard)

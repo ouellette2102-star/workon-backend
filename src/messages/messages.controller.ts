@@ -19,7 +19,7 @@ import { MessagesService } from './messages.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-@ApiTags('messages')
+@ApiTags('Messages')
 @ApiBearerAuth()
 @Controller('messages')
 @UseGuards(JwtAuthGuard)
