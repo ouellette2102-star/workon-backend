@@ -152,12 +152,14 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
       console.error(
         '❌ ERROR: STRIPE_SECRET_KEY is required in production. Payments will fail.',
       );
+      throw new Error('STRIPE_SECRET_KEY is required in production');
     }
 
     if (!validatedConfig.STRIPE_WEBHOOK_SECRET) {
-      console.warn(
-        '⚠️  WARNING: STRIPE_WEBHOOK_SECRET is not set. Webhook validation will fail.',
+      console.error(
+        '❌ ERROR: STRIPE_WEBHOOK_SECRET is required in production. Webhook signature validation will fail.',
       );
+      throw new Error('STRIPE_WEBHOOK_SECRET is required in production');
     }
 
     if (!validatedConfig.SENTRY_DSN) {
