@@ -196,8 +196,11 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
       console.log('💡 INFO: CLERK_SECRET_KEY not set in development. Clerk auth features will be disabled.');
     }
 
-    if (!validatedConfig.STRIPE_SECRET_KEY) {
-      console.log('💡 INFO: STRIPE_SECRET_KEY not set in development. Payment features will be limited.');
+    if (!validatedConfig.STRIPE_SECRET_KEY || !validatedConfig.STRIPE_WEBHOOK_SECRET) {
+      console.warn(
+        '⚠️  WARNING: Stripe env not fully configured (STRIPE_SECRET_KEY and/or STRIPE_WEBHOOK_SECRET missing). ' +
+        'Stripe payment endpoints may return 503.',
+      );
     }
 
     console.log(''); // Ligne vide pour meilleure lisibilité
