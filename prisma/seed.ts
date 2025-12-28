@@ -1,154 +1,211 @@
-import { PrismaClient, UserRole, MissionStatus } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const prisma = new PrismaClient();
 
-async function main() {
-  console.log('🌱 Seeding WorkOn data...');
+// Types pour les données JSON
+interface CategoryData {
+  name: string;
+  nameEn: string | null;
+  icon: string | null;
+  residentialAllowed: boolean;
+  legalNotes: string | null;
+}
 
-  // 1. Créer un utilisateur worker de test
-  const workerUser = await prisma.user.upsert({
-    where: { email: 'worker@test.com' },
-    update: {},
-    create: {
-      clerkId: 'test-worker-001',
-      email: 'worker@test.com',
-      name: 'Alex Tremblay',
-      fullName: 'Alex Tremblay',
-      role: UserRole.WORKER,
-      primaryRole: UserRole.WORKER,
-      city: 'Montréal',
-      phone: '+1 514 555 0100',
-      active: true,
-    },
-  });
+interface SkillData {
+  name: string;
+  nameEn: string | null;
+  categoryName: string;
+  requiresPermit: boolean;
+  proofType: string | null;
+}
 
-  console.log(`✅ Worker user created: ${workerUser.email}`);
+/**
+ * Génère un ID unique pour les entités
+ */
+function generateId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
 
-  // 2. Créer le profil Worker associé
-  const worker = await prisma.worker.upsert({
-    where: { userId: workerUser.id },
-    update: {},
-    create: {
-      userId: workerUser.id,
-      skills: [
-        { name: 'Montage de meubles', level: 'expert', verified: true },
-        { name: 'Déneigement', level: 'intermédiaire', verified: false },
-        { name: 'Déménagement', level: 'expert', verified: true },
-      ],
-      rating: 4.8,
-      badges: ['verified', 'punctual'],
-    },
-  });
-
-  console.log(`✅ Worker profile created: ${worker.id}`);
-
-  // 3. Créer un employeur de test pour les missions
-  const employerUser = await prisma.user.upsert({
-    where: { email: 'employer@test.com' },
-    update: {},
-    create: {
-      clerkId: 'test-employer-001',
-      email: 'employer@test.com',
-      name: 'Entreprise Test',
-      fullName: 'Entreprise Test Inc.',
-      role: UserRole.EMPLOYER,
-      primaryRole: UserRole.EMPLOYER,
-      city: 'Montréal',
-      active: true,
-    },
-  });
-
-  const employer = await prisma.employer.upsert({
-    where: { userId: employerUser.id },
-    update: {},
-    create: {
-      userId: employerUser.id,
-      companyName: 'Test Company Inc.',
-      billingInfo: {
-        address: '123 rue Test, Montréal, QC',
-        taxNumber: 'TVQ123456789',
-      },
-    },
-  });
-
-  console.log(`✅ Employer created: ${employer.companyName}`);
-
-  // 4. Créer 5 missions de test
-  const missions = [
-    {
-      title: 'Montage de meubles IKEA',
-      description: "Besoin d'un coup de main pour monter un bureau.",
-      category: 'Entretien / Maison',
-      hourlyRate: 25.0,
-      priceCents: 7500, // 75$ (3h × 25$/h)
-      city: 'Montréal',
-      address: '456 rue Sainte-Catherine',
-      location: { lat: 45.5017, lng: -73.5673 },
-      status: MissionStatus.CREATED,
-      employerId: employer.id,
-    },
-    {
-      title: 'Déneigement d\'entrée',
-      description: 'Entrée résidentielle à déneiger après tempête.',
-      category: 'Saisonnier',
-      hourlyRate: 30.0,
-      priceCents: 9000, // 90$ (3h × 30$/h)
-      city: 'Laval',
-      address: '789 boulevard Chomedey',
-      location: { lat: 45.6066, lng: -73.7124 },
-      status: MissionStatus.CREATED,
-      employerId: employer.id,
-    },
-    {
-      title: 'Aide au déménagement',
-      description: 'Besoin de 2h de bras pour déplacement de meubles.',
-      category: 'Manutention',
-      hourlyRate: 20.0,
-      priceCents: 4000, // 40$ (2h × 20$/h)
-      city: 'Repentigny',
-      address: '321 avenue du Parc',
-      location: { lat: 45.742, lng: -73.45 },
-      status: MissionStatus.CREATED,
-      employerId: employer.id,
-    },
-    {
-      title: 'Nettoyage d\'appartement',
-      description: 'Grand ménage 3 ½, produits fournis.',
-      category: 'Entretien ménager',
-      hourlyRate: 28.0,
-      priceCents: 11200, // 112$ (4h × 28$/h)
-      city: 'Montréal',
-      address: '555 rue Saint-Denis',
-      location: { lat: 45.53, lng: -73.57 },
-      status: MissionStatus.CREATED,
-      employerId: employer.id,
-    },
-    {
-      title: 'Installation TV murale',
-      description: 'Fixer une télévision au mur + gestion des câbles.',
-      category: 'Service technique',
-      hourlyRate: 40.0,
-      priceCents: 8000, // 80$ (2h × 40$/h)
-      city: 'Terrebonne',
-      address: '999 montée Masson',
-      location: { lat: 45.7, lng: -73.64 },
-      status: MissionStatus.CREATED,
-      employerId: employer.id,
-    },
-  ];
-
-  for (const missionData of missions) {
-    await prisma.mission.create({
-      data: missionData,
-    });
-    console.log(`  ✅ Mission created: "${missionData.title}"`);
+/**
+ * Seed les catégories depuis categories.json
+ */
+async function seedCategories(): Promise<Map<string, string>> {
+  const dataPath = path.join(__dirname, 'data', 'categories.json');
+  
+  if (!fs.existsSync(dataPath)) {
+    throw new Error(`❌ Fichier manquant: ${dataPath}`);
   }
 
-  console.log('\n🎉 Seed completed successfully!');
-  console.log('\n📋 Summary:');
-  console.log(`  - Worker: ${workerUser.email} (${workerUser.fullName})`);
-  console.log(`  - Employer: ${employerUser.email}`);
-  console.log(`  - Missions created: ${missions.length}`);
+  const rawData = fs.readFileSync(dataPath, 'utf-8');
+  const categories: CategoryData[] = JSON.parse(rawData);
+
+  if (!Array.isArray(categories) || categories.length === 0) {
+    throw new Error('❌ categories.json est vide ou invalide');
+  }
+
+  console.log(`\n📁 Seeding ${categories.length} categories...`);
+
+  // Map pour stocker name -> id (pour les skills)
+  const categoryMap = new Map<string, string>();
+
+  for (const cat of categories) {
+    // Chercher si la catégorie existe déjà
+    const existing = await prisma.category.findUnique({
+      where: { name: cat.name },
+    });
+
+    let category;
+    if (existing) {
+      // Update
+      category = await prisma.category.update({
+        where: { name: cat.name },
+        data: {
+          nameEn: cat.nameEn,
+          icon: cat.icon,
+          residentialAllowed: cat.residentialAllowed,
+          legalNotes: cat.legalNotes,
+        },
+      });
+      console.log(`  ✅ Category updated: ${cat.name}`);
+    } else {
+      // Create
+      category = await prisma.category.create({
+        data: {
+          id: generateId('cat'),
+          name: cat.name,
+          nameEn: cat.nameEn,
+          icon: cat.icon,
+          residentialAllowed: cat.residentialAllowed,
+          legalNotes: cat.legalNotes,
+        },
+      });
+      console.log(`  ✅ Category created: ${cat.name}`);
+    }
+
+    categoryMap.set(cat.name, category.id);
+  }
+
+  console.log(`\n✅ Categories seeded: ${categories.length}`);
+  return categoryMap;
+}
+
+/**
+ * Seed les skills depuis skills.json
+ */
+async function seedSkills(categoryMap: Map<string, string>): Promise<number> {
+  const dataPath = path.join(__dirname, 'data', 'skills.json');
+
+  if (!fs.existsSync(dataPath)) {
+    console.log(`\n⚠️  Fichier skills.json manquant: ${dataPath}`);
+    console.log('   Créez prisma/data/skills.json avec les 90 métiers officiels.');
+    throw new Error('skills.json manquant: fournir la liste officielle des 90 métiers/skills pour terminer PR#1.');
+  }
+
+  const rawData = fs.readFileSync(dataPath, 'utf-8');
+  const skills: SkillData[] = JSON.parse(rawData);
+
+  if (!Array.isArray(skills)) {
+    throw new Error('❌ skills.json doit être un tableau JSON');
+  }
+
+  if (skills.length === 0) {
+    console.log('\n⚠️  skills.json est vide.');
+    console.log('   📝 Format attendu dans prisma/data/skills.json:');
+    console.log('   [');
+    console.log('     {');
+    console.log('       "name": "Nom du métier (FR)",');
+    console.log('       "nameEn": "Job name (EN)",');
+    console.log('       "categoryName": "Nom de la catégorie",');
+    console.log('       "requiresPermit": true | false,');
+    console.log('       "proofType": "Type de preuve" | null');
+    console.log('     }');
+    console.log('   ]');
+    console.log('\n   📁 Catégories disponibles:');
+    Array.from(categoryMap.keys()).forEach((catName) => {
+      console.log(`      - ${catName}`);
+    });
+    throw new Error('skills.json est vide: fournir la liste officielle des 90 métiers/skills pour terminer PR#1.');
+  }
+
+  console.log(`\n📁 Seeding ${skills.length} skills...`);
+
+  let seededCount = 0;
+
+  for (const skill of skills) {
+    // Résoudre categoryId via categoryName
+    const categoryId = categoryMap.get(skill.categoryName);
+    
+    if (!categoryId) {
+      throw new Error(
+        `❌ Catégorie inconnue "${skill.categoryName}" pour le skill "${skill.name}". ` +
+        `Catégories valides: ${Array.from(categoryMap.keys()).join(', ')}`
+      );
+    }
+
+    // Upsert via la contrainte unique (name, categoryId)
+    const existing = await prisma.skill.findFirst({
+      where: {
+        name: skill.name,
+        categoryId: categoryId,
+      },
+    });
+
+    if (existing) {
+      // Update
+      await prisma.skill.update({
+        where: { id: existing.id },
+        data: {
+          nameEn: skill.nameEn,
+          requiresPermit: skill.requiresPermit,
+          proofType: skill.proofType,
+        },
+      });
+      console.log(`  ✅ Skill updated: ${skill.name} (${skill.categoryName})`);
+    } else {
+      // Create
+      await prisma.skill.create({
+        data: {
+          id: generateId('skill'),
+          name: skill.name,
+          nameEn: skill.nameEn,
+          categoryId: categoryId,
+          requiresPermit: skill.requiresPermit,
+          proofType: skill.proofType,
+        },
+      });
+      console.log(`  ✅ Skill created: ${skill.name} (${skill.categoryName})`);
+    }
+
+    seededCount++;
+  }
+
+  console.log(`\n✅ Skills seeded: ${seededCount}`);
+  return seededCount;
+}
+
+/**
+ * Main seed function
+ */
+async function main() {
+  console.log('🌱 WorkOn Catalogue Seed');
+  console.log('========================\n');
+
+  // 1. Seed catégories (obligatoire)
+  const categoryMap = await seedCategories();
+
+  // 2. Seed skills (bloque si vide)
+  const skillsCount = await seedSkills(categoryMap);
+
+  // Résumé final
+  console.log('\n========================');
+  console.log('🎉 Seed completed successfully!');
+  console.log('========================');
+  console.log(`📊 Summary:`);
+  console.log(`   - Categories: ${categoryMap.size}`);
+  console.log(`   - Skills: ${skillsCount}`);
+  console.log('\n💡 Verify with: npx prisma studio');
 }
 
 main()
@@ -156,7 +213,7 @@ main()
     await prisma.$disconnect();
   })
   .catch(async (e) => {
-    console.error('❌ Seed failed:', e);
+    console.error('\n❌ Seed failed:', e instanceof Error ? e.message : e);
     await prisma.$disconnect();
     process.exit(1);
   });
