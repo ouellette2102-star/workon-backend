@@ -132,5 +132,35 @@ export class UsersService {
     await this.findById(id); // Verify exists
     return this.usersRepository.deactivate(id);
   }
+
+  /**
+   * Delete user account (GDPR-compliant)
+   * 
+   * Anonymizes PII and marks account as deleted.
+   * This is idempotent: calling on already-deleted account returns success.
+   * 
+   * @param id - User ID to delete
+   * @throws NotFoundException if user not found
+   */
+  async deleteAccount(id: string): Promise<void> {
+    // Check if user exists
+    const user = await this.usersRepository.findById(id);
+    
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Check if already deleted (idempotent)
+    const alreadyDeleted = await this.usersRepository.isDeleted(id);
+    if (alreadyDeleted) {
+      this.logger.log(`User already deleted: ${id}`);
+      return; // Idempotent - return success
+    }
+
+    // Anonymize and delete
+    await this.usersRepository.anonymizeAndDelete(id);
+
+    this.logger.warn(`Account deleted (GDPR): ${id}`);
+  }
 }
 
