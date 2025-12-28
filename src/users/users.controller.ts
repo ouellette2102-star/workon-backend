@@ -3,9 +3,12 @@ import {
   Get,
   Body,
   Patch,
+  Delete,
   Param,
   UseGuards,
   Request,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -63,6 +66,36 @@ export class UsersController {
     return plainToInstance(UserResponseDto, user, {
       excludeExtraneousValues: true,
     });
+  }
+
+  /**
+   * DELETE /api/v1/users/me
+   * 
+   * GDPR-compliant account deletion.
+   * Anonymizes PII and marks account as deleted.
+   * User will be logged out and unable to login again.
+   * 
+   * This endpoint is idempotent: calling on already-deleted account returns 204.
+   */
+  @Delete('me')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Delete current user account (GDPR)',
+    description:
+      'Permanently deletes the current user account. ' +
+      'Anonymizes all personal data (email, name, phone) and invalidates all sessions. ' +
+      'This action is irreversible.',
+  })
+  @ApiResponse({
+    status: 204,
+    description: 'Account deleted successfully (no content)',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized - invalid or missing token' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async deleteMe(@Request() req: { user: { sub: string } }): Promise<void> {
+    await this.usersService.deleteAccount(req.user.sub);
   }
 
   @Get(':id')

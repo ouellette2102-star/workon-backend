@@ -183,5 +183,54 @@ export class UsersRepository {
       data: { active: false },
     });
   }
+
+  /**
+   * GDPR-compliant account deletion
+   * 
+   * Anonymizes all PII and marks account as deleted.
+   * Keeps ID and timestamps for referential integrity.
+   * 
+   * @param id - User ID to delete
+   * @returns Updated user record (anonymized)
+   */
+  async anonymizeAndDelete(id: string) {
+    this.logger.warn(`GDPR deletion for user: ${id}`);
+
+    const now = new Date();
+    const anonymizedEmail = `deleted_${id}@deleted.local`;
+
+    return this.prisma.localUser.update({
+      where: { id },
+      data: {
+        // Anonymize PII
+        email: anonymizedEmail,
+        firstName: 'Deleted',
+        lastName: 'User',
+        phone: null,
+        city: null,
+        // Invalidate password (random hash, impossible to login)
+        hashedPassword: `DELETED_${now.getTime()}_${Math.random().toString(36)}`,
+        // Mark as inactive and deleted
+        active: false,
+        deletedAt: now,
+        updatedAt: now,
+      },
+      select: {
+        id: true,
+        deletedAt: true,
+      },
+    });
+  }
+
+  /**
+   * Check if user is already deleted
+   */
+  async isDeleted(id: string): Promise<boolean> {
+    const user = await this.prisma.localUser.findUnique({
+      where: { id },
+      select: { deletedAt: true },
+    });
+    return user?.deletedAt !== null;
+  }
 }
 

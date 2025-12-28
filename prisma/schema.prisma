@@ -124,6 +124,7 @@ model LocalUser {
   city             String?
   role             LocalUserRole  @default(worker)
   active           Boolean        @default(true)
+  deletedAt        DateTime?      // GDPR: timestamp of account deletion
   createdAt        DateTime       @default(now())
   updatedAt        DateTime
   assignedMissions LocalMission[] @relation("local_missions_assignedToUserIdTolocal_users")
@@ -133,6 +134,7 @@ model LocalUser {
   @@index([city])
   @@index([email])
   @@index([role])
+  @@index([deletedAt])
   @@map("local_users")
 }
 
