@@ -104,6 +104,7 @@ model LocalMission {
   updatedAt        DateTime
   assignedToUser   LocalUser?         @relation("local_missions_assignedToUserIdTolocal_users", fields: [assignedToUserId], references: [id])
   createdByUser    LocalUser          @relation("local_missions_createdByUserIdTolocal_users", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  offers           LocalOffer[]
 
   @@index([assignedToUserId])
   @@index([category])
@@ -112,6 +113,38 @@ model LocalMission {
   @@index([latitude, longitude])
   @@index([status])
   @@map("local_missions")
+}
+
+// ============================================
+// LOCAL OFFERS - Offres pour missions locales
+// ============================================
+
+model LocalOffer {
+  id          String           @id
+  missionId   String
+  workerId    String
+  price       Float
+  message     String?
+  status      LocalOfferStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime
+
+  // Relations
+  mission LocalMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  worker  LocalUser    @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  // Unique constraint: one offer per worker per mission
+  @@unique([missionId, workerId])
+  @@index([missionId])
+  @@index([workerId])
+  @@index([status])
+  @@map("local_offers")
+}
+
+enum LocalOfferStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
 }
 
 model LocalUser {
@@ -129,6 +162,7 @@ model LocalUser {
   updatedAt        DateTime
   assignedMissions LocalMission[] @relation("local_missions_assignedToUserIdTolocal_users")
   createdMissions  LocalMission[] @relation("local_missions_createdByUserIdTolocal_users")
+  offers           LocalOffer[]
 
   @@index([active])
   @@index([city])
