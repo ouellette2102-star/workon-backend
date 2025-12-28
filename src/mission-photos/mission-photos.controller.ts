@@ -16,7 +16,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MissionPhotosService } from './mission-photos.service';
 
 @ApiTags('Missions')
-@Controller('missions/:missionId/photos')
+@Controller('api/v1/missions/:missionId/photos')
 @UseGuards(JwtAuthGuard)
 export class MissionPhotosController {
   constructor(private readonly missionPhotosService: MissionPhotosService) {}

@@ -8,7 +8,7 @@ import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { UserRole } from '@prisma/client';
 
 @ApiTags('Payments')
-@Controller('payments')
+@Controller('api/v1/payments')
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 

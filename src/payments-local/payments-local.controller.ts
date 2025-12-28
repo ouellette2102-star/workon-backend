@@ -20,7 +20,7 @@ import { PaymentIntentResponseDto } from './dto/payment-intent-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Payments')
-@Controller('payments')
+@Controller('api/v1/payments-local')
 export class PaymentsLocalController {
   constructor(private readonly paymentsService: PaymentsLocalService) {}
 
