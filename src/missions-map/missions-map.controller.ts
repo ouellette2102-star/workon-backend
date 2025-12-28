@@ -14,7 +14,7 @@ import {
   MissionsHealthDto,
 } from './dto/mission-pin.dto';
 
-@ApiTags('missions-map')
+@ApiTags('Missions Map')
 @ApiExtraModels(MissionPinDto, MissionDetailDto, MissionsHealthDto)
 @Controller('api/v1/missions')
 export class MissionsMapController {
@@ -26,16 +26,23 @@ export class MissionsMapController {
    */
   @Get()
   @ApiOperation({
-    summary: 'Get missions for map (public)',
+    summary: 'List missions for map display',
     description:
-      'Returns lightweight mission data for map pins. No authentication required.',
+      'Returns a lightweight list of missions optimized for map pin rendering. ' +
+      'Use this endpoint to populate the map with mission markers. ' +
+      'Each mission includes coordinates, category, price, and status. ' +
+      'Supports geo-filtering by lat/lng/radius and filtering by status, category, city. ' +
+      '**Public endpoint - no authentication required.**',
   })
   @ApiResponse({
     status: 200,
-    description: 'List of missions',
+    description: 'Array of mission pins for map display',
     type: [MissionPinDto],
   })
-  @ApiResponse({ status: 400, description: 'Invalid query parameters' })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid query parameters (e.g., lat without lng, invalid enum value)',
+  })
   async getMissions(
     @Query() query: GetMissionsQueryDto,
   ): Promise<MissionPinDto[]> {
@@ -48,12 +55,15 @@ export class MissionsMapController {
    */
   @Get('health')
   @ApiOperation({
-    summary: 'Missions health check',
-    description: 'Returns mission counts and service status',
+    summary: 'Missions service health check',
+    description:
+      'Returns aggregated mission counts for monitoring and dashboards. ' +
+      'Useful for verifying database connectivity and data availability. ' +
+      '**Public endpoint - no authentication required.**',
   })
   @ApiResponse({
     status: 200,
-    description: 'Health status',
+    description: 'Health status with mission counts',
     type: MissionsHealthDto,
   })
   async getHealth(): Promise<MissionsHealthDto> {
@@ -66,21 +76,28 @@ export class MissionsMapController {
    */
   @Get(':id')
   @ApiOperation({
-    summary: 'Get mission by ID (public)',
+    summary: 'Get mission details by ID',
     description:
-      'Returns full mission details for display. No authentication required.',
+      'Returns complete mission information for the detail view. ' +
+      'Includes all fields from the map pin plus description and address. ' +
+      'Use this when user taps on a map pin to view full mission details. ' +
+      '**Public endpoint - no authentication required.**',
   })
   @ApiParam({
     name: 'id',
-    description: 'Mission ID',
+    description: 'Unique mission identifier (prefixed with lm_)',
     example: 'lm_123456789_abc',
+    required: true,
   })
   @ApiResponse({
     status: 200,
-    description: 'Mission details',
+    description: 'Full mission details',
     type: MissionDetailDto,
   })
-  @ApiResponse({ status: 404, description: 'Mission not found' })
+  @ApiResponse({
+    status: 404,
+    description: 'Mission not found with the provided ID',
+  })
   async getMissionById(@Param('id') id: string): Promise<MissionDetailDto> {
     return this.missionsMapService.getMissionById(id);
   }
