@@ -316,18 +316,30 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
     }
 
     // =====================================================
-    // 🎯 SIGNED_URL_SECRET - LIGNE ~307 - SOURCE DU CRASH
+    // 🎯 SIGNED_URL_SECRET - SOURCE DU CRASH RAILWAY
     // =====================================================
     if (!isPresent(validatedConfig.SIGNED_URL_SECRET)) {
-      console.error('❌ ERROR: SIGNED_URL_SECRET is required in production. Photo signed URLs will be insecure.');
-      // DEBUG: log supplémentaire avant le throw
-      if (config['DEBUG_ENV'] === '1') {
-        console.error('DEBUG: SIGNED_URL_SECRET check failed. Analysis:');
-        console.error(`  - raw value type: ${typeof validatedConfig.SIGNED_URL_SECRET}`);
-        console.error(`  - raw value length: ${typeof validatedConfig.SIGNED_URL_SECRET === 'string' ? validatedConfig.SIGNED_URL_SECRET.length : 'N/A'}`);
-        console.error(`  - isPresent result: ${isPresent(validatedConfig.SIGNED_URL_SECRET)}`);
+      const rawValue = validatedConfig.SIGNED_URL_SECRET;
+      const rawLen = typeof rawValue === 'string' ? rawValue.length : 0;
+      const trimLen = typeof rawValue === 'string' ? rawValue.trim().length : 0;
+      
+      // Message d'erreur contextuel selon le type de problème
+      let errorContext = '';
+      if (rawValue === undefined) {
+        errorContext = 'Variable is UNDEFINED (not set in Railway)';
+      } else if (rawValue === null) {
+        errorContext = 'Variable is NULL';
+      } else if (rawLen === 0) {
+        errorContext = 'Variable is EMPTY STRING (set but no value)';
+      } else if (trimLen === 0) {
+        errorContext = `Variable contains ONLY WHITESPACE (${rawLen} chars). Railway UI issue: delete and re-add the variable.`;
       }
-      throw new Error('SIGNED_URL_SECRET is required in production');
+      
+      console.error('❌ ERROR: SIGNED_URL_SECRET is required in production.');
+      console.error(`   Diagnostic: ${errorContext}`);
+      console.error('   Fix: In Railway Dashboard → Variables → Delete SIGNED_URL_SECRET → Add new → Redeploy');
+      
+      throw new Error(`SIGNED_URL_SECRET is required in production. ${errorContext}`);
     }
   } else {
     // ========================================
