@@ -6,11 +6,13 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { ProfileService } from './profile.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UpdateProfileDto } from './dto/update-profile-role.dto';
 import { ProfileResponseDto } from './dto/profile-response.dto';
 
+@ApiTags('Profiles')
 @Controller('profile')
 @UseGuards(JwtAuthGuard)
 export class ProfileController {

@@ -10,10 +10,12 @@ import {
   UploadedFile,
   BadRequestException,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MissionPhotosService } from './mission-photos.service';
 
+@ApiTags('Missions')
 @Controller('missions/:missionId/photos')
 @UseGuards(JwtAuthGuard)
 export class MissionPhotosController {

@@ -1,9 +1,11 @@
 import { Controller, Post, Headers, Body, RawBodyRequest, Req, Logger } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { PaymentsService } from './payments.service';
 import Stripe from 'stripe';
 import { Request } from 'express';
 
+@ApiTags('Webhooks')
 @Controller('webhooks')
 export class WebhooksController {
   private readonly logger = new Logger(WebhooksController.name);

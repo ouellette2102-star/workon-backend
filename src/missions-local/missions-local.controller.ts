@@ -24,7 +24,7 @@ import { MissionResponseDto } from './dto/mission-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { plainToInstance } from 'class-transformer';
 
-@ApiTags('missions')
+@ApiTags('Missions')
 @Controller('missions')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()

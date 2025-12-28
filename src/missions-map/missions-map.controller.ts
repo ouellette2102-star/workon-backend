@@ -14,7 +14,7 @@ import {
   MissionsHealthDto,
 } from './dto/mission-pin.dto';
 
-@ApiTags('Missions Map')
+@ApiTags('Missions')
 @ApiExtraModels(MissionPinDto, MissionDetailDto, MissionsHealthDto)
 @Controller('api/v1/missions')
 export class MissionsMapController {
