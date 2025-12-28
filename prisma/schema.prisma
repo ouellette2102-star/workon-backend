@@ -105,6 +105,7 @@ model LocalMission {
   assignedToUser   LocalUser?         @relation("local_missions_assignedToUserIdTolocal_users", fields: [assignedToUserId], references: [id])
   createdByUser    LocalUser          @relation("local_missions_createdByUserIdTolocal_users", fields: [createdByUserId], references: [id], onDelete: Cascade)
   offers           LocalOffer[]
+  ratings          LocalRating[]
 
   @@index([assignedToUserId])
   @@index([category])
@@ -147,6 +148,32 @@ enum LocalOfferStatus {
   DECLINED
 }
 
+// ============================================
+// LOCAL RATINGS - Évaluations post-mission
+// ============================================
+
+model LocalRating {
+  id           String   @id @default(cuid())
+  missionId    String
+  authorId     String
+  targetUserId String
+  score        Int      // 1-5
+  comment      String?
+  createdAt    DateTime @default(now())
+
+  // Relations
+  mission    LocalMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  author     LocalUser    @relation("local_ratings_author", fields: [authorId], references: [id], onDelete: Cascade)
+  targetUser LocalUser    @relation("local_ratings_target", fields: [targetUserId], references: [id], onDelete: Cascade)
+
+  // One rating per author per mission
+  @@unique([missionId, authorId])
+  @@index([missionId])
+  @@index([authorId])
+  @@index([targetUserId])
+  @@map("local_ratings")
+}
+
 model LocalUser {
   id               String         @id
   email            String         @unique
@@ -163,6 +190,8 @@ model LocalUser {
   assignedMissions LocalMission[] @relation("local_missions_assignedToUserIdTolocal_users")
   createdMissions  LocalMission[] @relation("local_missions_createdByUserIdTolocal_users")
   offers           LocalOffer[]
+  ratingsGiven     LocalRating[]  @relation("local_ratings_author")
+  ratingsReceived  LocalRating[]  @relation("local_ratings_target")
 
   @@index([active])
   @@index([city])

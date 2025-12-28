@@ -30,6 +30,7 @@ import { MediaModule } from './media/media.module';
 import { StorageModule } from './storage/storage.module';
 import { MissionEventsModule } from './mission-events/mission-events.module';
 import { OffersModule } from './offers/offers.module';
+import { RatingsModule } from './ratings/ratings.module';
 
 @Module({
   imports: [
@@ -156,6 +157,8 @@ import { OffersModule } from './offers/offers.module';
     MissionEventsModule,
     // Offers module (marketplace offers flow)
     OffersModule,
+    // Ratings module (trust & reputation system)
+    RatingsModule,
   ],
   controllers: [AppController],
   providers: [
