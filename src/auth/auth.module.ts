@@ -1,3 +1,13 @@
+/**
+ * Auth Module - Local JWT Authentication
+ *
+ * Current mode: LOCAL JWT (Clerk disabled)
+ * See docs/auth-mode.md for full documentation on:
+ * - Active guards/strategies
+ * - Endpoint status (implemented vs TODO)
+ * - Token structure
+ * - How to re-enable Clerk if needed
+ */
 import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
