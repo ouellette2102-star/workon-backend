@@ -41,64 +41,82 @@ async function bootstrap() {
     app.use(Sentry.Handlers.tracingHandler());
   }
 
-  // Security middleware
-  app.use(helmet());
+  // ============================================
+  // SECURITY HEADERS (Helmet)
+  // ============================================
+  // Configuration explicite des headers de sécurité
+  app.use(
+    helmet({
+      // Masquer le header X-Powered-By (Express)
+      hidePoweredBy: true,
+      // Empêcher le MIME sniffing
+      noSniff: true,
+      // Protection contre le clickjacking (frame)
+      frameguard: { action: 'deny' },
+      // XSS filter (legacy, mais utile pour vieux navigateurs)
+      xssFilter: true,
+      // Désactiver Content-Security-Policy par défaut (config avancée requise)
+      contentSecurityPolicy: false,
+      // Empêcher IE d'ouvrir des fichiers dans le contexte du site
+      ieNoOpen: true,
+      // DNS prefetch control
+      dnsPrefetchControl: { allow: false },
+    }),
+  );
 
-  // CORS - Configuration stricte pour la sécurité
+  // ============================================
+  // CORS - Configuration stricte
+  // ============================================
   // ⚠️ PRODUCTION: Définir FRONTEND_URL ou CORS_ORIGIN dans .env
   // ⚠️ NE JAMAIS utiliser origin: '*' en production avec credentials: true
   
   const isProd = nodeEnv === 'production';
+  const frontendUrl = configService.get<string>('FRONTEND_URL');
+  const corsOrigin = configService.get<string>('CORS_ORIGIN');
+  const corsFailFast = configService.get<string>('CORS_FAIL_FAST') === 'true';
   
   let allowedOrigins: string[] | boolean;
 
   if (isProd) {
-    // PRODUCTION: Utiliser FRONTEND_URL ou CORS_ORIGIN (strict)
-    const frontendUrl = configService.get<string>('FRONTEND_URL');
-    const corsOrigin = configService.get<string>('CORS_ORIGIN');
-
+    // PRODUCTION: Mode strict
     if (corsOrigin === '*') {
-      console.warn(
-        '⚠️ WARNING: CORS_ORIGIN is "*" in production. This is insecure but allows health checks.',
-      );
-      allowedOrigins = true; // Allow all for Railway health checks
+      if (corsFailFast) {
+        // Fail-fast: refuser de démarrer avec CORS_ORIGIN="*"
+        throw new Error(
+          '❌ SECURITY: CORS_ORIGIN="*" is not allowed in production with CORS_FAIL_FAST=true. ' +
+          'Set a specific origin list or remove CORS_FAIL_FAST.',
+        );
+      }
+      console.warn('⚠️ SECURITY WARNING: CORS_ORIGIN="*" in production. Set specific origins for security.');
+      allowedOrigins = true;
     } else if (frontendUrl) {
       allowedOrigins = [frontendUrl];
+      console.log(`🔒 CORS: Allowing FRONTEND_URL: ${frontendUrl}`);
     } else if (corsOrigin) {
-      allowedOrigins = corsOrigin
-        .split(',')
-        .map((origin) => origin.trim())
-        .filter(Boolean);
+      allowedOrigins = corsOrigin.split(',').map((o) => o.trim()).filter(Boolean);
+      console.log(`🔒 CORS: Allowing origins: ${allowedOrigins.join(', ')}`);
     } else {
-      // Allow Railway health checks even without CORS config
+      // Pas de config: permettre health checks mais avertir
       console.warn(
-        '⚠️ WARNING: No CORS_ORIGIN or FRONTEND_URL set in production. Allowing all origins for health checks. ' +
-        'Configure CORS_ORIGIN in Railway for security.',
+        '⚠️ SECURITY WARNING: No CORS config in production. ' +
+        'Set CORS_ORIGIN or FRONTEND_URL in Railway for security.',
       );
       allowedOrigins = true;
     }
-
-    console.log(`🔒 CORS enabled for production origins: ${Array.isArray(allowedOrigins) ? allowedOrigins.join(', ') : 'all (configure CORS_ORIGIN!)'}`);
   } else {
-    // DEVELOPMENT: Autoriser localhost sur plusieurs ports
-    const corsOrigin = configService.get<string>('CORS_ORIGIN');
-    
+    // DEVELOPMENT: Plus permissif
     if (corsOrigin && corsOrigin !== '*') {
-      // Utiliser CORS_ORIGIN si défini en dev (pour tester)
-      allowedOrigins = corsOrigin
-        .split(',')
-        .map((origin) => origin.trim())
-        .filter(Boolean);
+      allowedOrigins = corsOrigin.split(',').map((o) => o.trim()).filter(Boolean);
     } else {
-      // Default dev: autoriser localhost
+      // Default dev: localhost uniquement
       allowedOrigins = [
         'http://localhost:3000',
         'http://127.0.0.1:3000',
-        'http://localhost:3001', // Backend (si besoin de s'appeler lui-même)
+        'http://localhost:3001',
+        'http://localhost:8080',
       ];
     }
-
-    console.log(`🔓 CORS enabled for development origins: ${Array.isArray(allowedOrigins) ? allowedOrigins.join(', ') : 'all'}`);
+    console.log(`🔓 CORS (dev): ${Array.isArray(allowedOrigins) ? allowedOrigins.join(', ') : 'all'}`);
   }
 
   app.enableCors({
@@ -247,12 +265,20 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
   
   const logger = app.get(WINSTON_MODULE_NEST_PROVIDER);
+  
+  // ============================================
+  // STARTUP SECURITY SUMMARY
+  // ============================================
   logger.log(`✅ Application is running on: http://0.0.0.0:${port}/${apiPrefix}`);
   logger.log(`🚀 Environment: ${nodeEnv}`);
-  logger.log(`🔌 PORT from env: ${process.env.PORT || 'not set (using 8080)'}`);
+  logger.log(`🔌 PORT: ${process.env.PORT || '8080 (default)'}`);
+  logger.log(`🔒 Security: Helmet enabled (noSniff, frameguard, xssFilter)`);
+  logger.log(`🔒 Rate Limit: ${configService.get('THROTTLE_LIMIT', 20)} req/${configService.get('THROTTLE_TTL', 60)}s`);
+  logger.log(`💚 Health: /healthz, /readyz, /api/v1/health (no throttle)`);
   
-  // Health check should be accessible at root level (no prefix)
-  logger.log(`💚 Health check available at: /healthz`);
+  if (isProd && !corsOrigin && !frontendUrl) {
+    logger.warn(`⚠️  ACTION REQUIRED: Set CORS_ORIGIN or FRONTEND_URL in production`);
+  }
 }
 
 bootstrap();
