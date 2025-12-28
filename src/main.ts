@@ -267,17 +267,39 @@ async function bootstrap() {
   const logger = app.get(WINSTON_MODULE_NEST_PROVIDER);
   
   // ============================================
-  // STARTUP SECURITY SUMMARY
+  // STARTUP SUMMARY
   // ============================================
   logger.log(`✅ Application is running on: http://0.0.0.0:${port}/${apiPrefix}`);
   logger.log(`🚀 Environment: ${nodeEnv}`);
   logger.log(`🔌 PORT: ${process.env.PORT || '8080 (default)'}`);
-  logger.log(`🔒 Security: Helmet enabled (noSniff, frameguard, xssFilter)`);
-  logger.log(`🔒 Rate Limit: ${configService.get('THROTTLE_LIMIT', 20)} req/${configService.get('THROTTLE_TTL', 60)}s`);
+  
+  // ============================================
+  // FEATURE FLAGS STATUS
+  // ============================================
+  const rateLimitEnabled = configService.get<string>('RATE_LIMIT_ENABLED', '1') !== '0';
+  const rateLimitTtl = configService.get('RATE_LIMIT_TTL') || configService.get('THROTTLE_TTL', 60);
+  const rateLimitMax = configService.get('RATE_LIMIT_LIMIT') || configService.get('THROTTLE_LIMIT', 100);
+  
+  logger.log(`🎛️  FEATURE FLAGS:`);
+  logger.log(`    - RATE_LIMIT: ${rateLimitEnabled ? `✅ ON (${rateLimitMax} req/${rateLimitTtl}s)` : '❌ OFF'}`);
+  logger.log(`    - SWAGGER: ${enableSwagger ? '✅ ON' : '❌ OFF'}${isProd && enableSwaggerProd ? ' (ENABLE_SWAGGER_PROD=true)' : ''}`);
+  logger.log(`    - SENTRY: ${sentryDsn ? '✅ ON' : '❌ OFF'}`);
+  logger.log(`    - DEBUG_ENV: ${configService.get('DEBUG_ENV') === '1' ? '✅ ON' : '❌ OFF'}`);
+  
+  // ============================================
+  // SECURITY STATUS
+  // ============================================
+  logger.log(`🔒 SECURITY:`);
+  logger.log(`    - Helmet: ✅ (noSniff, frameguard, xssFilter)`);
+  logger.log(`    - CORS: ${Array.isArray(allowedOrigins) ? allowedOrigins.join(', ') : (allowedOrigins ? 'ALL (⚠️ configure CORS_ORIGIN!)' : 'restricted')}`);
   logger.log(`💚 Health: /healthz, /readyz, /api/v1/health (no throttle)`);
   
+  // Warnings
   if (isProd && !corsOrigin && !frontendUrl) {
     logger.warn(`⚠️  ACTION REQUIRED: Set CORS_ORIGIN or FRONTEND_URL in production`);
+  }
+  if (isProd && !rateLimitEnabled) {
+    logger.warn(`⚠️  WARNING: Rate limiting is DISABLED in production`);
   }
 }
 
