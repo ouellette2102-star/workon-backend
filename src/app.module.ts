@@ -24,6 +24,7 @@ import { HealthModule } from './health/health.module';
 import { MissionsLocalModule } from './missions-local/missions-local.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { PaymentsLocalModule } from './payments-local/payments-local.module';
+import { MissionsMapModule } from './missions-map/missions-map.module';
 
 @Module({
   imports: [
@@ -127,6 +128,8 @@ import { PaymentsLocalModule } from './payments-local/payments-local.module';
     MissionsLocalModule,
     MetricsModule,
     PaymentsLocalModule,
+    // Public read-only missions API for map pins
+    MissionsMapModule,
   ],
   controllers: [AppController],
   providers: [
