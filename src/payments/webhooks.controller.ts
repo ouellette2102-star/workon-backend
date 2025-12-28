@@ -1,12 +1,12 @@
-import { Controller, Post, Headers, Body, RawBodyRequest, Req, Logger } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Controller, Post, Headers, RawBodyRequest, Req, Logger, HttpCode } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { PaymentsService } from './payments.service';
 import Stripe from 'stripe';
 import { Request } from 'express';
 
 @ApiTags('Webhooks')
-@Controller('webhooks')
+@Controller('api/v1/webhooks')
 export class WebhooksController {
   private readonly logger = new Logger(WebhooksController.name);
   private readonly stripe: Stripe | null;
@@ -24,47 +24,65 @@ export class WebhooksController {
     }
   }
 
+  /**
+   * POST /api/v1/webhooks/stripe
+   * Webhook endpoint pour Stripe (signature vérifiée)
+   */
   @Post('stripe')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Stripe webhook endpoint',
+    description:
+      'Receives and processes Stripe webhook events. ' +
+      'Signature is verified using STRIPE_WEBHOOK_SECRET. ' +
+      'Supports: payment_intent.amount_capturable_updated, payment_intent.succeeded, ' +
+      'payment_intent.canceled, payment_intent.payment_failed. ' +
+      'Idempotent via lastStripeEventId.',
+  })
+  @ApiResponse({ status: 200, description: 'Webhook received and processed' })
+  @ApiResponse({ status: 400, description: 'Invalid signature' })
   async handleStripeWebhook(
     @Headers('stripe-signature') signature: string,
     @Req() req: RawBodyRequest<Request>,
   ) {
     if (!this.stripe) {
       this.logger.error('Stripe non configuré');
-      return { received: false };
+      return { received: false, error: 'Stripe not configured' };
     }
 
     const webhookSecret = this.configService.get<string>('STRIPE_WEBHOOK_SECRET');
     if (!webhookSecret) {
       this.logger.error('STRIPE_WEBHOOK_SECRET non configuré');
-      return { received: false };
+      return { received: false, error: 'Webhook secret not configured' };
+    }
+
+    if (!signature) {
+      this.logger.warn('Webhook reçu sans signature');
+      return { received: false, error: 'Missing signature' };
     }
 
     let event: Stripe.Event;
 
     try {
-      // Vérifier la signature du webhook
-      // Note: req.rawBody doit être un Buffer pour Stripe
+      // Récupérer le raw body (Buffer) pour vérification signature
       const rawBody = req.rawBody instanceof Buffer ? req.rawBody : Buffer.from(req.rawBody || '');
-      
-      event = this.stripe.webhooks.constructEvent(
-        rawBody,
-        signature,
-        webhookSecret,
-      );
+
+      event = this.stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
     } catch (err) {
-      this.logger.error(`Erreur de signature webhook: ${err}`);
+      this.logger.error(`Erreur de signature webhook: ${err instanceof Error ? err.message : String(err)}`);
       return { received: false, error: 'Invalid signature' };
     }
+
+    this.logger.log(`Webhook Stripe reçu: ${event.type} (${event.id})`);
 
     // Traiter l'événement de manière idempotente
     try {
       await this.paymentsService.handleWebhookEvent(event);
-      return { received: true };
+      return { received: true, eventId: event.id };
     } catch (error) {
-      this.logger.error(`Erreur lors du traitement du webhook: ${error}`);
-      // Retourner reçu mais avec erreur (Stripe retryera)
-      return { received: true, error: 'Processing failed' };
+      this.logger.error(`Erreur lors du traitement du webhook ${event.id}: ${error}`);
+      // Toujours retourner 200 pour éviter les retries inutiles
+      return { received: true, error: 'Processing failed', eventId: event.id };
     }
   }
 }
