@@ -16,7 +16,6 @@ import { ProfileModule } from './profile/profile.module';
 import { MessagesModule } from './messages/messages.module';
 import { NotificationsModule } from './notifications/notifications.module';
 // import { MissionTimeLogsModule } from './mission-time-logs/mission-time-logs.module';
-// import { MissionPhotosModule } from './mission-photos/mission-photos.module';
 import { StripeModule } from './stripe/stripe.module';
 import { validate } from './config/env.validation';
 import { UsersModule } from './users/users.module';
@@ -25,6 +24,9 @@ import { MissionsLocalModule } from './missions-local/missions-local.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { PaymentsLocalModule } from './payments-local/payments-local.module';
 import { CatalogModule } from './catalog/catalog.module';
+import { MissionPhotosModule } from './mission-photos/mission-photos.module';
+import { MediaModule } from './media/media.module';
+import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
@@ -121,7 +123,6 @@ import { CatalogModule } from './catalog/catalog.module';
     AdminModule,
     ProfileModule,
     // MissionTimeLogsModule,
-    // MissionPhotosModule,
     // Health check
     HealthModule,
     // MVP Marketplace modules (depend on AuthModule)
@@ -130,6 +131,11 @@ import { CatalogModule } from './catalog/catalog.module';
     PaymentsLocalModule,
     // Public read-only catalog API (categories + skills)
     CatalogModule,
+    // Mission photos upload (PR#12)
+    MissionPhotosModule,
+    // Storage abstraction + Media streaming (PR#13)
+    StorageModule,
+    MediaModule,
   ],
   controllers: [AppController],
   providers: [

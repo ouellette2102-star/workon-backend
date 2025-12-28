@@ -34,24 +34,16 @@ export class MissionPhotosService {
       where: { id: missionId },
       select: {
         id: true,
-        employerId: true,
-        workerId: true,
-        employer: {
+        authorClientId: true,
+        assigneeWorkerId: true,
+        authorClient: {
           select: {
-            user: {
-              select: {
-                clerkId: true,
-              },
-            },
+            clerkId: true,
           },
         },
-        worker: {
+        assigneeWorker: {
           select: {
-            user: {
-              select: {
-                clerkId: true,
-              },
-            },
+            clerkId: true,
           },
         },
       },
@@ -61,12 +53,12 @@ export class MissionPhotosService {
       throw new NotFoundException('Mission introuvable');
     }
 
-    const isEmployer = mission.employer.user.clerkId === clerkUserId;
-    const isWorker = mission.worker?.user.clerkId === clerkUserId;
+    const isAuthor = mission.authorClient.clerkId === clerkUserId;
+    const isWorker = mission.assigneeWorker?.clerkId === clerkUserId;
 
     return {
-      canAccess: isEmployer || isWorker,
-      canUpload: isEmployer || isWorker,
+      canAccess: isAuthor || isWorker,
+      canUpload: isAuthor || isWorker,
     };
   }
 
@@ -206,13 +198,9 @@ export class MissionPhotosService {
         url: true,
         mission: {
           select: {
-            employer: {
+            authorClient: {
               select: {
-                user: {
-                  select: {
-                    clerkId: true,
-                  },
-                },
+                clerkId: true,
               },
             },
           },
@@ -224,11 +212,11 @@ export class MissionPhotosService {
       throw new NotFoundException('Photo introuvable');
     }
 
-    // Seul l'uploader ou l'employer peut supprimer
+    // Seul l'uploader ou l'auteur de la mission peut supprimer
     const isUploader = photo.userId === clerkUserId;
-    const isEmployer = photo.mission.employer.user.clerkId === clerkUserId;
+    const isAuthor = photo.mission.authorClient.clerkId === clerkUserId;
 
-    if (!isUploader && !isEmployer) {
+    if (!isUploader && !isAuthor) {
       throw new ForbiddenException(
         "Vous n'avez pas le droit de supprimer cette photo",
       );

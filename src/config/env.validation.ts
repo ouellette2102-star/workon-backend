@@ -88,6 +88,18 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   THROTTLE_TTL?: string;
+
+  // ========================================
+  // SIGNED URLS (photos)
+  // ========================================
+  
+  @IsString()
+  @IsOptional()
+  SIGNED_URL_SECRET?: string;
+
+  @IsString()
+  @IsOptional()
+  SIGNED_URL_TTL_SECONDS?: string;
 }
 
 /**
@@ -173,6 +185,13 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
         '❌ ERROR: FRONTEND_URL or CORS_ORIGIN must be set in production for CORS configuration.',
       );
     }
+
+    if (!validatedConfig.SIGNED_URL_SECRET) {
+      console.error(
+        '❌ ERROR: SIGNED_URL_SECRET is required in production. Photo signed URLs will be insecure.',
+      );
+      throw new Error('SIGNED_URL_SECRET is required in production');
+    }
   } else {
     // ========================================
     // CONFIGURATION DÉVELOPPEMENT
@@ -200,6 +219,12 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
       console.warn(
         '⚠️  WARNING: Stripe env not fully configured (STRIPE_SECRET_KEY and/or STRIPE_WEBHOOK_SECRET missing). ' +
         'Stripe payment endpoints may return 503.',
+      );
+    }
+
+    if (!validatedConfig.SIGNED_URL_SECRET) {
+      console.warn(
+        '⚠️  WARNING: SIGNED_URL_SECRET not set. Using insecure default for development.',
       );
     }
 
