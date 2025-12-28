@@ -42,13 +42,26 @@ import { MissionEventsModule } from './mission-events/mission-events.module';
     }),
 
     // Rate limiting - Protection contre les abus et attaques par force brute
-    // ⚠️ SÉCURITÉ: Limite globale stricte - 20 requêtes par minute par IP
+    // ⚠️ SÉCURITÉ: Configurable via RATE_LIMIT_* ou THROTTLE_* (legacy)
+    // Disable avec RATE_LIMIT_ENABLED=0
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService): ThrottlerModuleOptions => {
-        const ttl = config.get<number>('THROTTLE_TTL', 60); // 60 secondes
-        const limit = config.get<number>('THROTTLE_LIMIT', 20); // 20 requêtes (réduit de 100)
+        // Feature flag: désactiver complètement le rate limiting si RATE_LIMIT_ENABLED=0
+        const enabled = config.get<string>('RATE_LIMIT_ENABLED', '1') !== '0';
+        
+        // Support des deux formats: RATE_LIMIT_* (nouveau) et THROTTLE_* (legacy)
+        const ttl = config.get<number>('RATE_LIMIT_TTL') 
+          || config.get<number>('THROTTLE_TTL', 60);
+        const limit = config.get<number>('RATE_LIMIT_LIMIT') 
+          || config.get<number>('THROTTLE_LIMIT', 100);
+
+        if (!enabled) {
+          console.log('⚠️  Rate limiting DISABLED (RATE_LIMIT_ENABLED=0)');
+          // Throttler très permissif quand désactivé
+          return { throttlers: [{ name: 'disabled', ttl: 1, limit: 999999 }] };
+        }
 
         return {
           throttlers: [

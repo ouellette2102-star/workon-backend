@@ -217,6 +217,23 @@ export class EnvironmentVariables {
   @IsOptional()
   SENTRY_DSN?: string;
 
+  // ========================================
+  // RATE LIMITING (feature flag)
+  // ========================================
+  
+  @IsString()
+  @IsOptional()
+  RATE_LIMIT_ENABLED?: string; // "1" = enabled, "0" = disabled (default: "1")
+
+  @IsString()
+  @IsOptional()
+  RATE_LIMIT_TTL?: string; // Seconds (default: "60")
+
+  @IsString()
+  @IsOptional()
+  RATE_LIMIT_LIMIT?: string; // Max requests per TTL (default: "100")
+
+  // Legacy aliases (backward compat)
   @IsString()
   @IsOptional()
   THROTTLE_LIMIT?: string;
@@ -224,6 +241,22 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   THROTTLE_TTL?: string;
+
+  // ========================================
+  // FEATURE FLAGS
+  // ========================================
+  
+  @IsString()
+  @IsOptional()
+  ENABLE_SWAGGER_PROD?: string; // "1" or "true" = enable Swagger in production
+
+  @IsString()
+  @IsOptional()
+  DEBUG_ENV?: string; // "1" = enable env debug logging
+
+  @IsString()
+  @IsOptional()
+  CORS_FAIL_FAST?: string; // "true" = fail if CORS_ORIGIN="*" in production
 
   // ========================================
   // SIGNED URLS (photos)
