@@ -107,6 +107,25 @@ export class UsersService {
   }
 
   /**
+   * Update user password
+   * 
+   * @param id - User ID
+   * @param newPassword - New plain password (will be hashed)
+   */
+  async updatePassword(id: string, newPassword: string) {
+    // Verify user exists
+    await this.findById(id);
+
+    // Hash new password
+    const hashedPassword = await this.hashPassword(newPassword);
+
+    // Update password
+    await this.usersRepository.updatePassword(id, hashedPassword);
+
+    this.logger.log(`Password updated for user: ${id}`);
+  }
+
+  /**
    * Deactivate user account (soft delete)
    */
   async deactivate(id: string) {
