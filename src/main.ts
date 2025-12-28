@@ -160,29 +160,67 @@ async function bootstrap() {
   // Global Exception Filter (standardise les erreurs API)
   app.useGlobalFilters(new GlobalHttpExceptionFilter());
 
-  // Health check endpoint (liveness probe)
+  // ============================================
+  // LIVENESS PROBE (/healthz)
+  // ============================================
+  // Retourne TOUJOURS 200 si le process répond (même si DB down)
+  // Utilisé par Railway/K8s pour vérifier que le container est vivant
   app.getHttpAdapter().get('/healthz', (req: any, res: any) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptime: Math.floor(process.uptime()),
+      version: process.env.npm_package_version || '1.0.0',
+    });
   });
 
-  // Readiness check endpoint (vérifie DB)
-  // Vérifie que la connexion DB est active
+  // ============================================
+  // READINESS PROBE (/readyz)
+  // ============================================
+  // Retourne 200 si le service est prêt à recevoir du trafic
+  // Vérifie DB avec timeout de 2s pour ne pas bloquer
+  const DB_CHECK_TIMEOUT_MS = 2000;
+  
   app.getHttpAdapter().get('/readyz', async (req: any, res: any) => {
+    const startTime = Date.now();
+    
     try {
       // Import PrismaService dynamiquement pour éviter les problèmes de DI
       const { PrismaService } = await import('./prisma/prisma.service');
       const prisma = app.get(PrismaService);
-      await prisma.$queryRaw`SELECT 1`;
-      res.json({ 
-        status: 'ready', 
+      
+      // DB check avec timeout
+      await Promise.race([
+        prisma.$queryRaw`SELECT 1`,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('DB check timeout')), DB_CHECK_TIMEOUT_MS),
+        ),
+      ]);
+      
+      const latencyMs = Date.now() - startTime;
+      
+      res.json({
+        status: 'ready',
         timestamp: new Date().toISOString(),
-        checks: { database: 'ok' }
+        checks: {
+          database: { status: 'ok', latencyMs },
+        },
       });
     } catch (error) {
-      res.status(503).json({ 
-        status: 'not_ready', 
+      const latencyMs = Date.now() - startTime;
+      const errorMessage = (error as Error).message;
+      
+      // Ne pas exposer de détails sensibles
+      const safeMessage = errorMessage.includes('timeout') 
+        ? 'Database check timeout' 
+        : 'Database connection failed';
+      
+      res.status(503).json({
+        status: 'not_ready',
         timestamp: new Date().toISOString(),
-        checks: { database: 'error' }
+        checks: {
+          database: { status: 'error', message: safeMessage, latencyMs },
+        },
       });
     }
   });

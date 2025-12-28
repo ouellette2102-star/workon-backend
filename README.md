@@ -154,6 +154,17 @@ docker run -p 3000:3000 --env-file .env workon-backend
 
 - `POST /admin/reconcile-payments` - Réconciliation manuelle des paiements (ADMIN)
 
+### Health Checks (Infrastructure)
+
+| Endpoint | Type | Description |
+|----------|------|-------------|
+| `GET /healthz` | Liveness | Retourne toujours 200 si le process est vivant. Ne vérifie pas les dépendances. |
+| `GET /readyz` | Readiness | Retourne 200 si DB accessible (timeout 2s), 503 sinon. Utilisé par Railway/K8s. |
+| `GET /api/v1/health` | Détaillé | Statut complet avec DB, Stripe, Storage, SignedUrls. |
+| `GET /api/v1/ready` | Détaillé | Readiness détaillé avec latence DB. |
+
+**Usage Railway** : Configurer `/healthz` pour le health check et `/readyz` pour le readiness check.
+
 ## 🧪 Tests
 
 ### Tests unitaires

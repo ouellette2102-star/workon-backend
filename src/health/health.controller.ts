@@ -123,12 +123,12 @@ export class HealthController {
     const timestamp = new Date().toISOString();
 
     try {
-      // Check critique: Database
+      // Check critique: Database (timeout 2s)
       const start = Date.now();
       await Promise.race([
         this.prisma.$queryRaw`SELECT 1`,
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('DB timeout')), 3000),
+          setTimeout(() => reject(new Error('DB timeout')), 2000),
         ),
       ]);
       const latencyMs = Date.now() - start;
@@ -162,15 +162,17 @@ export class HealthController {
   }
 
   /**
-   * Check Database connectivity
+   * Check Database connectivity (timeout: 2s)
    */
   private async checkDatabase(): Promise<ServiceCheck> {
+    const DB_CHECK_TIMEOUT_MS = 2000;
+    
     try {
       const start = Date.now();
       await Promise.race([
         this.prisma.$queryRaw`SELECT 1`,
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('timeout')), 3000),
+          setTimeout(() => reject(new Error('timeout')), DB_CHECK_TIMEOUT_MS),
         ),
       ]);
       const latencyMs = Date.now() - start;
