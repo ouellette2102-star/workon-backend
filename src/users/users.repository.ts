@@ -158,6 +158,21 @@ export class UsersRepository {
   }
 
   /**
+   * Update user password
+   */
+  async updatePassword(id: string, hashedPassword: string) {
+    this.logger.log(`Updating password for user: ${id}`);
+
+    return this.prisma.localUser.update({
+      where: { id },
+      data: {
+        hashedPassword,
+        updatedAt: new Date(),
+      },
+    });
+  }
+
+  /**
    * Soft delete (deactivate) user
    */
   async deactivate(id: string) {
