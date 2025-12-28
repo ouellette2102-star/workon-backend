@@ -170,6 +170,7 @@ model Mission {
   messages         Message[]
   contract         Contract?
   photos           MissionPhoto[]
+  events           MissionEvent[]
 
   @@index([assigneeWorkerId])
   @@index([authorClientId])
@@ -543,4 +544,43 @@ model MissionPhoto {
   @@index([missionId])
   @@index([userId])
   @@map("mission_photos")
+}
+
+// ============================================
+// MISSION EVENTS - Journal d'événements (audit + notifications)
+// ============================================
+
+enum MissionEventType {
+  MISSION_CREATED
+  MISSION_PUBLISHED
+  MISSION_ACCEPTED
+  MISSION_STARTED
+  MISSION_COMPLETED
+  MISSION_CANCELED
+  MISSION_EXPIRED
+  PAYMENT_AUTHORIZED
+  PAYMENT_CAPTURED
+  PAYMENT_CANCELED
+  PHOTO_UPLOADED
+  OFFER_SUBMITTED
+  OFFER_ACCEPTED
+  OFFER_DECLINED
+}
+
+model MissionEvent {
+  id           String           @id @default(cuid())
+  missionId    String
+  type         MissionEventType
+  actorUserId  String?          // Qui a causé l'action (employer/worker/system)
+  targetUserId String?          // User concerné pour "feed" (l'autre partie)
+  payload      Json?            // Détails non sensibles (ex: {fromStatus, toStatus})
+  createdAt    DateTime         @default(now())
+
+  // Relations
+  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@index([missionId, createdAt])
+  @@index([targetUserId, createdAt])
+  @@index([type, createdAt])
+  @@map("mission_events")
 }
