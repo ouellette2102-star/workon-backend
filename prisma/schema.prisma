@@ -155,6 +155,7 @@ model LocalUser {
   lastName         String
   phone            String?
   city             String?
+  pictureUrl       String?        // Profile picture URL
   role             LocalUserRole  @default(worker)
   active           Boolean        @default(true)
   deletedAt        DateTime?      // GDPR: timestamp of account deletion
