@@ -27,6 +27,7 @@ import { CatalogModule } from './catalog/catalog.module';
 import { MissionPhotosModule } from './mission-photos/mission-photos.module';
 import { MediaModule } from './media/media.module';
 import { StorageModule } from './storage/storage.module';
+import { MissionEventsModule } from './mission-events/mission-events.module';
 
 @Module({
   imports: [
@@ -136,6 +137,8 @@ import { StorageModule } from './storage/storage.module';
     // Storage abstraction + Media streaming (PR#13)
     StorageModule,
     MediaModule,
+    // Mission lifecycle events (audit + notifications)
+    MissionEventsModule,
   ],
   controllers: [AppController],
   providers: [
