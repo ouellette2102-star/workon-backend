@@ -6,10 +6,25 @@
  * l'application crashe immédiatement avec un message clair.
  * 
  * SÉCURITÉ : Empêche le démarrage avec une config incomplète.
+ * 
+ * DEBUG: Si DEBUG_ENV=1, affiche un log de diagnostic (sans les valeurs sensibles).
  */
 
 import { IsString, IsNotEmpty, IsOptional, IsIn, validateSync } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
+
+/**
+ * Helper: Vérifie si une variable est définie et non vide (après trim).
+ * Retourne false pour undefined, null, "", ou "   " (espaces).
+ * @exported pour les tests unitaires
+ */
+export function isPresent(value: unknown): boolean {
+  if (value === undefined || value === null) return false;
+  if (typeof value === 'string') {
+    return value.trim().length > 0;
+  }
+  return true;
+}
 
 export class EnvironmentVariables {
   // ========================================
@@ -103,6 +118,35 @@ export class EnvironmentVariables {
 }
 
 /**
+ * Log de diagnostic des variables d'environnement.
+ * Activé uniquement si DEBUG_ENV=1.
+ * SÉCURITÉ: N'affiche JAMAIS les valeurs, uniquement leur présence (boolean).
+ */
+function logEnvDiagnostic(config: Record<string, unknown>, validatedConfig: EnvironmentVariables): void {
+  if (config['DEBUG_ENV'] !== '1') return;
+
+  const isProduction = validatedConfig.NODE_ENV === 'production';
+
+  console.log('\n🔍 [DEBUG_ENV=1] DIAGNOSTIC VARIABLES D\'ENVIRONNEMENT');
+  console.log('=' .repeat(60));
+  console.log(`NODE_ENV             = "${validatedConfig.NODE_ENV}"`);
+  console.log(`Environment détecté  = ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT/TEST'}`);
+  console.log('-'.repeat(60));
+  console.log('Variables critiques (présence uniquement):');
+  console.log(`  DATABASE_URL         : ${isPresent(config['DATABASE_URL']) ? '✅ présent' : '❌ manquant'}`);
+  console.log(`  JWT_SECRET           : ${isPresent(config['JWT_SECRET']) ? '✅ présent' : '❌ manquant'}`);
+  console.log(`  JWT_REFRESH_SECRET   : ${isPresent(config['JWT_REFRESH_SECRET']) ? '✅ présent' : '❌ manquant'}`);
+  console.log(`  CLERK_SECRET_KEY     : ${isPresent(config['CLERK_SECRET_KEY']) ? '✅ présent' : '❌ manquant'}`);
+  console.log(`  STRIPE_SECRET_KEY    : ${isPresent(config['STRIPE_SECRET_KEY']) ? '✅ présent' : '❌ manquant'}`);
+  console.log(`  STRIPE_WEBHOOK_SECRET: ${isPresent(config['STRIPE_WEBHOOK_SECRET']) ? '✅ présent' : '❌ manquant'}`);
+  console.log(`  SIGNED_URL_SECRET    : ${isPresent(config['SIGNED_URL_SECRET']) ? '✅ présent' : '❌ manquant'}`);
+  console.log(`  FRONTEND_URL         : ${isPresent(config['FRONTEND_URL']) ? '✅ présent' : '❌ manquant'}`);
+  console.log(`  CORS_ORIGIN          : ${isPresent(config['CORS_ORIGIN']) ? '✅ présent' : '❌ manquant'}`);
+  console.log('=' .repeat(60));
+  console.log('');
+}
+
+/**
  * Valide les variables d'environnement au démarrage
  * Lance une erreur si une variable requise manque
  */
@@ -110,6 +154,9 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
   const validatedConfig = plainToInstance(EnvironmentVariables, config, {
     enableImplicitConversion: true,
   });
+
+  // Log de diagnostic si DEBUG_ENV=1 (avant les validations pour debug des crashes)
+  logEnvDiagnostic(config, validatedConfig);
 
   const errors = validateSync(validatedConfig, {
     skipMissingProperties: false,
@@ -139,35 +186,37 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
   
   if (isProduction) {
     // Variables critiques en production
-    if (!validatedConfig.JWT_SECRET) {
+    // Utilise isPresent() pour rejeter undefined, null, "", et "   " (espaces seuls)
+    
+    if (!isPresent(validatedConfig.JWT_SECRET)) {
       console.error(
         '❌ ERROR: JWT_SECRET is required in production. Authentication will fail.',
       );
       throw new Error('JWT_SECRET is required in production');
     }
 
-    if (!validatedConfig.JWT_REFRESH_SECRET) {
+    if (!isPresent(validatedConfig.JWT_REFRESH_SECRET)) {
       console.error(
         '❌ ERROR: JWT_REFRESH_SECRET is required in production. Token refresh will fail.',
       );
       throw new Error('JWT_REFRESH_SECRET is required in production');
     }
 
-    if (!validatedConfig.CLERK_SECRET_KEY) {
+    if (!isPresent(validatedConfig.CLERK_SECRET_KEY)) {
       console.error(
         '❌ ERROR: CLERK_SECRET_KEY is required in production.',
       );
       throw new Error('CLERK_SECRET_KEY is required in production');
     }
 
-    if (!validatedConfig.STRIPE_SECRET_KEY) {
+    if (!isPresent(validatedConfig.STRIPE_SECRET_KEY)) {
       console.error(
         '❌ ERROR: STRIPE_SECRET_KEY is required in production. Payments will fail.',
       );
       throw new Error('STRIPE_SECRET_KEY is required in production');
     }
 
-    if (!validatedConfig.STRIPE_WEBHOOK_SECRET) {
+    if (!isPresent(validatedConfig.STRIPE_WEBHOOK_SECRET)) {
       console.error(
         '❌ ERROR: STRIPE_WEBHOOK_SECRET is required in production. Webhook signature validation will fail.',
       );
@@ -177,13 +226,13 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
     // SENTRY_DSN est optionnel même en prod (monitoring non bloquant)
     // Pas de console.warn en production - fail hard ou silent
 
-    if (!validatedConfig.FRONTEND_URL && !validatedConfig.CORS_ORIGIN) {
+    if (!isPresent(validatedConfig.FRONTEND_URL) && !isPresent(validatedConfig.CORS_ORIGIN)) {
       throw new Error(
         'FRONTEND_URL or CORS_ORIGIN must be set in production for CORS security',
       );
     }
 
-    if (!validatedConfig.SIGNED_URL_SECRET) {
+    if (!isPresent(validatedConfig.SIGNED_URL_SECRET)) {
       console.error(
         '❌ ERROR: SIGNED_URL_SECRET is required in production. Photo signed URLs will be insecure.',
       );
@@ -197,29 +246,29 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
     console.log('\n🔧 Development environment detected - using default values for missing variables\n');
 
     // Valeurs par défaut pour JWT
-    if (!validatedConfig.JWT_SECRET) {
+    if (!isPresent(validatedConfig.JWT_SECRET)) {
       validatedConfig.JWT_SECRET = 'dev-jwt-secret-change-in-production';
       console.log('💡 INFO: JWT_SECRET not set. Using default dev value.');
     }
 
-    if (!validatedConfig.JWT_REFRESH_SECRET) {
+    if (!isPresent(validatedConfig.JWT_REFRESH_SECRET)) {
       validatedConfig.JWT_REFRESH_SECRET = 'dev-refresh-secret-change-in-production';
       console.log('💡 INFO: JWT_REFRESH_SECRET not set. Using default dev value.');
     }
 
     // Avertissements légers (non bloquants)
-    if (!validatedConfig.CLERK_SECRET_KEY) {
+    if (!isPresent(validatedConfig.CLERK_SECRET_KEY)) {
       console.log('💡 INFO: CLERK_SECRET_KEY not set in development. Clerk auth features will be disabled.');
     }
 
-    if (!validatedConfig.STRIPE_SECRET_KEY || !validatedConfig.STRIPE_WEBHOOK_SECRET) {
+    if (!isPresent(validatedConfig.STRIPE_SECRET_KEY) || !isPresent(validatedConfig.STRIPE_WEBHOOK_SECRET)) {
       console.warn(
         '⚠️  WARNING: Stripe env not fully configured (STRIPE_SECRET_KEY and/or STRIPE_WEBHOOK_SECRET missing). ' +
         'Stripe payment endpoints may return 503.',
       );
     }
 
-    if (!validatedConfig.SIGNED_URL_SECRET) {
+    if (!isPresent(validatedConfig.SIGNED_URL_SECRET)) {
       console.warn(
         '⚠️  WARNING: SIGNED_URL_SECRET not set. Using insecure default for development.',
       );
