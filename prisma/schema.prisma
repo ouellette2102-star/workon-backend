@@ -215,13 +215,14 @@ model Offer {
 
 model Payment {
   id                     String        @id
-  missionId              String
+  missionId              String        @unique
   stripePaymentIntentId  String?       @unique
   stripeConnectAccountId String?
   amount                 Float
   currency               String        @default("CAD")
   platformFeePct         Float         @default(10)
-  status                 PaymentStatus @default(REQUIRES_ACTION)
+  status                 PaymentStatus @default(CREATED)
+  lastStripeEventId      String?
   createdAt              DateTime      @default(now())
   updatedAt              DateTime
   mission                Mission       @relation(fields: [missionId], references: [id], onDelete: Cascade)
@@ -404,7 +405,12 @@ enum OfferStatus {
 }
 
 enum PaymentStatus {
+  CREATED
   REQUIRES_ACTION
+  AUTHORIZED
+  CAPTURED
+  CANCELED
+  FAILED
   SUCCEEDED
   REFUNDED
   DISPUTED

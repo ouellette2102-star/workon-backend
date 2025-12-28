@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  ConflictException,
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -10,6 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PaymentStatus } from '@prisma/client';
 import Stripe from 'stripe';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class PaymentsService {
@@ -33,42 +35,44 @@ export class PaymentsService {
   }
 
   /**
-   * Créer un PaymentIntent Stripe pour une mission
+   * Generate stable idempotency key for Stripe operations
+   */
+  private generateIdempotencyKey(missionId: string, operation: string): string {
+    const hash = crypto.createHash('sha256').update(`${missionId}:${operation}`).digest('hex');
+    return hash.substring(0, 32);
+  }
+
+  private ensureStripeConfigured(): void {
+    if (!this.stripe) {
+      throw new BadRequestException("Stripe n'est pas configuré");
+    }
+  }
+
+  /**
+   * Créer un PaymentIntent Stripe pour une mission (escrow avec capture manuelle)
    * 
-   * TODO: Cette version minimale utilise amount du schema Payment existant.
-   * TODO: À terme, ajouter les champs priceCents/currency sur Mission si nécessaire.
+   * @param userId - ID de l'utilisateur (employer/client)
+   * @param createPaymentIntentDto - DTO avec missionId et amount
+   * @returns clientSecret pour le frontend + paymentIntentId + status
    */
   async createPaymentIntent(
     userId: string,
     createPaymentIntentDto: CreatePaymentIntentDto,
   ) {
-    if (!this.stripe) {
-      throw new BadRequestException("Stripe n'est pas configuré");
-    }
+    this.ensureStripeConfigured();
 
     const { missionId, amount } = createPaymentIntentDto;
 
-    // Vérifier que la mission existe et que l'utilisateur est l'auteur (employer/client)
+    if (amount <= 0) {
+      throw new BadRequestException('Le montant doit être supérieur à 0');
+    }
+
+    // Vérifier que la mission existe et que l'utilisateur est l'auteur
     const mission = await this.prisma.mission.findUnique({
       where: { id: missionId },
       include: {
-        authorClient: {
-          include: {
-            userProfile: true,
-          },
-        },
-        assigneeWorker: {
-          select: {
-            id: true,
-            clerkId: true,
-          },
-        },
-        payments: {
-          where: {
-            status: PaymentStatus.SUCCEEDED,
-          },
-          select: { id: true },
-        },
+        authorClient: true,
+        assigneeWorker: { select: { id: true } },
       },
     });
 
@@ -76,173 +80,347 @@ export class PaymentsService {
       throw new NotFoundException('Mission non trouvée');
     }
 
-    // Vérifier que l'utilisateur est bien l'auteur de la mission
-    if (mission.authorClient.id !== userId) {
-      throw new ForbiddenException(
-        'Vous ne pouvez pas créer un paiement pour cette mission',
-      );
+    if (mission.authorClientId !== userId) {
+      throw new ForbiddenException('Vous ne pouvez pas créer un paiement pour cette mission');
     }
 
-    // Vérifier qu'il n'y a pas déjà un paiement réussi
-    if (mission.payments.length > 0) {
-      throw new BadRequestException('Un paiement a déjà été effectué pour cette mission');
-    }
-
-    // Vérifier qu'un PaymentIntent n'existe pas déjà en attente
-    const existingPayment = await this.prisma.payment.findFirst({
-      where: {
-        missionId,
-        status: PaymentStatus.REQUIRES_ACTION,
-        stripePaymentIntentId: {
-          not: null,
-        },
-      },
+    // Vérifier s'il existe déjà un Payment pour cette mission (missionId unique)
+    const existingPayment = await this.prisma.payment.findUnique({
+      where: { missionId },
     });
 
     if (existingPayment) {
-      // Retourner le PaymentIntent existant
-      try {
-        const paymentIntent = await this.stripe.paymentIntents.retrieve(
-          existingPayment.stripePaymentIntentId!,
-        );
-        return {
-          clientSecret: paymentIntent.client_secret,
-          paymentIntentId: paymentIntent.id,
-          paymentId: existingPayment.id,
-        };
-      } catch (error) {
-        this.logger.error(`Erreur lors de la récupération du PaymentIntent: ${error}`);
-        // Continuer pour créer un nouveau PaymentIntent
+      // Si déjà CAPTURED ou SUCCEEDED, refuser
+      if (existingPayment.status === PaymentStatus.CAPTURED || existingPayment.status === PaymentStatus.SUCCEEDED) {
+        throw new ConflictException('Un paiement a déjà été capturé pour cette mission');
+      }
+
+      // Si existe et en attente, retourner le PaymentIntent existant
+      if (existingPayment.stripePaymentIntentId) {
+        try {
+          const pi = await this.stripe!.paymentIntents.retrieve(existingPayment.stripePaymentIntentId);
+          return {
+            clientSecret: pi.client_secret,
+            paymentIntentId: pi.id,
+            paymentId: existingPayment.id,
+            status: existingPayment.status,
+          };
+        } catch (err) {
+          this.logger.warn(`PaymentIntent ${existingPayment.stripePaymentIntentId} invalide, création d'un nouveau`);
+        }
       }
     }
 
-    // Calculer le montant en centimes (amount est en dollars, multiplier par 100)
     const amountCents = Math.round(amount * 100);
-    const platformFeePct = 10; // 10% par défaut (field du schema)
+    const idempotencyKey = this.generateIdempotencyKey(missionId!, 'create');
 
-    // Créer le PaymentIntent Stripe
-    const paymentIntent = await this.stripe.paymentIntents.create({
-      amount: amountCents,
-      currency: 'cad', // CAD par défaut pour WorkOn
-      metadata: {
-        missionId: mission.id,
-        authorClientId: mission.authorClientId,
-        assigneeWorkerId: mission.assigneeWorkerId || '',
+    // Créer le PaymentIntent avec capture_method: 'manual' (escrow)
+    const paymentIntent = await this.stripe!.paymentIntents.create(
+      {
+        amount: amountCents,
+        currency: 'cad',
+        capture_method: 'manual', // ESCROW: autorisation sans capture immédiate
+        automatic_payment_methods: { enabled: true },
+        metadata: {
+          missionId: mission.id,
+          authorClientId: mission.authorClientId,
+          assigneeWorkerId: mission.assigneeWorkerId || '',
+          type: 'escrow',
+        },
+        description: `WorkOn Mission: ${mission.title}`,
       },
-      description: `Mission: ${mission.title}`,
-      // TODO: Ajouter Stripe Connect pour transfert direct au worker
-      // application_fee_amount: Math.round(amountCents * platformFeePct / 100),
-      // transfer_data: {
-      //   destination: workerStripeAccountId,
-      // },
-    });
+      { idempotencyKey },
+    );
 
-    // Créer l'enregistrement Payment dans la DB
-    const payment = await this.prisma.payment.create({
-      data: {
+    // Upsert Payment dans la DB
+    const payment = await this.prisma.payment.upsert({
+      where: { missionId },
+      update: {
+        stripePaymentIntentId: paymentIntent.id,
+        amount,
+        status: PaymentStatus.CREATED,
+        updatedAt: new Date(),
+      },
+      create: {
         id: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         missionId: mission.id,
         stripePaymentIntentId: paymentIntent.id,
-        amount: amount, // Montant en dollars
+        amount,
         currency: 'CAD',
-        platformFeePct: platformFeePct,
-        status: PaymentStatus.REQUIRES_ACTION,
+        platformFeePct: 10,
+        status: PaymentStatus.CREATED,
         updatedAt: new Date(),
-        // stripeConnectAccountId sera ajouté quand Stripe Connect sera implémenté
       },
     });
 
-    this.logger.log(`PaymentIntent créé: ${paymentIntent.id} pour mission ${missionId}, montant: ${amount} CAD`);
+    this.logger.log(`PaymentIntent escrow créé: ${paymentIntent.id} pour mission ${missionId}, montant: ${amount} CAD`);
 
     return {
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
       paymentId: payment.id,
+      status: payment.status,
     };
   }
 
   /**
-   * Traiter un webhook Stripe (idempotent)
+   * Capturer les fonds d'un PaymentIntent (après mission complétée)
    */
-  async handleWebhookEvent(event: Stripe.Event): Promise<void> {
-    this.logger.debug(`Réception webhook Stripe ${event.type}`, {
-      eventId: event.id,
+  async capturePaymentIntent(userId: string, missionId: string) {
+    this.ensureStripeConfigured();
+
+    const payment = await this.prisma.payment.findUnique({
+      where: { missionId },
+      include: { mission: { include: { authorClient: true } } },
     });
 
+    if (!payment) {
+      throw new NotFoundException('Paiement non trouvé pour cette mission');
+    }
+
+    // Vérifier autorisation (seul l'auteur peut capturer)
+    if (payment.mission.authorClientId !== userId) {
+      throw new ForbiddenException('Vous ne pouvez pas capturer ce paiement');
+    }
+
+    // Vérifier que le paiement est capturable
+    const capturableStatuses: PaymentStatus[] = [PaymentStatus.AUTHORIZED, PaymentStatus.REQUIRES_ACTION, PaymentStatus.CREATED];
+    if (!capturableStatuses.includes(payment.status)) {
+      throw new BadRequestException(`Impossible de capturer un paiement en status ${payment.status}`);
+    }
+
+    if (!payment.stripePaymentIntentId) {
+      throw new BadRequestException('PaymentIntent Stripe manquant');
+    }
+
+    // Capturer via Stripe
+    const paymentIntent = await this.stripe!.paymentIntents.capture(
+      payment.stripePaymentIntentId,
+      {},
+      { idempotencyKey: this.generateIdempotencyKey(missionId, 'capture') },
+    );
+
+    // Mettre à jour le status en DB
+    await this.prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: PaymentStatus.CAPTURED,
+        updatedAt: new Date(),
+      },
+    });
+
+    this.logger.log(`PaymentIntent capturé: ${paymentIntent.id} pour mission ${missionId}`);
+
+    return {
+      paymentIntentId: paymentIntent.id,
+      status: PaymentStatus.CAPTURED,
+      amountCaptured: paymentIntent.amount_received,
+    };
+  }
+
+  /**
+   * Annuler un PaymentIntent (avant capture)
+   */
+  async cancelPaymentIntent(userId: string, missionId: string) {
+    this.ensureStripeConfigured();
+
+    const payment = await this.prisma.payment.findUnique({
+      where: { missionId },
+      include: { mission: { include: { authorClient: true } } },
+    });
+
+    if (!payment) {
+      throw new NotFoundException('Paiement non trouvé pour cette mission');
+    }
+
+    // Vérifier autorisation
+    if (payment.mission.authorClientId !== userId) {
+      throw new ForbiddenException('Vous ne pouvez pas annuler ce paiement');
+    }
+
+    // Vérifier que le paiement est annulable
+    const nonCancelableStatuses: PaymentStatus[] = [PaymentStatus.CAPTURED, PaymentStatus.SUCCEEDED, PaymentStatus.CANCELED];
+    if (nonCancelableStatuses.includes(payment.status)) {
+      throw new BadRequestException(`Impossible d'annuler un paiement en status ${payment.status}`);
+    }
+
+    if (!payment.stripePaymentIntentId) {
+      throw new BadRequestException('PaymentIntent Stripe manquant');
+    }
+
+    // Annuler via Stripe
+    const paymentIntent = await this.stripe!.paymentIntents.cancel(
+      payment.stripePaymentIntentId,
+      {},
+      { idempotencyKey: this.generateIdempotencyKey(missionId, 'cancel') },
+    );
+
+    // Mettre à jour le status en DB
+    await this.prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: PaymentStatus.CANCELED,
+        updatedAt: new Date(),
+      },
+    });
+
+    this.logger.log(`PaymentIntent annulé: ${paymentIntent.id} pour mission ${missionId}`);
+
+    return {
+      paymentIntentId: paymentIntent.id,
+      status: PaymentStatus.CANCELED,
+    };
+  }
+
+  /**
+   * Récupérer le status d'un paiement
+   */
+  async getPaymentStatus(missionId: string) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { missionId },
+      select: {
+        id: true,
+        status: true,
+        amount: true,
+        currency: true,
+        stripePaymentIntentId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!payment) {
+      throw new NotFoundException('Paiement non trouvé pour cette mission');
+    }
+
+    return payment;
+  }
+
+  /**
+   * Traiter un webhook Stripe (idempotent via lastStripeEventId)
+   */
+  async handleWebhookEvent(event: Stripe.Event): Promise<void> {
+    this.logger.debug(`Réception webhook Stripe ${event.type}`, { eventId: event.id });
+
+    const paymentIntent = event.data.object as Stripe.PaymentIntent;
+    const stripePaymentIntentId = paymentIntent.id;
+
+    // Vérifier idempotence: ignorer si event déjà traité
+    const existingPayment = await this.prisma.payment.findUnique({
+      where: { stripePaymentIntentId },
+    });
+
+    if (existingPayment?.lastStripeEventId === event.id) {
+      this.logger.debug(`Event ${event.id} déjà traité, ignoré`);
+      return;
+    }
+
     try {
-      // Traiter selon le type d'événement
       switch (event.type) {
+        case 'payment_intent.amount_capturable_updated':
+          // Fonds autorisés, prêts pour capture
+          await this.handlePaymentIntentAuthorized(paymentIntent, event.id);
+          break;
+
         case 'payment_intent.succeeded':
-          await this.handlePaymentIntentSucceeded(
-            event.data.object as Stripe.PaymentIntent,
-          );
+          // Capture réussie (ou paiement direct)
+          await this.handlePaymentIntentSucceeded(paymentIntent, event.id);
+          break;
+
+        case 'payment_intent.canceled':
+          await this.handlePaymentIntentCanceled(paymentIntent, event.id);
           break;
 
         case 'payment_intent.payment_failed':
-          await this.handlePaymentIntentFailed(
-            event.data.object as Stripe.PaymentIntent,
-          );
+          await this.handlePaymentIntentFailed(paymentIntent, event.id);
           break;
 
         default:
           this.logger.debug(`Type d'événement non géré: ${event.type}`);
       }
     } catch (error) {
-      this.logger.error(
-        `Erreur lors du traitement du webhook ${event.id}: ${error}`,
-      );
+      this.logger.error(`Erreur lors du traitement du webhook ${event.id}: ${error}`);
       throw error;
     }
   }
 
   /**
-   * Gérer un PaymentIntent réussi
+   * Gérer l'autorisation d'un PaymentIntent (fonds bloqués, capturable)
    */
-  private async handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
-    const missionId = paymentIntent.metadata.missionId;
-
-    if (!missionId) {
-      this.logger.warn(`PaymentIntent ${paymentIntent.id} sans missionId dans metadata`);
-      return;
-    }
-
-    // Mettre à jour le paiement
-    const payment = await this.prisma.payment.updateMany({
+  private async handlePaymentIntentAuthorized(paymentIntent: Stripe.PaymentIntent, eventId: string) {
+    const result = await this.prisma.payment.updateMany({
       where: {
         stripePaymentIntentId: paymentIntent.id,
-        status: PaymentStatus.REQUIRES_ACTION,
+        status: { in: [PaymentStatus.CREATED, PaymentStatus.REQUIRES_ACTION] },
       },
       data: {
-        status: PaymentStatus.SUCCEEDED,
+        status: PaymentStatus.AUTHORIZED,
+        lastStripeEventId: eventId,
+        updatedAt: new Date(),
       },
     });
 
-    if (payment.count === 0) {
-      this.logger.warn(`Payment non trouvé pour PaymentIntent ${paymentIntent.id}`);
-      return;
+    if (result.count > 0) {
+      this.logger.log(`PaymentIntent autorisé: ${paymentIntent.id}, montant capturable: ${paymentIntent.amount_capturable}`);
     }
+  }
 
-    this.logger.log(`Paiement réussi: ${paymentIntent.id} pour mission ${missionId}`);
+  /**
+   * Gérer un PaymentIntent réussi (capture effectuée)
+   */
+  private async handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent, eventId: string) {
+    const result = await this.prisma.payment.updateMany({
+      where: {
+        stripePaymentIntentId: paymentIntent.id,
+        status: { notIn: [PaymentStatus.SUCCEEDED, PaymentStatus.CAPTURED] },
+      },
+      data: {
+        status: PaymentStatus.CAPTURED,
+        lastStripeEventId: eventId,
+        updatedAt: new Date(),
+      },
+    });
 
-    // Placeholder: Notifier l'employer et le worker
-    // Placeholder: Mettre à jour le statut de la mission si nécessaire
+    if (result.count > 0) {
+      this.logger.log(`PaymentIntent capturé via webhook: ${paymentIntent.id}`);
+    }
+  }
+
+  /**
+   * Gérer un PaymentIntent annulé
+   */
+  private async handlePaymentIntentCanceled(paymentIntent: Stripe.PaymentIntent, eventId: string) {
+    await this.prisma.payment.updateMany({
+      where: {
+        stripePaymentIntentId: paymentIntent.id,
+        status: { notIn: [PaymentStatus.CANCELED] },
+      },
+      data: {
+        status: PaymentStatus.CANCELED,
+        lastStripeEventId: eventId,
+        updatedAt: new Date(),
+      },
+    });
+
+    this.logger.log(`PaymentIntent annulé: ${paymentIntent.id}`);
   }
 
   /**
    * Gérer un PaymentIntent échoué
    */
-  private async handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
+  private async handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent, eventId: string) {
     await this.prisma.payment.updateMany({
       where: {
         stripePaymentIntentId: paymentIntent.id,
-        status: PaymentStatus.REQUIRES_ACTION,
       },
       data: {
-        status: PaymentStatus.DISPUTED,
+        status: PaymentStatus.FAILED,
+        lastStripeEventId: eventId,
+        updatedAt: new Date(),
       },
     });
 
-    this.logger.warn(`Paiement échoué: ${paymentIntent.id}`);
+    this.logger.warn(`PaymentIntent échoué: ${paymentIntent.id}, raison: ${paymentIntent.last_payment_error?.message || 'Inconnue'}`);
   }
 
   /**
