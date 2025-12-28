@@ -174,15 +174,12 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
       throw new Error('STRIPE_WEBHOOK_SECRET is required in production');
     }
 
-    if (!validatedConfig.SENTRY_DSN) {
-      console.warn(
-        '⚠️  WARNING: SENTRY_DSN is not set. Error tracking disabled in production.',
-      );
-    }
+    // SENTRY_DSN est optionnel même en prod (monitoring non bloquant)
+    // Pas de console.warn en production - fail hard ou silent
 
     if (!validatedConfig.FRONTEND_URL && !validatedConfig.CORS_ORIGIN) {
-      console.error(
-        '❌ ERROR: FRONTEND_URL or CORS_ORIGIN must be set in production for CORS configuration.',
+      throw new Error(
+        'FRONTEND_URL or CORS_ORIGIN must be set in production for CORS security',
       );
     }
 

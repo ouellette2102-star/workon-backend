@@ -187,20 +187,57 @@ async function bootstrap() {
   if (enableSwagger) {
     const config = new DocumentBuilder()
       .setTitle('WorkOn API')
-      .setDescription('WorkOn - Uber-for-work marketplace API documentation')
-      .setVersion('1.0')
-      .addBearerAuth()
-      .addTag('auth', 'Authentication endpoints (register, login)')
-      .addTag('users', 'User management')
-      .addTag('health', 'Health check endpoint')
-      .addTag('missions', 'Mission management')
-      .addTag('payments', 'Payment processing')
+      .setDescription(
+        '**WorkOn** - Marketplace de services pour travailleurs autonomes.\n\n' +
+        '## Authentification\n' +
+        'La plupart des endpoints nécessitent un token JWT Bearer.\n\n' +
+        '## Rate Limiting\n' +
+        'Les requêtes sont limitées par IP. Voir headers `X-RateLimit-*`.\n\n' +
+        '## Environnements\n' +
+        '- **Production**: https://api.workon.app\n' +
+        '- **Staging**: https://staging-api.workon.app\n',
+      )
+      .setVersion('1.0.0')
+      .setContact('WorkOn Team', 'https://workon.app', 'support@workon.app')
+      .addBearerAuth(
+        {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          description: 'Token JWT obtenu via /auth/login',
+        },
+        'JWT',
+      )
+      // Tags organisés par domaine
+      .addTag('Health', 'Endpoints de santé et monitoring (publics)')
+      .addTag('Auth', 'Authentification et gestion de session (public → JWT)')
+      .addTag('Users', 'Gestion des utilisateurs (JWT)')
+      .addTag('Profiles', 'Profils utilisateurs (JWT)')
+      .addTag('Catalog', 'Catégories et compétences (public, read-only)')
+      .addTag('Missions', 'Gestion des missions (JWT)')
+      .addTag('Events', 'Journal d\'événements des missions (JWT)')
+      .addTag('Payments', 'Paiements Stripe escrow (JWT)')
+      .addTag('Media', 'Photos et fichiers (JWT + token signé)')
+      .addTag('Messages', 'Messagerie entre parties (JWT)')
+      .addTag('Contracts', 'Contrats de mission (JWT)')
+      .addTag('Notifications', 'Notifications utilisateur (JWT)')
+      .addTag('Admin', 'Administration (JWT + rôle Admin)')
+      .addTag('Webhooks', 'Webhooks externes (signature Stripe)')
       .build();
 
     const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api/docs', app, document);
+    SwaggerModule.setup('api/docs', app, document, {
+      swaggerOptions: {
+        persistAuthorization: true,
+        tagsSorter: 'alpha',
+        operationsSorter: 'alpha',
+      },
+      customSiteTitle: 'WorkOn API Documentation',
+    });
 
-    console.log(`📚 Swagger docs available at: http://localhost:${port}/api/docs`);
+    if (nodeEnv !== 'production') {
+      console.log(`📚 Swagger docs available at: http://localhost:${port}/api/docs`);
+    }
   } else {
     console.log(`📚 Swagger disabled in production (set ENABLE_SWAGGER_PROD=true to enable)`);
   }
