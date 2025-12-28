@@ -115,8 +115,9 @@ async function bootstrap() {
     prefix: '/uploads/',
   });
 
-  // Global prefix
-  app.setGlobalPrefix(apiPrefix);
+  // SUPPRIMÉ: Global prefix - tous les controllers ont maintenant des paths explicites /api/v1/*
+  // app.setGlobalPrefix(apiPrefix);
+  // Note: Les controllers utilisent @Controller('api/v1/...') directement
 
   // Global validation pipe avec Zod (via class-validator pour compatibilité NestJS)
   app.useGlobalPipes(

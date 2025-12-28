@@ -22,7 +22,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Contracts')
 @ApiBearerAuth()
-@Controller('contracts')
+@Controller('api/v1/contracts')
 @UseGuards(JwtAuthGuard)
 export class ContractsController {
   constructor(private readonly contractsService: ContractsService) {}

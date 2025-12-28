@@ -13,7 +13,7 @@ import { UpdateProfileDto } from './dto/update-profile-role.dto';
 import { ProfileResponseDto } from './dto/profile-response.dto';
 
 @ApiTags('Profiles')
-@Controller('profile')
+@Controller('api/v1/profile')
 @UseGuards(JwtAuthGuard)
 export class ProfileController {
   constructor(private readonly profileService: ProfileService) {}

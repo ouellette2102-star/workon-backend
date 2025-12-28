@@ -9,7 +9,7 @@ import { MetricsService } from './metrics.service';
 import { RatioResponseDto } from './dto/ratio-response.dto';
 
 @ApiTags('Metrics')
-@Controller('metrics')
+@Controller('api/v1/metrics')
 export class MetricsController {
   constructor(private readonly metricsService: MetricsService) {}
 
