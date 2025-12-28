@@ -113,5 +113,25 @@ export class UsersService {
     await this.findById(id); // Verify exists
     return this.usersRepository.deactivate(id);
   }
+
+  /**
+   * Update user password
+   * Used by reset password flow
+   * 
+   * @param id - User ID
+   * @param newPassword - New plain password to hash and store
+   */
+  async updatePassword(id: string, newPassword: string): Promise<void> {
+    // Verify user exists
+    await this.findById(id);
+
+    // Hash the new password
+    const hashedPassword = await this.hashPassword(newPassword);
+
+    // Update in database
+    await this.usersRepository.updatePassword(id, hashedPassword);
+
+    this.logger.log(`Password updated for user: ${id}`);
+  }
 }
 

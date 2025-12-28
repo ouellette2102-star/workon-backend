@@ -168,5 +168,21 @@ export class UsersRepository {
       data: { active: false },
     });
   }
+
+  /**
+   * Update user password
+   * Used by reset password flow
+   */
+  async updatePassword(id: string, hashedPassword: string): Promise<void> {
+    this.logger.log(`Updating password for user: ${id}`);
+
+    await this.prisma.localUser.update({
+      where: { id },
+      data: {
+        hashedPassword,
+        updatedAt: new Date(),
+      },
+    });
+  }
 }
 

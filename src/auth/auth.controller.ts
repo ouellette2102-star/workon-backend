@@ -9,6 +9,14 @@ import { LocalAuthService } from './local-auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
+import {
+  ForgotPasswordDto,
+  ForgotPasswordResponseDto,
+} from './dto/forgot-password.dto';
+import {
+  ResetPasswordDto,
+  ResetPasswordResponseDto,
+} from './dto/reset-password.dto';
 import { UserResponseDto } from '../users/dto/user-response.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { plainToInstance } from 'class-transformer';
@@ -51,7 +59,7 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT')
   @ApiOperation({
     summary: 'Get current authenticated user',
     description: 'Returns current user info from JWT token',
@@ -65,13 +73,59 @@ export class AuthController {
   async getMe(@Request() req: any): Promise<UserResponseDto> {
     // User already validated by JwtAuthGuard
     // req.user contains: { sub, email, role, provider }
-    
+
     // Fetch full user details
     const user = await this.localAuthService.validateUser(req.user.sub);
 
     return plainToInstance(UserResponseDto, user, {
       excludeExtraneousValues: true,
     });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PASSWORD RESET ENDPOINTS
+  // ─────────────────────────────────────────────────────────────────────────
+
+  @Post('forgot-password')
+  @ApiOperation({
+    summary: 'Request password reset',
+    description:
+      'Sends a password reset link to the user email. ' +
+      'Always returns success to prevent email enumeration. ' +
+      'In dev mode, the token is logged to console.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Reset request processed',
+    type: ForgotPasswordResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid email format' })
+  async forgotPassword(
+    @Body() dto: ForgotPasswordDto,
+  ): Promise<ForgotPasswordResponseDto> {
+    return this.localAuthService.forgotPassword(dto);
+  }
+
+  @Post('reset-password')
+  @ApiOperation({
+    summary: 'Reset password with token',
+    description:
+      'Resets the user password using the token received by email. ' +
+      'Token is valid for 15 minutes.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Password reset successful',
+    type: ResetPasswordResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid or expired token',
+  })
+  async resetPassword(
+    @Body() dto: ResetPasswordDto,
+  ): Promise<ResetPasswordResponseDto> {
+    return this.localAuthService.resetPassword(dto);
   }
 }
 
