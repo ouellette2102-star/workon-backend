@@ -169,6 +169,7 @@ model Mission {
   reviews          Review[]
   messages         Message[]
   contract         Contract?
+  photos           MissionPhoto[]
 
   @@index([assigneeWorkerId])
   @@index([authorClientId])
@@ -519,4 +520,27 @@ enum ContractStatus {
   REJECTED
   COMPLETED
   CANCELLED
+}
+
+// ============================================
+// MISSION PHOTOS - Photos uploadées par Worker/Employer
+// ============================================
+
+model MissionPhoto {
+  id           String   @id @default(cuid())
+  missionId    String
+  userId       String
+  url          String
+  path         String?
+  mimeType     String?
+  size         Int?
+  originalName String?
+  createdAt    DateTime @default(now())
+
+  // Relations
+  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@index([missionId])
+  @@index([userId])
+  @@map("mission_photos")
 }
