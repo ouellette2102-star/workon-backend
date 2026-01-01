@@ -56,16 +56,21 @@ describe('UsersService', () => {
   });
 
   describe('deleteAccount', () => {
-    it('should delete account successfully', async () => {
+    it('should delete account successfully with mission stats', async () => {
       repository.findById.mockResolvedValue(mockUser);
       repository.isDeleted.mockResolvedValue(false);
       repository.anonymizeAndDelete.mockResolvedValue({
         id: 'user_123',
         deletedAt: new Date(),
+        cancelledMissionsCount: 2,
+        unassignedMissionsCount: 1,
       });
 
-      await expect(service.deleteAccount('user_123')).resolves.not.toThrow();
+      const result = await service.deleteAccount('user_123');
 
+      expect(result.deleted).toBe(true);
+      expect(result.cancelledMissionsCount).toBe(2);
+      expect(result.unassignedMissionsCount).toBe(1);
       expect(repository.findById).toHaveBeenCalledWith('user_123');
       expect(repository.isDeleted).toHaveBeenCalledWith('user_123');
       expect(repository.anonymizeAndDelete).toHaveBeenCalledWith('user_123');
@@ -88,8 +93,11 @@ describe('UsersService', () => {
       });
       repository.isDeleted.mockResolvedValue(true);
 
-      await expect(service.deleteAccount('user_123')).resolves.not.toThrow();
+      const result = await service.deleteAccount('user_123');
 
+      expect(result.deleted).toBe(true);
+      expect(result.cancelledMissionsCount).toBe(0);
+      expect(result.unassignedMissionsCount).toBe(0);
       expect(repository.anonymizeAndDelete).not.toHaveBeenCalled();
     });
   });

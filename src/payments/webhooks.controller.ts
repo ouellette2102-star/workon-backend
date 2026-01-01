@@ -2,6 +2,7 @@ import { Controller, Post, Headers, RawBodyRequest, Req, Logger, HttpCode } from
 import { ApiTags, ApiOperation, ApiResponse, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { PaymentsService } from './payments.service';
+import { InvoiceService } from './invoice.service';
 import Stripe from 'stripe';
 import { Request } from 'express';
 
@@ -13,6 +14,7 @@ export class WebhooksController {
 
   constructor(
     private readonly paymentsService: PaymentsService,
+    private readonly invoiceService: InvoiceService,
     private readonly configService: ConfigService,
   ) {
     const stripeSecretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
@@ -77,8 +79,24 @@ export class WebhooksController {
 
     // Traiter l'événement de manière idempotente
     try {
+      // Handle Checkout Session events (for Invoice flow)
+      if (event.type === 'checkout.session.completed') {
+        const session = event.data.object as Stripe.Checkout.Session;
+        await this.invoiceService.handleCheckoutCompleted(session, event.id);
+        this.logger.log(`Checkout session completed: ${session.id}`);
+        return { received: true, eventId: event.id, type: event.type };
+      }
+
+      if (event.type === 'checkout.session.expired') {
+        const session = event.data.object as Stripe.Checkout.Session;
+        await this.invoiceService.handleCheckoutExpired(session, event.id);
+        this.logger.log(`Checkout session expired: ${session.id}`);
+        return { received: true, eventId: event.id, type: event.type };
+      }
+
+      // Handle PaymentIntent events (for escrow flow)
       await this.paymentsService.handleWebhookEvent(event);
-      return { received: true, eventId: event.id };
+      return { received: true, eventId: event.id, type: event.type };
     } catch (error) {
       this.logger.error(`Erreur lors du traitement du webhook ${event.id}: ${error}`);
       // Toujours retourner 200 pour éviter les retries inutiles

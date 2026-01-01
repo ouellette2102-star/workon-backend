@@ -145,13 +145,18 @@ export class UsersService {
   /**
    * Delete user account (GDPR-compliant)
    * 
-   * Anonymizes PII and marks account as deleted.
+   * Anonymizes PII, cancels open missions, and marks account as deleted.
    * This is idempotent: calling on already-deleted account returns success.
    * 
    * @param id - User ID to delete
+   * @returns Deletion result with stats
    * @throws NotFoundException if user not found
    */
-  async deleteAccount(id: string): Promise<void> {
+  async deleteAccount(id: string): Promise<{
+    deleted: boolean;
+    cancelledMissionsCount: number;
+    unassignedMissionsCount: number;
+  }> {
     // Check if user exists
     const user = await this.usersRepository.findById(id);
     
@@ -163,13 +168,23 @@ export class UsersService {
     const alreadyDeleted = await this.usersRepository.isDeleted(id);
     if (alreadyDeleted) {
       this.logger.log(`User already deleted: ${id}`);
-      return; // Idempotent - return success
+      return {
+        deleted: true,
+        cancelledMissionsCount: 0,
+        unassignedMissionsCount: 0,
+      };
     }
 
-    // Anonymize and delete
-    await this.usersRepository.anonymizeAndDelete(id);
+    // Anonymize and delete (with mission cleanup)
+    const result = await this.usersRepository.anonymizeAndDelete(id);
 
-    this.logger.warn(`Account deleted (GDPR): ${id}`);
+    this.logger.warn(`Account deleted (GDPR): ${id} - Cancelled: ${result.cancelledMissionsCount}, Unassigned: ${result.unassignedMissionsCount}`);
+
+    return {
+      deleted: true,
+      cancelledMissionsCount: result.cancelledMissionsCount,
+      unassignedMissionsCount: result.unassignedMissionsCount,
+    };
   }
 
   /**

@@ -214,40 +214,105 @@ export class UsersRepository {
   }
 
   /**
-   * GDPR-compliant account deletion
+   * GDPR-compliant account deletion with mission cleanup
    * 
-   * Anonymizes all PII and marks account as deleted.
+   * In a single transaction:
+   * 1. Cancels all open missions created by the user
+   * 2. Removes worker assignment from open missions (if worker)
+   * 3. Anonymizes all PII
+   * 4. Marks account as deleted
+   * 
    * Keeps ID and timestamps for referential integrity.
+   * Preserves completed/paid missions for audit.
    * 
    * @param id - User ID to delete
-   * @returns Updated user record (anonymized)
+   * @returns Deletion result with stats
    */
-  async anonymizeAndDelete(id: string) {
+  async anonymizeAndDelete(id: string): Promise<{
+    id: string;
+    deletedAt: Date;
+    cancelledMissionsCount: number;
+    unassignedMissionsCount: number;
+  }> {
     this.logger.warn(`GDPR deletion for user: ${id}`);
 
     const now = new Date();
     const anonymizedEmail = `deleted_${id}@deleted.local`;
 
-    return this.prisma.localUser.update({
-      where: { id },
-      data: {
-        // Anonymize PII
-        email: anonymizedEmail,
-        firstName: 'Deleted',
-        lastName: 'User',
-        phone: null,
-        city: null,
-        // Invalidate password (random hash, impossible to login)
-        hashedPassword: `DELETED_${now.getTime()}_${Math.random().toString(36)}`,
-        // Mark as inactive and deleted
-        active: false,
-        deletedAt: now,
-        updatedAt: now,
-      },
-      select: {
-        id: true,
-        deletedAt: true,
-      },
+    // Use transaction for atomic operation
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Cancel open missions CREATED by this user
+      const cancelledMissions = await tx.localMission.updateMany({
+        where: {
+          createdByUserId: id,
+          status: 'open',
+        },
+        data: {
+          status: 'cancelled',
+          updatedAt: now,
+        },
+      });
+
+      this.logger.log(`Cancelled ${cancelledMissions.count} open missions created by user ${id}`);
+
+      // 2. Unassign this user from open/assigned missions (if they were the worker)
+      const unassignedMissions = await tx.localMission.updateMany({
+        where: {
+          assignedToUserId: id,
+          status: { in: ['open', 'assigned'] },
+        },
+        data: {
+          assignedToUserId: null,
+          status: 'open', // Revert to open so another worker can take it
+          updatedAt: now,
+        },
+      });
+
+      this.logger.log(`Unassigned ${unassignedMissions.count} missions from worker ${id}`);
+
+      // 3. Delete pending offers from this user
+      await tx.localOffer.deleteMany({
+        where: {
+          workerId: id,
+          status: 'PENDING',
+        },
+      });
+
+      // 4. Delete unused OTP records
+      await tx.emailOtp.deleteMany({
+        where: { userId: id },
+      });
+
+      // 5. Anonymize user PII
+      const updatedUser = await tx.localUser.update({
+        where: { id },
+        data: {
+          // Anonymize PII
+          email: anonymizedEmail,
+          firstName: 'Deleted',
+          lastName: 'User',
+          phone: null,
+          city: null,
+          pictureUrl: null,
+          // Invalidate password (random hash, impossible to login)
+          hashedPassword: `DELETED_${now.getTime()}_${Math.random().toString(36)}`,
+          // Mark as inactive and deleted
+          active: false,
+          deletedAt: now,
+          updatedAt: now,
+        },
+        select: {
+          id: true,
+          deletedAt: true,
+        },
+      });
+
+      return {
+        id: updatedUser.id,
+        deletedAt: updatedUser.deletedAt!,
+        cancelledMissionsCount: cancelledMissions.count,
+        unassignedMissionsCount: unassignedMissions.count,
+      };
     });
   }
 

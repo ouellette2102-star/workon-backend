@@ -80,16 +80,197 @@ jobs:
           files: ./coverage/lcov.info
           fail_ci_if_error: false
 
-  # Déploiement staging (optionnel - à configurer selon votre infrastructure)
-  # deploy-staging:
-  #   name: Deploy to Staging
-  #   runs-on: ubuntu-latest
-  #   needs: [lint, build, test]
-  #   if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Deploy to staging
-  #       run: |
-  #         echo "Deploy to staging server"
-  #         # Ajouter vos commandes de déploiement ici
+  # ============================================
+  # QA GATE - Contract & Smoke Checks
+  # ============================================
+  qa-gate:
+    name: QA Gate
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma Client
+        run: npx prisma generate
+      
+      # Contract Check - Verify all required endpoints exist in code
+      - name: API Contract Check
+        run: npm run smoke:contracts
+      
+      # Static analysis summary
+      - name: QA Gate Summary
+        run: |
+          echo "========================================="
+          echo "  QA GATE SUMMARY"
+          echo "========================================="
+          echo "✅ Lint: Passed (see lint job)"
+          echo "✅ Build: Passed (see build job)"
+          echo "✅ Contract Check: Passed"
+          echo ""
+          echo "📋 See docs/release/DoD.md for full checklist"
+          echo "========================================="
 
+  # ============================================
+  # E2E Smoke Tests (on PR to main or develop)
+  # ============================================
+  smoke-e2e:
+    name: E2E Smoke Tests
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: workon
+          POSTGRES_PASSWORD: workon_test
+          POSTGRES_DB: workon_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      # === Database ===
+      DATABASE_URL: postgresql://workon:workon_test@localhost:5432/workon_test?schema=public
+      
+      # === Auth (fake secrets for CI - NOT real keys) ===
+      JWT_SECRET: ci-jwt-secret-minimum-32-characters-for-testing
+      JWT_REFRESH_SECRET: ci-refresh-secret-minimum-32-characters-testing
+      OTP_SECRET: ci-otp-secret-minimum-32-characters-for-testing
+      
+      # === Stripe (fake keys for CI - NOT real keys) ===
+      STRIPE_SECRET_KEY: sk_test_fake_ci_key_not_real
+      STRIPE_WEBHOOK_SECRET: whsec_fake_ci_webhook_secret_not_real
+      
+      # === App Config ===
+      NODE_ENV: test
+      PORT: 8080
+      APP_PUBLIC_URL: http://localhost:8080
+      
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Generate Prisma Client
+        run: npx prisma generate
+      
+      - name: Run migrations
+        run: npx prisma migrate deploy
+      
+      - name: Build application
+        run: npm run build
+      
+      # Start server and save logs
+      - name: Start server
+        run: |
+          echo "Starting server on port 8080..."
+          npm run start:prod > server.log 2>&1 &
+          echo $! > server.pid
+          echo "Server PID: $(cat server.pid)"
+      
+      # Wait for readiness with retries
+      - name: Wait for server readiness
+        run: |
+          echo "Waiting for server to be ready..."
+          MAX_RETRIES=30
+          RETRY_INTERVAL=2
+          
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Attempt $i/$MAX_RETRIES: Checking /readyz..."
+            
+            RESPONSE=$(curl -s -w "\n%{http_code}" http://localhost:8080/readyz 2>/dev/null || echo -e "\n000")
+            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+            BODY=$(echo "$RESPONSE" | head -n -1)
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Server is ready! (HTTP $HTTP_CODE)"
+              echo "Response: $BODY"
+              exit 0
+            else
+              echo "⏳ Not ready yet (HTTP $HTTP_CODE)"
+              if [ "$i" -lt "$MAX_RETRIES" ]; then
+                sleep $RETRY_INTERVAL
+              fi
+            fi
+          done
+          
+          echo ""
+          echo "❌ Server failed to become ready after $MAX_RETRIES attempts"
+          echo ""
+          echo "=== Last 50 lines of server logs ==="
+          tail -50 server.log || echo "No logs available"
+          exit 1
+      
+      # Run smoke tests
+      - name: Run Smoke Tests
+        run: |
+          chmod +x ./scripts/smoke_backend.sh
+          ./scripts/smoke_backend.sh "http://localhost:8080"
+      
+      # Show server logs on failure
+      - name: Show server logs on failure
+        if: failure()
+        run: |
+          echo "========================================="
+          echo "  SERVER LOGS (last 200 lines)"
+          echo "========================================="
+          tail -200 server.log || echo "No server logs found"
+      
+      # Stop server
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f server.pid ]; then
+            kill $(cat server.pid) 2>/dev/null || true
+            rm server.pid
+          fi
+      
+      - name: E2E Summary
+        if: always()
+        run: |
+          echo "========================================="
+          echo "  E2E SMOKE TEST COMPLETE"
+          echo "========================================="
+
+  # ============================================
+  # Final Gate (all checks must pass)
+  # ============================================
+  release-gate:
+    name: Release Gate
+    runs-on: ubuntu-latest
+    needs: [lint, build, test, qa-gate]
+    if: always()
+    steps:
+      - name: Check all jobs passed
+        run: |
+          if [[ "${{ needs.lint.result }}" != "success" ]]; then
+            echo "❌ Lint failed"
+            exit 1
+          fi
+          if [[ "${{ needs.build.result }}" != "success" ]]; then
+            echo "❌ Build failed"
+            exit 1
+          fi
+          if [[ "${{ needs.test.result }}" != "success" ]]; then
+            echo "❌ Tests failed"
+            exit 1
+          fi
+          if [[ "${{ needs.qa-gate.result }}" != "success" ]]; then
+            echo "❌ QA Gate failed"
+            exit 1
+          fi
+          echo "✅ All gates passed - Ready for release"

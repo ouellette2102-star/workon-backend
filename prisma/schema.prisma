@@ -626,3 +626,91 @@ model MissionEvent {
   @@index([type, createdAt])
   @@map("mission_events")
 }
+
+// ============================================
+// INVOICES - Factures pour paiements (source of truth)
+// ============================================
+
+model Invoice {
+  id                       String        @id @default(cuid())
+  missionId                String?       // Null si LocalMission
+  localMissionId           String?       // Null si Mission
+  payerUserId              String        // Qui paye (employer/client)
+  payerLocalUserId         String?       // Si LocalUser
+  
+  // Montants (en centimes pour précision)
+  subtotalCents            Int           // Montant de base (prix mission)
+  platformFeeCents         Int           // Frais WorkOn
+  taxesCents               Int           @default(0)  // TPS/TVQ si applicable
+  totalCents               Int           // Total à payer
+  currency                 String        @default("CAD")
+  
+  // Stripe
+  stripeCheckoutSessionId  String?       @unique
+  stripePaymentIntentId    String?
+  
+  // Status
+  status                   InvoiceStatus @default(PENDING)
+  paidAt                   DateTime?
+  
+  // Metadata
+  description              String?
+  metadata                 Json?
+  
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
+
+  @@index([missionId])
+  @@index([localMissionId])
+  @@index([payerUserId])
+  @@index([status])
+  @@index([stripeCheckoutSessionId])
+  @@map("invoices")
+}
+
+enum InvoiceStatus {
+  PENDING     // En attente de paiement
+  PROCESSING  // Checkout en cours
+  PAID        // Payé avec succès
+  FAILED      // Échec du paiement
+  CANCELLED   // Annulé
+  REFUNDED    // Remboursé
+}
+
+// ============================================
+// STRIPE EVENTS - Idempotence pour webhooks
+// ============================================
+
+model StripeEvent {
+  id          String   @id  // Stripe event ID (evt_xxx)
+  type        String        // Type d'event (payment_intent.succeeded, etc.)
+  processed   Boolean  @default(false)
+  processedAt DateTime?
+  payload     Json?         // Payload complet (optionnel, pour debug)
+  error       String?       // Message d'erreur si échec
+  createdAt   DateTime @default(now())
+
+  @@index([type, processed])
+  @@map("stripe_events")
+}
+
+// ============================================
+// EMAIL OTP - For email change verification
+// ============================================
+
+model EmailOtp {
+  id         String    @id @default(cuid())
+  userId     String    // LocalUser ID
+  newEmail   String    // New email to verify
+  codeHash   String    // HMAC-SHA256 hash of OTP code
+  expiresAt  DateTime  // Expiration time (10 min default)
+  attempts   Int       @default(0)  // Failed attempts count
+  consumedAt DateTime? // When OTP was successfully used
+  ip         String?   // Request IP for audit
+  userAgent  String?   // Request user agent for audit
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, newEmail])
+  @@index([expiresAt])
+  @@map("email_otp")
+}
