@@ -88,23 +88,26 @@ model Dispute {
 }
 
 model LocalMission {
-  id               String             @id
-  title            String
-  description      String
-  category         String
-  status           LocalMissionStatus @default(open)
-  price            Float
-  latitude         Float
-  longitude        Float
-  city             String
-  address          String?
-  createdByUserId  String
-  assignedToUserId String?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime
-  assignedToUser   LocalUser?         @relation("local_missions_assignedToUserIdTolocal_users", fields: [assignedToUserId], references: [id])
-  createdByUser    LocalUser          @relation("local_missions_createdByUserIdTolocal_users", fields: [createdByUserId], references: [id], onDelete: Cascade)
-  offers           LocalOffer[]
+  id                    String             @id
+  title                 String
+  description           String
+  category              String
+  status                LocalMissionStatus @default(open)
+  price                 Float
+  latitude              Float
+  longitude             Float
+  city                  String
+  address               String?
+  createdByUserId       String
+  assignedToUserId      String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime
+  // PR-6: Payment fields
+  paidAt                DateTime?
+  stripePaymentIntentId String?
+  assignedToUser        LocalUser?         @relation("local_missions_assignedToUserIdTolocal_users", fields: [assignedToUserId], references: [id])
+  createdByUser         LocalUser          @relation("local_missions_createdByUserIdTolocal_users", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  offers                LocalOffer[]
 
   @@index([assignedToUserId])
   @@index([category])
@@ -112,6 +115,7 @@ model LocalMission {
   @@index([createdByUserId])
   @@index([latitude, longitude])
   @@index([status])
+  @@index([stripePaymentIntentId])
   @@map("local_missions")
 }
 
@@ -419,6 +423,7 @@ enum LocalMissionStatus {
   assigned
   in_progress
   completed
+  paid
   cancelled
 }
 

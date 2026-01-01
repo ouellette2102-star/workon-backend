@@ -136,11 +136,10 @@ export class PaymentsLocalService {
   /**
    * Handle Stripe webhook events
    * 
-   * TODO: Implement webhook verification and event handling
+   * PR-6: Full webhook implementation
    * - Verify webhook signature
-   * - Handle payment_intent.succeeded event
-   * - Handle payment_intent.failed event
-   * - Update mission payment status in database
+   * - Handle payment_intent.succeeded → mark mission as paid
+   * - Handle payment_intent.payment_failed → log warning
    */
   async handleWebhook(rawBody: Buffer, signature: string) {
     if (!this.stripe) {
@@ -165,32 +164,96 @@ export class PaymentsLocalService {
         webhookSecret,
       );
 
-      this.logger.log(`Webhook received: ${event.type}`);
+      this.logger.log(`[Webhook] Event received: ${event.type}`);
 
-      // TODO: Handle different event types
       switch (event.type) {
         case 'payment_intent.succeeded':
-          // TODO: Update mission payment status
-          this.logger.log('Payment succeeded', event.data.object);
+          await this.handlePaymentSucceeded(event.data.object as Stripe.PaymentIntent);
           break;
 
         case 'payment_intent.payment_failed':
-          // TODO: Handle failed payment
-          this.logger.warn('Payment failed', event.data.object);
+          this.handlePaymentFailed(event.data.object as Stripe.PaymentIntent);
           break;
 
         default:
-          this.logger.log(`Unhandled event type: ${event.type}`);
+          this.logger.log(`[Webhook] Unhandled event type: ${event.type}`);
       }
 
       return { received: true };
     } catch (error: any) {
       this.logger.error(
-        `Webhook error: ${error.message}`,
+        `[Webhook] Error: ${error.message}`,
         error.stack,
       );
       throw new BadRequestException(`Webhook error: ${error.message}`);
     }
+  }
+
+  /**
+   * Handle successful payment
+   * 
+   * PR-6: Mark mission as paid in database
+   */
+  private async handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
+    const missionId = paymentIntent.metadata?.missionId;
+
+    if (!missionId) {
+      this.logger.warn(
+        `[Webhook] payment_intent.succeeded without missionId: ${paymentIntent.id}`,
+      );
+      return;
+    }
+
+    this.logger.log(
+      `[Webhook] Payment succeeded for mission ${missionId}, PI: ${paymentIntent.id}`,
+    );
+
+    try {
+      // Update mission status to paid
+      const mission = await this.prisma.localMission.update({
+        where: { id: missionId },
+        data: {
+          status: 'paid',
+          paidAt: new Date(),
+          stripePaymentIntentId: paymentIntent.id,
+          updatedAt: new Date(),
+        },
+      });
+
+      this.logger.log(
+        `[Webhook] ✅ Mission ${missionId} marked as PAID (amount: ${paymentIntent.amount / 100} ${paymentIntent.currency.toUpperCase()})`,
+      );
+
+      return mission;
+    } catch (error: any) {
+      // Mission not found or already updated - idempotent
+      if (error.code === 'P2025') {
+        this.logger.warn(
+          `[Webhook] Mission ${missionId} not found - may have been deleted`,
+        );
+        return;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Handle failed payment
+   * 
+   * PR-6: Log payment failure for audit
+   */
+  private handlePaymentFailed(paymentIntent: Stripe.PaymentIntent) {
+    const missionId = paymentIntent.metadata?.missionId;
+    const error = paymentIntent.last_payment_error;
+
+    this.logger.warn(
+      `[Webhook] ❌ Payment FAILED for mission ${missionId || 'unknown'}`,
+      {
+        paymentIntentId: paymentIntent.id,
+        errorCode: error?.code,
+        errorMessage: error?.message,
+      },
+    );
   }
 }
 
