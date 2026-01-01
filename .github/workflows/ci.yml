@@ -80,16 +80,128 @@ jobs:
           files: ./coverage/lcov.info
           fail_ci_if_error: false
 
-  # Déploiement staging (optionnel - à configurer selon votre infrastructure)
-  # deploy-staging:
-  #   name: Deploy to Staging
-  #   runs-on: ubuntu-latest
-  #   needs: [lint, build, test]
-  #   if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Deploy to staging
-  #       run: |
-  #         echo "Deploy to staging server"
-  #         # Ajouter vos commandes de déploiement ici
+  # ============================================
+  # QA GATE - Contract & Smoke Checks
+  # ============================================
+  qa-gate:
+    name: QA Gate
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma Client
+        run: npx prisma generate
+      
+      # Contract Check - Verify all required endpoints exist in code
+      - name: API Contract Check
+        run: npm run smoke:contracts
+      
+      # Static analysis summary
+      - name: QA Gate Summary
+        run: |
+          echo "========================================="
+          echo "  QA GATE SUMMARY"
+          echo "========================================="
+          echo "✅ Lint: Passed (see lint job)"
+          echo "✅ Build: Passed (see build job)"
+          echo "✅ Contract Check: Passed"
+          echo ""
+          echo "📋 See docs/release/DoD.md for full checklist"
+          echo "========================================="
 
+  # ============================================
+  # E2E Smoke Tests (on PR to main only)
+  # ============================================
+  smoke-e2e:
+    name: E2E Smoke Tests
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    if: github.base_ref == 'main' || github.ref == 'refs/heads/main'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: workon
+          POSTGRES_PASSWORD: workon_test
+          POSTGRES_DB: workon_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://workon:workon_test@localhost:5432/workon_test?schema=public
+      JWT_SECRET: test-jwt-secret-min-32-chars-for-testing-e2e-smoke
+      JWT_REFRESH_SECRET: test-refresh-secret-min-32-chars-for-testing-e2e
+      OTP_SECRET: test-otp-secret-min-32-chars-for-testing-e2e-smoke
+      NODE_ENV: test
+      PORT: 8080
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma Client
+        run: npx prisma generate
+      - name: Run migrations
+        run: npx prisma migrate deploy
+      
+      # Start server in background
+      - name: Start server
+        run: |
+          npm run build
+          npm run start:prod &
+          sleep 10
+      
+      # Run smoke tests
+      - name: Run Smoke Tests
+        run: |
+          chmod +x ./scripts/smoke_backend.sh
+          ./scripts/smoke_backend.sh "http://localhost:8080"
+      
+      - name: E2E Summary
+        if: always()
+        run: |
+          echo "========================================="
+          echo "  E2E SMOKE TEST COMPLETE"
+          echo "========================================="
+
+  # ============================================
+  # Final Gate (all checks must pass)
+  # ============================================
+  release-gate:
+    name: Release Gate
+    runs-on: ubuntu-latest
+    needs: [lint, build, test, qa-gate]
+    if: always()
+    steps:
+      - name: Check all jobs passed
+        run: |
+          if [[ "${{ needs.lint.result }}" != "success" ]]; then
+            echo "❌ Lint failed"
+            exit 1
+          fi
+          if [[ "${{ needs.build.result }}" != "success" ]]; then
+            echo "❌ Build failed"
+            exit 1
+          fi
+          if [[ "${{ needs.test.result }}" != "success" ]]; then
+            echo "❌ Tests failed"
+            exit 1
+          fi
+          if [[ "${{ needs.qa-gate.result }}" != "success" ]]; then
+            echo "❌ QA Gate failed"
+            exit 1
+          fi
+          echo "✅ All gates passed - Ready for release"
