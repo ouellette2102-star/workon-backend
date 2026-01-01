@@ -2,22 +2,31 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { UsersRepository } from './users.repository';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import * as bcrypt from 'bcryptjs';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as crypto from 'crypto';
 
 /**
  * Users Service - Business logic for user management
  * 
  * Handles user CRUD operations, password hashing, validation
  */
+// Allowed MIME types for profile pictures
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
   private readonly SALT_ROUNDS = 12; // bcrypt salt rounds (production-ready)
+  private readonly uploadsDir = path.join(process.cwd(), 'uploads', 'users');
 
   constructor(private readonly usersRepository: UsersRepository) {}
 
@@ -161,6 +170,88 @@ export class UsersService {
     await this.usersRepository.anonymizeAndDelete(id);
 
     this.logger.warn(`Account deleted (GDPR): ${id}`);
+  }
+
+  /**
+   * Upload profile picture
+   * 
+   * @param userId - User ID
+   * @param file - Uploaded file (from Multer)
+   * @param baseUrl - Base URL for constructing the picture URL
+   * @returns Updated user with pictureUrl
+   * @throws NotFoundException if user not found
+   * @throws BadRequestException if file is invalid
+   */
+  async uploadPicture(
+    userId: string,
+    file: Express.Multer.File,
+    baseUrl: string,
+  ) {
+    // Verify user exists
+    const user = await this.findById(userId);
+
+    // Validate file
+    if (!file) {
+      throw new BadRequestException('No file provided');
+    }
+
+    if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      throw new BadRequestException(
+        `Invalid file type. Allowed: ${ALLOWED_MIME_TYPES.join(', ')}`,
+      );
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      throw new BadRequestException(
+        `File too large. Maximum size: ${MAX_FILE_SIZE / 1024 / 1024}MB`,
+      );
+    }
+
+    // Create user directory if needed
+    const userDir = path.join(this.uploadsDir, userId);
+    await fs.mkdir(userDir, { recursive: true });
+
+    // Delete old picture if exists
+    if (user.pictureUrl) {
+      try {
+        const oldFilename = path.basename(user.pictureUrl);
+        const oldPath = path.join(userDir, oldFilename);
+        await fs.unlink(oldPath);
+        this.logger.debug(`Deleted old profile picture: ${oldPath}`);
+      } catch {
+        // Ignore if file doesn't exist
+      }
+    }
+
+    // Generate unique filename
+    const ext = path.extname(file.originalname).toLowerCase() || this.getExtFromMime(file.mimetype);
+    const filename = `profile_${crypto.randomUUID()}${ext}`;
+    const filepath = path.join(userDir, filename);
+
+    // Save file
+    await fs.writeFile(filepath, file.buffer);
+
+    // Construct URL
+    const pictureUrl = `${baseUrl}/uploads/users/${userId}/${filename}`;
+
+    // Update database
+    const updatedUser = await this.usersRepository.updatePictureUrl(userId, pictureUrl);
+
+    this.logger.log(`Profile picture uploaded for user: ${userId}`);
+
+    return updatedUser;
+  }
+
+  /**
+   * Get file extension from MIME type
+   */
+  private getExtFromMime(mimeType: string): string {
+    const mimeToExt: Record<string, string> = {
+      'image/jpeg': '.jpg',
+      'image/png': '.png',
+      'image/webp': '.webp',
+    };
+    return mimeToExt[mimeType] || '.jpg';
   }
 }
 

@@ -20,6 +20,7 @@ describe('LocalAuthService', () => {
     lastName: 'User',
     phone: '+1234567890',
     city: 'Paris',
+    pictureUrl: null as string | null,
     role: LocalUserRole.worker,
     active: true,
     createdAt: new Date(),
