@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Get, Request, HttpCode, HttpStatus, Logger } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Delete, Request, HttpCode, HttpStatus, Logger } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -12,8 +12,10 @@ import { AuthResponseDto } from './dto/auth-response.dto';
 import { RefreshTokenDto, RefreshTokenResponseDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto, ForgotPasswordResponseDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto, ResetPasswordResponseDto } from './dto/reset-password.dto';
+import { DeleteAccountDto, DeleteAccountResponseDto } from './dto/delete-account.dto';
 import { UserResponseDto } from '../users/dto/user-response.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { UsersService } from '../users/users.service';
 import { plainToInstance } from 'class-transformer';
 
 @ApiTags('Auth')
@@ -21,7 +23,10 @@ import { plainToInstance } from 'class-transformer';
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 
-  constructor(private readonly localAuthService: LocalAuthService) {}
+  constructor(
+    private readonly localAuthService: LocalAuthService,
+    private readonly usersService: UsersService,
+  ) {}
 
   // ============================================
   // REGISTRATION & LOGIN
@@ -140,5 +145,83 @@ export class AuthController {
   @ApiResponse({ status: 400, description: 'Invalid or expired token' })
   async resetPassword(@Body() resetDto: ResetPasswordDto): Promise<ResetPasswordResponseDto> {
     return this.localAuthService.resetPassword(resetDto.token, resetDto.newPassword);
+  }
+
+  // ============================================
+  // ACCOUNT DELETION (PR-B3)
+  // ============================================
+
+  @Delete('account')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Delete user account (GDPR)',
+    description: `Permanently deletes the user account with GDPR compliance:
+    - Anonymizes all PII (email, name, phone, etc.)
+    - Cancels open missions created by the user
+    - Unassigns the user from pending missions
+    - Invalidates authentication (cannot login after deletion)
+    - Preserves completed/paid missions for audit
+    
+    Requires explicit confirmation: body must contain { "confirm": "DELETE" }`,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Account deleted successfully',
+    type: DeleteAccountResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Confirmation required or invalid' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Account not found' })
+  async deleteAccount(
+    @Body() dto: DeleteAccountDto,
+    @Request() req: { user: { sub: string } },
+  ): Promise<DeleteAccountResponseDto> {
+    const userId = req.user.sub;
+
+    this.logger.warn(`[DELETE /auth/account] Account deletion requested for userId=${userId}`);
+
+    try {
+      // Validate confirmation (handled by DTO validation, but double-check)
+      if (dto.confirm !== 'DELETE') {
+        return {
+          ok: false,
+          errorCode: 'CONFIRM_REQUIRED',
+          message: 'Veuillez saisir "DELETE" pour confirmer la suppression de votre compte.',
+        };
+      }
+
+      // Perform GDPR-compliant deletion
+      const result = await this.usersService.deleteAccount(userId);
+
+      this.logger.warn(
+        `[DELETE /auth/account] Account deleted: userId=${userId}, ` +
+        `cancelledMissions=${result.cancelledMissionsCount}, ` +
+        `unassignedMissions=${result.unassignedMissionsCount}`
+      );
+
+      return {
+        ok: true,
+        message: 'Votre compte a été supprimé. Toutes vos données personnelles ont été anonymisées.',
+      };
+    } catch (error) {
+      this.logger.error(`[DELETE /auth/account] Error for userId=${userId}: ${error.message}`);
+
+      // Handle specific errors
+      if (error.message?.includes('not found')) {
+        return {
+          ok: false,
+          errorCode: 'ACCOUNT_NOT_FOUND',
+          message: 'Compte introuvable.',
+        };
+      }
+
+      return {
+        ok: false,
+        errorCode: 'DELETION_FAILED',
+        message: 'Une erreur est survenue lors de la suppression. Veuillez réessayer.',
+      };
+    }
   }
 }
