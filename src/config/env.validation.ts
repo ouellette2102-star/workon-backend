@@ -269,6 +269,22 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   SIGNED_URL_TTL_SECONDS?: string;
+
+  // ========================================
+  // EMAIL (Resend)
+  // ========================================
+  
+  @IsString()
+  @IsOptional()
+  RESEND_API_KEY?: string; // Resend API key (required for email sending)
+
+  @IsString()
+  @IsOptional()
+  MAIL_FROM?: string; // Default sender email (default: noreply@workon.app)
+
+  @IsString()
+  @IsOptional()
+  MAIL_FROM_NAME?: string; // Sender display name (default: WorkOn)
 }
 
 /**
