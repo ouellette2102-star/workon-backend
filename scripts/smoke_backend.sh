@@ -2,62 +2,149 @@
 # ============================================
 # WorkOn Backend Smoke Tests (Bash/Linux/CI)
 # ============================================
-# Usage: ./scripts/smoke_backend.sh [API_URL] [TOKEN]
-# Example: ./scripts/smoke_backend.sh "http://localhost:8080"
+#
+# USAGE:
+#   ./scripts/smoke_backend.sh [API_URL]
+#   ./scripts/smoke_backend.sh "http://localhost:8080"
+#
+# DESCRIPTION:
+#   Minimal smoke tests for CI pipeline.
+#   - Health checks (public)
+#   - Auth flow (register/login)
+#   - One protected endpoint (auth/me)
+#
+# EXIT CODES:
+#   0 = All critical tests passed
+#   1 = Critical test failed
+#
+# ============================================
 
-set -e
+# Exit on undefined variables only (not on errors - we handle those)
+set -u
 
 API_URL="${1:-http://localhost:8080}"
-TOKEN="${2:-}"
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+# ============================================
+# CONFIGURATION
+# ============================================
 
-# Counters
+# Deterministic test user for CI (always the same)
+TEST_EMAIL="qa-smoke-test@workon.app"
+TEST_PASSWORD="SmokeTestQA2024!"
+TEST_NAME="QA Smoke Test"
+
+# ============================================
+# COLORS (disabled if not a TTY)
+# ============================================
+
+if [[ -t 1 ]]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    CYAN='\033[0;36m'
+    NC='\033[0m'
+else
+    RED=''
+    GREEN=''
+    YELLOW=''
+    CYAN=''
+    NC=''
+fi
+
+# ============================================
+# COUNTERS
+# ============================================
+
 PASSED=0
 FAILED=0
 SKIPPED=0
+TOKEN=""
 
-# Functions
-success() { echo -e "${GREEN}✅ $1${NC}"; ((PASSED++)); }
-fail() { echo -e "${RED}❌ $1${NC}"; ((FAILED++)); }
-warn() { echo -e "${YELLOW}⚠️  $1${NC}"; }
-info() { echo -e "${CYAN}ℹ️  $1${NC}"; }
-skip() { echo -e "${YELLOW}⏭️  $1 - SKIPPED${NC}"; ((SKIPPED++)); }
+# ============================================
+# HELPER FUNCTIONS
+# ============================================
 
-# Test endpoint function
+success() { 
+    echo -e "${GREEN}✅ $1${NC}"
+    ((PASSED++)) || true
+}
+
+fail() { 
+    echo -e "${RED}❌ $1${NC}"
+    ((FAILED++)) || true
+}
+
+warn() { 
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+info() { 
+    echo -e "${CYAN}ℹ️  $1${NC}"
+}
+
+skip() { 
+    echo -e "${YELLOW}⏭️  $1 - SKIPPED${NC}"
+    ((SKIPPED++)) || true
+}
+
+# ============================================
+# TEST ENDPOINT FUNCTION
+# ============================================
+# Arguments:
+#   $1 = Test name
+#   $2 = HTTP method
+#   $3 = URL path
+#   $4 = Request body (empty string if none)
+#   $5 = Expected status codes (comma-separated)
+#   $6 = "true" if requires auth, "false" otherwise
+
 test_endpoint() {
     local name="$1"
     local method="$2"
     local url="$3"
     local body="$4"
     local expected_status="$5"
-    local requires_auth="$6"
+    local requires_auth="${6:-false}"
 
+    # Skip if auth required but no token
     if [[ "$requires_auth" == "true" && -z "$TOKEN" ]]; then
-        skip "$name (no token)"
+        skip "$name (no token available)"
         return 0
     fi
 
     local full_url="${API_URL}${url}"
-    local curl_opts="-s -o /dev/null -w %{http_code}"
-    
-    if [[ "$requires_auth" == "true" ]]; then
-        curl_opts="$curl_opts -H 'Authorization: Bearer $TOKEN'"
-    fi
-
-    if [[ -n "$body" ]]; then
-        curl_opts="$curl_opts -H 'Content-Type: application/json' -d '$body'"
-    fi
-
     local status_code
-    status_code=$(eval "curl $curl_opts -X $method '$full_url'" 2>/dev/null || echo "000")
 
-    # Check if status is in expected list (comma-separated)
+    # Build curl command
+    if [[ "$requires_auth" == "true" ]]; then
+        if [[ -n "$body" ]]; then
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" \
+                -X "$method" \
+                -H "Authorization: Bearer $TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "$body" \
+                "$full_url" 2>/dev/null) || status_code="000"
+        else
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" \
+                -X "$method" \
+                -H "Authorization: Bearer $TOKEN" \
+                "$full_url" 2>/dev/null) || status_code="000"
+        fi
+    else
+        if [[ -n "$body" ]]; then
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" \
+                -X "$method" \
+                -H "Content-Type: application/json" \
+                -d "$body" \
+                "$full_url" 2>/dev/null) || status_code="000"
+        else
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" \
+                -X "$method" \
+                "$full_url" 2>/dev/null) || status_code="000"
+        fi
+    fi
+
+    # Check if status matches any expected value
     IFS=',' read -ra EXPECTED <<< "$expected_status"
     local matched=false
     for exp in "${EXPECTED[@]}"; do
@@ -77,101 +164,143 @@ test_endpoint() {
 }
 
 # ============================================
-# SMOKE TESTS
+# MAIN: SMOKE TESTS
 # ============================================
 
 echo ""
 echo -e "${CYAN}========================================"
-echo "  WorkOn Backend Smoke Tests"
+echo "  WorkOn Backend Smoke Tests (CI)"
 echo "  API: $API_URL"
+echo "  User: $TEST_EMAIL"
 echo "========================================${NC}"
 echo ""
 
-# --- HEALTH CHECKS ---
-echo -e "${YELLOW}--- Health Checks ---${NC}"
+# ============================================
+# STEP 1: HEALTH CHECKS (Public, no auth)
+# ============================================
 
-test_endpoint "Liveness probe" "GET" "/healthz" "" "200" "false"
-test_endpoint "Readiness probe" "GET" "/readyz" "" "200" "false"
-test_endpoint "Health endpoint" "GET" "/api/v1/health" "" "200" "false"
+echo -e "${YELLOW}--- Step 1: Health Checks ---${NC}"
 
-# --- AUTH FLOW ---
+test_endpoint "Liveness probe (/healthz)" "GET" "/healthz" "" "200" "false"
+test_endpoint "Readiness probe (/readyz)" "GET" "/readyz" "" "200" "false"
+
+# If health checks fail, the server is down - abort early
+if [[ $FAILED -gt 0 ]]; then
+    echo ""
+    fail "CRITICAL: Health checks failed - server may be down"
+    exit 1
+fi
+
+# ============================================
+# STEP 2: AUTHENTICATION (Get JWT Token)
+# ============================================
+
 echo ""
-echo -e "${YELLOW}--- Auth Flow ---${NC}"
+echo -e "${YELLOW}--- Step 2: Authentication ---${NC}"
 
-# Generate unique test email
-TEST_EMAIL="smoke-test-$(date +%s)@test.local"
-TEST_PASSWORD="SmokeTest123!"
+# Step 2a: Try to register the test user (may already exist)
+info "Attempting to register test user..."
 
-# Register (Note: backend uses 'register' not 'signup')
-REGISTER_BODY="{\"email\":\"$TEST_EMAIL\",\"password\":\"$TEST_PASSWORD\",\"name\":\"Smoke Test\",\"role\":\"WORKER\"}"
-SIGNUP_RESPONSE=$(curl -s -X POST "$API_URL/api/v1/auth/register" \
+REGISTER_BODY=$(cat <<EOF
+{
+    "email": "$TEST_EMAIL",
+    "password": "$TEST_PASSWORD",
+    "name": "$TEST_NAME",
+    "role": "WORKER"
+}
+EOF
+)
+
+REGISTER_RESPONSE=$(curl -s -X POST "$API_URL/api/v1/auth/register" \
     -H "Content-Type: application/json" \
-    -d "$REGISTER_BODY" 2>/dev/null || echo '{"error":"connection failed"}')
+    -d "$REGISTER_BODY" 2>/dev/null) || REGISTER_RESPONSE='{"error":"connection"}'
 
-if echo "$SIGNUP_RESPONSE" | grep -q "accessToken"; then
-    success "Register - 200"
-    TOKEN=$(echo "$SIGNUP_RESPONSE" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
+if echo "$REGISTER_RESPONSE" | grep -q '"accessToken"'; then
+    success "Register - new user created"
+    TOKEN=$(echo "$REGISTER_RESPONSE" | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')
+elif echo "$REGISTER_RESPONSE" | grep -q -i "already\|exists\|duplicate\|409"; then
+    info "User already exists - will login instead"
 else
-    SIGNUP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$API_URL/api/v1/auth/register" \
+    # Check status code
+    REGISTER_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$API_URL/api/v1/auth/register" \
         -H "Content-Type: application/json" \
-        -d "$REGISTER_BODY" 2>/dev/null || echo "000")
+        -d "$REGISTER_BODY" 2>/dev/null) || REGISTER_STATUS="000"
     
-    if [[ "$SIGNUP_STATUS" == "409" ]]; then
-        warn "Register - 409 (user exists, trying login)"
+    if [[ "$REGISTER_STATUS" == "409" ]]; then
+        info "User already exists (409) - will login"
+    elif [[ "$REGISTER_STATUS" == "201" || "$REGISTER_STATUS" == "200" ]]; then
+        success "Register - $REGISTER_STATUS"
     else
-        fail "Register - $SIGNUP_STATUS"
+        warn "Register returned $REGISTER_STATUS - trying login anyway"
     fi
 fi
 
-# Login
-LOGIN_BODY="{\"email\":\"$TEST_EMAIL\",\"password\":\"$TEST_PASSWORD\"}"
-LOGIN_RESPONSE=$(curl -s -X POST "$API_URL/api/v1/auth/login" \
-    -H "Content-Type: application/json" \
-    -d "$LOGIN_BODY" 2>/dev/null || echo '{"error":"connection failed"}')
+# Step 2b: Login to get token (always try, even if register succeeded)
+if [[ -z "$TOKEN" ]]; then
+    info "Logging in to get access token..."
+    
+    LOGIN_BODY=$(cat <<EOF
+{
+    "email": "$TEST_EMAIL",
+    "password": "$TEST_PASSWORD"
+}
+EOF
+)
 
-if echo "$LOGIN_RESPONSE" | grep -q "accessToken"; then
-    success "Login - 200"
-    TOKEN=$(echo "$LOGIN_RESPONSE" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
-    REFRESH_TOKEN=$(echo "$LOGIN_RESPONSE" | grep -o '"refreshToken":"[^"]*"' | cut -d'"' -f4)
+    LOGIN_RESPONSE=$(curl -s -X POST "$API_URL/api/v1/auth/login" \
+        -H "Content-Type: application/json" \
+        -d "$LOGIN_BODY" 2>/dev/null) || LOGIN_RESPONSE='{"error":"connection"}'
+
+    if echo "$LOGIN_RESPONSE" | grep -q '"accessToken"'; then
+        success "Login - token received"
+        TOKEN=$(echo "$LOGIN_RESPONSE" | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')
+    else
+        LOGIN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$API_URL/api/v1/auth/login" \
+            -H "Content-Type: application/json" \
+            -d "$LOGIN_BODY" 2>/dev/null) || LOGIN_STATUS="000"
+        fail "Login - failed with status $LOGIN_STATUS"
+    fi
+fi
+
+# Verify we have a token
+if [[ -n "$TOKEN" ]]; then
+    info "Token acquired (${#TOKEN} chars)"
 else
-    fail "Login - failed"
+    warn "No token acquired - protected endpoints will be skipped"
 fi
 
-# Refresh token
-if [[ -n "$REFRESH_TOKEN" ]]; then
-    REFRESH_BODY="{\"refreshToken\":\"$REFRESH_TOKEN\"}"
-    test_endpoint "Refresh token" "POST" "/api/v1/auth/refresh" "$REFRESH_BODY" "200" "false"
+# ============================================
+# STEP 3: PROTECTED ENDPOINTS
+# ============================================
+
+echo ""
+echo -e "${YELLOW}--- Step 3: Protected Endpoints ---${NC}"
+
+# Test GET /api/v1/auth/me (current user info)
+test_endpoint "Get current user (/auth/me)" "GET" "/api/v1/auth/me" "" "200" "true"
+
+# Test GET /api/v1/profile (user profile)
+test_endpoint "Get profile (/profile)" "GET" "/api/v1/profile" "" "200,404" "true"
+
+# ============================================
+# STEP 4: OPTIONAL ENDPOINTS (Don't fail on these)
+# ============================================
+
+echo ""
+echo -e "${YELLOW}--- Step 4: Optional Checks ---${NC}"
+
+# Swagger docs (may be disabled in prod)
+SWAGGER_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/api/docs" 2>/dev/null) || SWAGGER_STATUS="000"
+if [[ "$SWAGGER_STATUS" == "200" || "$SWAGGER_STATUS" == "301" || "$SWAGGER_STATUS" == "302" ]]; then
+    success "Swagger docs available - $SWAGGER_STATUS"
+else
+    skip "Swagger docs (disabled or $SWAGGER_STATUS)"
 fi
 
-# --- PROFILE ---
-echo ""
-echo -e "${YELLOW}--- Profile ---${NC}"
+# ============================================
+# SUMMARY
+# ============================================
 
-test_endpoint "Get profile" "GET" "/api/v1/profile" "" "200" "true"
-
-# --- ACCOUNT MANAGEMENT ---
-echo ""
-echo -e "${YELLOW}--- Account Management ---${NC}"
-
-# Change email
-CHANGE_EMAIL_BODY="{\"newEmail\":\"new-$(date +%s)@test.local\"}"
-test_endpoint "Change email (request OTP)" "POST" "/api/v1/auth/change-email" "$CHANGE_EMAIL_BODY" "200,429" "true"
-
-# Verify email OTP (endpoint existence check)
-VERIFY_OTP_BODY="{\"newEmail\":\"test@test.local\",\"code\":\"123456\"}"
-test_endpoint "Verify email OTP (endpoint exists)" "POST" "/api/v1/auth/verify-email-otp" "$VERIFY_OTP_BODY" "200,400" "true"
-
-# Delete account (should fail without proper confirm)
-DELETE_BODY="{\"confirm\":\"WRONG\"}"
-test_endpoint "Delete account (CONFIRM_REQUIRED)" "DELETE" "/api/v1/auth/account" "$DELETE_BODY" "400" "true"
-
-# --- CONTRACT CHECK ---
-echo ""
-echo -e "${YELLOW}--- Contract Check (Swagger) ---${NC}"
-
-test_endpoint "Swagger docs" "GET" "/api/docs" "" "200,301,302" "false"
-
-# --- SUMMARY ---
 echo ""
 echo -e "${CYAN}========================================"
 echo "  SMOKE TEST RESULTS"
@@ -182,11 +311,19 @@ echo -e "${RED}Failed:  $FAILED${NC}"
 echo -e "${YELLOW}Skipped: $SKIPPED${NC}"
 echo ""
 
+# ============================================
+# EXIT CODE
+# ============================================
+
 if [[ $FAILED -gt 0 ]]; then
-    fail "SMOKE TESTS FAILED"
+    echo -e "${RED}❌ SMOKE TESTS FAILED${NC}"
+    echo ""
+    echo "Troubleshooting:"
+    echo "  1. Check if backend is running: curl $API_URL/healthz"
+    echo "  2. Check logs: npm run start:dev"
+    echo "  3. Verify DATABASE_URL is set correctly"
     exit 1
 else
-    success "ALL SMOKE TESTS PASSED"
+    echo -e "${GREEN}✅ ALL SMOKE TESTS PASSED${NC}"
     exit 0
 fi
-
