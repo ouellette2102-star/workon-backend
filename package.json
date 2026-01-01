@@ -48,6 +48,8 @@
     "@nestjs/throttler": "^5.2.0",
     "@prisma/client": "^6.0.0",
     "@sentry/node": "^7.91.0",
+    "@types/bcrypt": "^6.0.0",
+    "bcrypt": "^6.0.0",
     "bcryptjs": "^2.4.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
@@ -56,14 +58,14 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
+    "prisma": "^6.0.0",
     "reflect-metadata": "0.1.14",
     "rxjs": "^7.8.1",
     "stripe": "^17.7.0",
     "swagger-ui-express": "4.6.3",
     "uuid": "^13.0.0",
     "winston": "^3.11.0",
-    "zod": "^3.23.0",
-    "prisma": "^6.0.0"
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.2.1",
@@ -80,6 +82,7 @@
     "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^6.17.0",
     "@typescript-eslint/parser": "^6.17.0",
+    "cross-env": "^7.0.3",
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.1.2",
@@ -91,8 +94,7 @@
     "ts-loader": "^9.5.1",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.3.3",
-    "cross-env": "^7.0.3"
+    "typescript": "^5.3.3"
   },
   "jest": {
     "moduleFileExtensions": [

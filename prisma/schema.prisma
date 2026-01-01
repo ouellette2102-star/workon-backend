@@ -168,6 +168,7 @@ model LocalUser {
   assignedMissions LocalMission[] @relation("local_missions_assignedToUserIdTolocal_users")
   createdMissions  LocalMission[] @relation("local_missions_createdByUserIdTolocal_users")
   offers           LocalOffer[]
+  emailOtps        EmailOtp[]
 
   @@index([active])
   @@index([city])
@@ -625,4 +626,30 @@ model MissionEvent {
   @@index([targetUserId, createdAt])
   @@index([type, createdAt])
   @@map("mission_events")
+}
+
+// ============================================
+// EMAIL OTP - OTP verification for email changes
+// ============================================
+
+model EmailOtp {
+  id          String    @id @default(cuid())
+  userId      String
+  newEmail    String
+  codeHash    String    // HMAC-SHA256 hash of OTP code (never store plain)
+  expiresAt   DateTime  // OTP expiration (default: 10 min)
+  attempts    Int       @default(0) // Failed attempts counter (max 5)
+  consumedAt  DateTime? // When OTP was successfully verified
+  ip          String?   // Request IP for audit
+  userAgent   String?   // Request user agent for audit
+  createdAt   DateTime  @default(now())
+
+  // Relations
+  user LocalUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([newEmail])
+  @@index([expiresAt])
+  @@index([consumedAt])
+  @@map("email_otps")
 }

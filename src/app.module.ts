@@ -30,6 +30,8 @@ import { MediaModule } from './media/media.module';
 import { StorageModule } from './storage/storage.module';
 import { MissionEventsModule } from './mission-events/mission-events.module';
 import { OffersModule } from './offers/offers.module';
+import { MailModule } from './mail/mail.module';
+import { EmailChangeModule } from './email-change/email-change.module';
 
 @Module({
   imports: [
@@ -156,6 +158,10 @@ import { OffersModule } from './offers/offers.module';
     MissionEventsModule,
     // Offers module (marketplace offers flow)
     OffersModule,
+    // Email provider (Resend)
+    MailModule,
+    // Email change with OTP verification
+    EmailChangeModule,
   ],
   controllers: [AppController],
   providers: [
