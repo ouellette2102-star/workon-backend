@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Get, Request, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Request, HttpCode, HttpStatus, Logger } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -19,6 +19,8 @@ import { plainToInstance } from 'class-transformer';
 @ApiTags('Auth')
 @Controller('api/v1/auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(private readonly localAuthService: LocalAuthService) {}
 
   // ============================================
@@ -71,10 +73,18 @@ export class AuthController {
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getMe(@Request() req: { user: { sub: string } }): Promise<UserResponseDto> {
-    const user = await this.localAuthService.validateUser(req.user.sub);
-    return plainToInstance(UserResponseDto, user, {
-      excludeExtraneousValues: true,
-    });
+    // PR-8: Log profile fetch for debugging
+    this.logger.log(`[GET /auth/me] userId=${req.user.sub}`);
+    try {
+      const user = await this.localAuthService.validateUser(req.user.sub);
+      this.logger.log(`[GET /auth/me] Success for userId=${req.user.sub}`);
+      return plainToInstance(UserResponseDto, user, {
+        excludeExtraneousValues: true,
+      });
+    } catch (error) {
+      this.logger.error(`[GET /auth/me] Error for userId=${req.user.sub}: ${error.message}`);
+      throw error;
+    }
   }
 
   // ============================================
