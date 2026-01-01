@@ -58,6 +58,15 @@ export class UserResponseDto {
 
   @Expose()
   @ApiProperty({
+    description: 'Profile picture URL',
+    type: String,
+    nullable: true,
+    required: false,
+  })
+  pictureUrl: string | null;
+
+  @Expose()
+  @ApiProperty({
     description: 'User role (worker, employer, residential_client)',
     type: String,
   })

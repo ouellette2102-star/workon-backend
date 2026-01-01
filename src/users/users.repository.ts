@@ -113,6 +113,7 @@ export class UsersRepository {
         lastName: true,
         phone: true,
         city: true,
+        pictureUrl: true,
         role: true,
         active: true,
         createdAt: true,
@@ -140,6 +141,34 @@ export class UsersRepository {
         lastName: true,
         phone: true,
         city: true,
+        pictureUrl: true,
+        role: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  /**
+   * Update user profile picture URL
+   */
+  async updatePictureUrl(id: string, pictureUrl: string) {
+    this.logger.log(`Updating profile picture for user: ${id}`);
+
+    return this.prisma.localUser.update({
+      where: { id },
+      data: {
+        pictureUrl,
+        updatedAt: new Date(),
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        city: true,
+        pictureUrl: true,
         role: true,
         createdAt: true,
         updatedAt: true,
