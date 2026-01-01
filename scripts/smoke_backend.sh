@@ -205,7 +205,35 @@ info "Registering: $TEST_EMAIL"
 
 REGISTER_JSON="{\"email\":\"$TEST_EMAIL\",\"password\":\"$TEST_PASSWORD\",\"firstName\":\"$TEST_FIRST_NAME\",\"lastName\":\"$TEST_LAST_NAME\",\"role\":\"worker\"}"
 
+# ============== DEBUG: Show exact payload ==============
+echo ""
+echo "========== DEBUG: REGISTER REQUEST =========="
+echo "URL: ${API_URL}/api/v1/auth/register"
+echo "Method: POST"
+echo "Variables used:"
+echo "  TEST_EMAIL=$TEST_EMAIL"
+echo "  TEST_PASSWORD=***HIDDEN***"
+echo "  TEST_FIRST_NAME=$TEST_FIRST_NAME"
+echo "  TEST_LAST_NAME=$TEST_LAST_NAME"
+echo ""
+echo "EXACT JSON PAYLOAD:"
+echo "$REGISTER_JSON"
+echo ""
+echo "PRETTY JSON:"
+echo "$REGISTER_JSON" | tr ',' '\n' | tr '{' ' ' | tr '}' ' ' | sed 's/^/  /'
+echo "=============================================="
+echo ""
+# ============== END DEBUG ==============
+
 do_request "POST" "${API_URL}/api/v1/auth/register" "$REGISTER_JSON" ""
+
+echo ""
+echo "========== DEBUG: REGISTER RESPONSE =========="
+echo "HTTP Status: $HTTP_CODE"
+echo "Full Response Body:"
+echo "$BODY"
+echo "=============================================="
+echo ""
 
 info "Register response: HTTP $HTTP_CODE"
 info "Response body (first 200 chars): ${BODY:0:200}"
