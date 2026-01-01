@@ -23,6 +23,8 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LocalAuthService } from './local-auth.service';
 import { JwtLocalStrategy } from './strategies/jwt-local.strategy';
 import { UsersModule } from '../users/users.module';
+// Email change OTP (PR-B2)
+import { EmailChangeModule } from '../email-change/email-change.module';
 
 @Module({
   imports: [
@@ -39,6 +41,8 @@ import { UsersModule } from '../users/users.module';
         },
       }),
     }),
+    // Email change OTP (PR-B2)
+    EmailChangeModule,
   ],
   controllers: [AuthController],
   providers: [

@@ -1,10 +1,11 @@
-import { Controller, Post, Body, UseGuards, Get, Request, HttpCode, HttpStatus, Logger } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Request, HttpCode, HttpStatus, Logger, Req, BadRequestException } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { Request as ExpressRequest } from 'express';
 import { LocalAuthService } from './local-auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -12,8 +13,11 @@ import { AuthResponseDto } from './dto/auth-response.dto';
 import { RefreshTokenDto, RefreshTokenResponseDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto, ForgotPasswordResponseDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto, ResetPasswordResponseDto } from './dto/reset-password.dto';
+import { ChangeEmailDto, ChangeEmailResponseDto } from './dto/change-email.dto';
+import { VerifyEmailOtpDto, VerifyEmailOtpResponseDto } from './dto/verify-email-otp.dto';
 import { UserResponseDto } from '../users/dto/user-response.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { EmailOtpService } from '../email-change/email-otp.service';
 import { plainToInstance } from 'class-transformer';
 
 @ApiTags('Auth')
@@ -21,7 +25,10 @@ import { plainToInstance } from 'class-transformer';
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 
-  constructor(private readonly localAuthService: LocalAuthService) {}
+  constructor(
+    private readonly localAuthService: LocalAuthService,
+    private readonly emailOtpService: EmailOtpService,
+  ) {}
 
   // ============================================
   // REGISTRATION & LOGIN
@@ -140,5 +147,173 @@ export class AuthController {
   @ApiResponse({ status: 400, description: 'Invalid or expired token' })
   async resetPassword(@Body() resetDto: ResetPasswordDto): Promise<ResetPasswordResponseDto> {
     return this.localAuthService.resetPassword(resetDto.token, resetDto.newPassword);
+  }
+
+  // ============================================
+  // EMAIL CHANGE (PR-B2)
+  // ============================================
+
+  @Post('change-email')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Request email change',
+    description: 'Sends OTP code to new email address for verification. Rate limited to 1 request per 60 seconds.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Request processed (neutral response to prevent email enumeration)',
+    type: ChangeEmailResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid email or rate limited' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async changeEmail(
+    @Body() dto: ChangeEmailDto,
+    @Request() req: { user: { sub: string } },
+    @Req() expressReq: ExpressRequest,
+  ): Promise<ChangeEmailResponseDto> {
+    const userId = req.user.sub;
+    const ip = expressReq.ip || expressReq.headers['x-forwarded-for']?.toString() || 'unknown';
+    const userAgent = expressReq.headers['user-agent'] || 'unknown';
+
+    this.logger.log(`[POST /auth/change-email] userId=${userId}, newEmail=${this.maskEmail(dto.newEmail)}`);
+
+    try {
+      // Get current user to check if email is the same
+      const currentUser = await this.localAuthService.validateUser(userId);
+      
+      if (currentUser.email.toLowerCase() === dto.newEmail.toLowerCase().trim()) {
+        this.logger.log(`[POST /auth/change-email] No-op: same email for userId=${userId}`);
+        return {
+          ok: true,
+          message: 'Votre email est déjà à jour.',
+        };
+      }
+
+      const result = await this.emailOtpService.requestEmailChangeOtp(
+        userId,
+        dto.newEmail,
+        { ip, userAgent },
+      );
+
+      return {
+        ok: result.success,
+        message: result.message,
+      };
+    } catch (error) {
+      this.logger.warn(`[POST /auth/change-email] Error for userId=${userId}: ${error.message}`);
+      
+      // Handle rate limit errors
+      if (error.message?.includes('patienter')) {
+        return {
+          ok: false,
+          errorCode: 'RATE_LIMITED',
+          message: error.message,
+        };
+      }
+      
+      // Handle invalid email format
+      if (error.message?.includes('email invalide')) {
+        return {
+          ok: false,
+          errorCode: 'INVALID_EMAIL',
+          message: error.message,
+        };
+      }
+
+      throw error;
+    }
+  }
+
+  @Post('verify-email-otp')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Verify email change OTP',
+    description: 'Verifies OTP code and updates user email if valid. Max 5 attempts per OTP request.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Email successfully updated',
+    type: VerifyEmailOtpResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid OTP, expired, or max attempts reached' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async verifyEmailOtp(
+    @Body() dto: VerifyEmailOtpDto,
+    @Request() req: { user: { sub: string } },
+  ): Promise<VerifyEmailOtpResponseDto> {
+    const userId = req.user.sub;
+
+    this.logger.log(`[POST /auth/verify-email-otp] userId=${userId}, newEmail=${this.maskEmail(dto.newEmail)}`);
+
+    try {
+      // Step 1: Verify OTP
+      const verifyResult = await this.emailOtpService.verifyEmailChangeOtp(
+        userId,
+        dto.newEmail,
+        dto.code,
+      );
+
+      if (!verifyResult.success) {
+        // Map reason to error code
+        const errorCodeMap: Record<string, string> = {
+          'expired': 'OTP_EXPIRED',
+          'invalid': 'OTP_INVALID',
+          'max_attempts': 'OTP_LOCKED',
+          'not_found': 'OTP_NOT_FOUND',
+        };
+
+        return {
+          ok: false,
+          errorCode: errorCodeMap[verifyResult.reason || 'invalid'] || 'OTP_INVALID',
+          message: verifyResult.message,
+        };
+      }
+
+      // Step 2: Apply email change
+      const applyResult = await this.emailOtpService.applyEmailChange(userId, verifyResult.requestId!);
+
+      this.logger.log(`[POST /auth/verify-email-otp] Success for userId=${userId}, newEmail=${this.maskEmail(applyResult.newEmail)}`);
+
+      // TODO: Invalidate refresh tokens if needed for security
+      // This would require adding a method to LocalAuthService
+
+      return {
+        ok: true,
+        message: 'Votre adresse email a été mise à jour avec succès.',
+      };
+    } catch (error) {
+      this.logger.error(`[POST /auth/verify-email-otp] Error for userId=${userId}: ${error.message}`);
+
+      // Handle email already in use (race condition)
+      if (error.message?.includes('déjà utilisée')) {
+        return {
+          ok: false,
+          errorCode: 'EMAIL_IN_USE',
+          message: error.message,
+        };
+      }
+
+      throw error;
+    }
+  }
+
+  // ============================================
+  // PRIVATE HELPERS
+  // ============================================
+
+  /**
+   * Mask email for logging (security)
+   */
+  private maskEmail(email: string): string {
+    const [local, domain] = email.split('@');
+    if (!domain) return '***';
+    const maskedLocal = local.length > 2 
+      ? `${local[0]}***${local[local.length - 1]}`
+      : '***';
+    return `${maskedLocal}@${domain}`;
   }
 }
