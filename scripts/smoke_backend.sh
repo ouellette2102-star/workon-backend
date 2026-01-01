@@ -25,7 +25,8 @@ API_URL="${1:-http://localhost:8080}"
 RUN_ID="${GITHUB_RUN_ID:-$(date +%s)}"
 TEST_EMAIL="qa-smoke-${RUN_ID}@ci.workon.test"
 TEST_PASSWORD="SmokeTest2024!SecureP@ss"
-TEST_NAME="QA Smoke ${RUN_ID}"
+TEST_FIRST_NAME="QA"
+TEST_LAST_NAME="Smoke"
 
 # ============================================
 # COLORS (disabled in CI / non-TTY)
@@ -202,7 +203,7 @@ info "Step 2: Authentication"
 # 2a: Register new user
 info "Registering: $TEST_EMAIL"
 
-REGISTER_JSON="{\"email\":\"$TEST_EMAIL\",\"password\":\"$TEST_PASSWORD\",\"name\":\"$TEST_NAME\",\"role\":\"WORKER\"}"
+REGISTER_JSON="{\"email\":\"$TEST_EMAIL\",\"password\":\"$TEST_PASSWORD\",\"firstName\":\"$TEST_FIRST_NAME\",\"lastName\":\"$TEST_LAST_NAME\",\"role\":\"worker\"}"
 
 do_request "POST" "${API_URL}/api/v1/auth/register" "$REGISTER_JSON" ""
 
