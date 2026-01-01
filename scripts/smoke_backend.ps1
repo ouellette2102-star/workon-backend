@@ -120,8 +120,9 @@ if (-not $SkipAuth) {
     $registerBody = @{
         email = $testEmail
         password = $testPassword
-        name = "Smoke Test User"
-        role = "WORKER"
+        firstName = "Smoke"
+        lastName = "Test"
+        role = "worker"
     } | ConvertTo-Json
     
     try {
