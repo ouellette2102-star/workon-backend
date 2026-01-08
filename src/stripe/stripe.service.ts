@@ -379,7 +379,7 @@ export class StripeService {
    * TODO: Implémenter l'onboarding complet Stripe Connect pour workers
    * TODO: Ajouter champs stripeAccountId, stripeOnboarded sur User
    */
-  async createConnectOnboardingLink(userId: string): Promise<string> {
+  async createConnectOnboardingLink(_userId: string): Promise<string> {
     throw new BadRequestException(
       'Stripe Connect onboarding pas encore implémenté. ' +
       'TODO: Ajouter champs stripeAccountId, stripeOnboarded sur User model.',
@@ -389,7 +389,7 @@ export class StripeService {
   /**
    * Stub pour vérifier le statut d'onboarding (à implémenter)
    */
-  async checkOnboardingStatus(userId: string): Promise<{
+  async checkOnboardingStatus(_userId: string): Promise<{
     onboarded: boolean;
     chargesEnabled: boolean;
     payoutsEnabled: boolean;

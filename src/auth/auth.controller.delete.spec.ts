@@ -7,7 +7,7 @@ import { Logger, NotFoundException, ExecutionContext } from '@nestjs/common';
 
 // Mock JwtAuthGuard to always allow requests
 const mockJwtAuthGuard = {
-  canActivate: jest.fn((context: ExecutionContext) => true),
+  canActivate: jest.fn((_context: ExecutionContext) => true),
 };
 
 describe('AuthController - Delete Account', () => {

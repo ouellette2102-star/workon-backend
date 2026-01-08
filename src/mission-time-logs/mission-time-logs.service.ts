@@ -9,7 +9,7 @@ import {
 import { MissionTimeLogType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { NotificationType } from '@prisma/client';
+// NotificationType removed - not used currently
 
 export interface MissionTimeLogResponse {
   id: string;
