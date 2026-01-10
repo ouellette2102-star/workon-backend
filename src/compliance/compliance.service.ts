@@ -35,6 +35,16 @@ export class ComplianceService {
   ) {}
 
   /**
+   * TEMPORARY: Detect LocalUser (email/password auth from Flutter)
+   * LocalUser IDs start with 'local_'
+   *
+   * TODO: Remove when LocalComplianceDocument migration is applied
+   */
+  private isLocalUser(userId: string): boolean {
+    return userId.startsWith('local_');
+  }
+
+  /**
    * Accepter un document légal
    *
    * @param userId - ID de l'utilisateur authentifié
@@ -53,6 +63,28 @@ export class ComplianceService {
     userAgent: string | null,
   ) {
     const { documentType, version } = dto;
+
+    // TEMPORARY: Skip DB write for LocalUser to avoid FK constraint error
+    // LocalUser IDs are not in the 'users' table (Clerk), they are in 'local_users'
+    // This is a conscious release decision pending LocalComplianceDocument migration
+    if (this.isLocalUser(userId)) {
+      this.logger.warn(
+        `[TEMPORARY] Compliance skipped for LocalUser: ${userId} - ${documentType} v${version}`,
+      );
+      this.auditLogger.logBusinessWarning(
+        'COMPLIANCE_SKIPPED_LOCAL_USER',
+        'Consent recorded client-side only (no DB) - pending migration',
+        { userId: this.auditLogger.maskId(userId), documentType, version },
+      );
+      return {
+        accepted: true,
+        documentType,
+        version,
+        acceptedAt: new Date().toISOString(),
+        alreadyAccepted: false,
+        _localUserBypass: true,
+      };
+    }
 
     // Vérifier que la version correspond à la version active
     if (!isVersionActive(documentType as LegalDocumentType, version)) {
@@ -131,6 +163,32 @@ export class ComplianceService {
    * @returns Statut complet du consentement
    */
   async getConsentStatus(userId: string): Promise<ConsentStatusResponseDto> {
+    // TEMPORARY: For LocalUser, return "complete" status to avoid blocking
+    // Consent is handled client-side in Flutter for now
+    if (this.isLocalUser(userId)) {
+      this.logger.debug(
+        `[TEMPORARY] Consent status bypassed for LocalUser: ${userId}`,
+      );
+      return {
+        isComplete: true,
+        documents: {
+          TERMS: {
+            accepted: true,
+            version: ACTIVE_LEGAL_VERSIONS.TERMS,
+            acceptedAt: null,
+            activeVersion: ACTIVE_LEGAL_VERSIONS.TERMS,
+          },
+          PRIVACY: {
+            accepted: true,
+            version: ACTIVE_LEGAL_VERSIONS.PRIVACY,
+            acceptedAt: null,
+            activeVersion: ACTIVE_LEGAL_VERSIONS.PRIVACY,
+          },
+        },
+        missing: [],
+      };
+    }
+
     // Récupérer tous les consentements de l'utilisateur
     const consents = await this.prisma.complianceDocument.findMany({
       where: {
