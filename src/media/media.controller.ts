@@ -6,8 +6,6 @@ import {
   Request,
   Response,
   UseGuards,
-  NotFoundException,
-  ForbiddenException,
   UnauthorizedException,
   Logger,
 } from '@nestjs/common';

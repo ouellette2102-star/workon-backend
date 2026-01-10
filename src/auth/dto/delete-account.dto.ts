@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, Equals } from 'class-validator';
+import { IsString, Equals } from 'class-validator';
 
 /**
  * DTO for account deletion request

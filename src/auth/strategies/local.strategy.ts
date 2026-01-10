@@ -12,7 +12,7 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(email: string, password: string): Promise<any> {
+  async validate(_email: string, _password: string): Promise<any> {
     // LocalAuthService.login() handles validation, but for passport strategy
     // we need a simpler validateUser method
     // For now, this strategy is not used since we handle login directly in controller

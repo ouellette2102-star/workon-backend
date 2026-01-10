@@ -1,5 +1,5 @@
 import { Controller, Post, Headers, RawBodyRequest, Req, Logger, HttpCode } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiExcludeEndpoint } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { PaymentsService } from './payments.service';
 import { InvoiceService } from './invoice.service';

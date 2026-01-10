@@ -124,7 +124,7 @@ export class MissionsLocalService {
    * @param userId User ID (worker or creator)
    * @param userRole User role
    */
-  async complete(missionId: string, userId: string, userRole: string) {
+  async complete(missionId: string, userId: string, _userRole: string) {
     const mission = await this.missionsRepository.findById(missionId);
 
     if (!mission) {
