@@ -1,0 +1,8 @@
+# Android Screenshots
+# Place screenshots here following the naming convention in README.md
+
+# Required folders:
+# - phone/      (1080x1920 min)
+# - tablet-7/   (1200x1920 min) - if tablet supported
+# - tablet-10/  (1600x2560 min) - if tablet supported
+

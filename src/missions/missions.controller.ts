@@ -13,6 +13,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { MissionsService } from './missions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { ConsentGuard, RequireConsent } from '../compliance/guards/consent.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CreateMissionDto } from './dto/create-mission.dto';
 import { ListAvailableMissionsDto } from './dto/list-available-missions.dto';
@@ -26,8 +27,9 @@ export class MissionsController {
   constructor(private readonly missionsService: MissionsService) {}
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, ConsentGuard)
   @Roles(UserRole.EMPLOYER)
+  @RequireConsent()
   createMission(@Request() req: any, @Body() dto: CreateMissionDto) {
     return this.missionsService.createMissionForEmployer(req.user.sub, dto);
   }
@@ -73,8 +75,9 @@ export class MissionsController {
   }
 
   @Post(':id/reserve')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, ConsentGuard)
   @Roles(UserRole.WORKER)
+  @RequireConsent()
   reserveMission(@Request() req: any, @Param('id') missionId: string) {
     return this.missionsService.reserveMission(req.user.sub, missionId);
   }
