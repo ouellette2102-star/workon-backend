@@ -118,6 +118,47 @@ export class MissionsLocalService {
   }
 
   /**
+   * PR-S5: Start a mission (assigned -> in_progress)
+   * 
+   * @param missionId Mission ID
+   * @param userId Worker's user ID
+   * @param userRole User role (must be worker)
+   */
+  async start(missionId: string, userId: string, userRole: string) {
+    // Only workers can start missions
+    if (userRole !== 'worker') {
+      throw new ForbiddenException('Only workers can start missions');
+    }
+
+    const mission = await this.missionsRepository.findById(missionId);
+
+    if (!mission) {
+      throw new NotFoundException('Mission not found');
+    }
+
+    // Only assigned worker can start
+    if (mission.assignedToUserId !== userId) {
+      throw new ForbiddenException('Only the assigned worker can start this mission');
+    }
+
+    // Must be in assigned status
+    if (mission.status !== 'assigned') {
+      throw new BadRequestException(
+        `Cannot start mission (current status: ${mission.status})`,
+      );
+    }
+
+    const updated = await this.missionsRepository.updateStatus(
+      missionId,
+      'in_progress',
+    );
+
+    this.logger.log(`Mission ${missionId} started by worker ${userId}`);
+
+    return updated;
+  }
+
+  /**
    * Mark mission as completed
    * 
    * @param missionId Mission ID

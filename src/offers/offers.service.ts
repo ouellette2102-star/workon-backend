@@ -256,5 +256,98 @@ export class OffersService {
 
     return offer;
   }
+
+  /**
+   * PR-S5: Get all offers made by a worker (my applications)
+   * 
+   * @param workerId - ID of the worker
+   * @returns List of offers with mission details
+   */
+  async findByWorker(workerId: string) {
+    const offers = await this.prisma.localOffer.findMany({
+      where: { workerId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        mission: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            category: true,
+            price: true,
+            city: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    this.logger.log(`Found ${offers.length} offers for worker ${workerId}`);
+
+    return offers;
+  }
+
+  /**
+   * PR-S5: Reject an offer (mission owner only)
+   * 
+   * @param offerId - Offer ID
+   * @param userId - Current user ID (must be mission owner)
+   * @throws NotFoundException if offer not found
+   * @throws ForbiddenException if user is not mission owner
+   * @throws BadRequestException if offer not pending
+   */
+  async reject(offerId: string, userId: string) {
+    // Get offer with mission
+    const offer = await this.prisma.localOffer.findUnique({
+      where: { id: offerId },
+      include: {
+        mission: {
+          select: {
+            id: true,
+            createdByUserId: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!offer) {
+      throw new NotFoundException('Offer not found');
+    }
+
+    // Only mission owner can reject
+    if (offer.mission.createdByUserId !== userId) {
+      throw new ForbiddenException('Only mission owner can reject offers');
+    }
+
+    // Cannot reject if not pending
+    if (offer.status !== LocalOfferStatus.PENDING) {
+      throw new BadRequestException('Can only reject pending offers');
+    }
+
+    // Update offer status
+    const rejectedOffer = await this.prisma.localOffer.update({
+      where: { id: offerId },
+      data: {
+        status: LocalOfferStatus.DECLINED,
+        updatedAt: new Date(),
+      },
+      include: {
+        worker: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            city: true,
+          },
+        },
+      },
+    });
+
+    this.logger.log(`Offer rejected: ${offerId} by user ${userId}`);
+
+    return rejectedOffer;
+  }
 }
 

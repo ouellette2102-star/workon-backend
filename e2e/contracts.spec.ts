@@ -2,6 +2,25 @@ import { test, expect } from '@playwright/test';
 
 const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000/api/v1';
 
+/**
+ * Helper: Accepter les documents légaux pour un utilisateur
+ * Nécessaire depuis l'ajout du ConsentGuard (PR-B)
+ */
+async function acceptAllConsent(request: any, token: string) {
+  const versionsResponse = await request.get(`${API_BASE_URL}/compliance/versions`);
+  const { versions } = await versionsResponse.json();
+
+  await request.post(`${API_BASE_URL}/compliance/accept`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { documentType: 'TERMS', version: versions.TERMS },
+  });
+
+  await request.post(`${API_BASE_URL}/compliance/accept`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { documentType: 'PRIVACY', version: versions.PRIVACY },
+  });
+}
+
 test.describe('Contracts Flow', () => {
   let employerToken: string;
   let workerToken: string;
@@ -23,6 +42,9 @@ test.describe('Contracts Flow', () => {
     const employerData = await employerSignup.json();
     employerToken = employerData.accessToken;
 
+    // Accepter le consentement pour employer (requis par ConsentGuard)
+    await acceptAllConsent(request, employerToken);
+
     const workerEmail = `worker-${Date.now()}@test.com`;
     const workerSignup = await request.post(`${API_BASE_URL}/auth/signup`, {
       data: {
@@ -34,6 +56,9 @@ test.describe('Contracts Flow', () => {
     });
     const workerData = await workerSignup.json();
     workerToken = workerData.accessToken;
+
+    // Accepter le consentement pour worker (requis par ConsentGuard)
+    await acceptAllConsent(request, workerToken);
 
     // Créer une mission et l'accepter
     const createMission = await request.post(`${API_BASE_URL}/missions`, {
