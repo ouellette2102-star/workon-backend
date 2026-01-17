@@ -108,6 +108,8 @@ model LocalMission {
   assignedToUser        LocalUser?         @relation("local_missions_assignedToUserIdTolocal_users", fields: [assignedToUserId], references: [id])
   createdByUser         LocalUser          @relation("local_missions_createdByUserIdTolocal_users", fields: [createdByUserId], references: [id], onDelete: Cascade)
   offers                LocalOffer[]
+  reviews               LocalReview[]    @relation("local_reviews_mission")
+  messages              LocalMessage[]   @relation("local_messages_mission")
 
   @@index([assignedToUserId])
   @@index([category])
@@ -168,7 +170,7 @@ model LocalReview {
 
   author     LocalUser     @relation("local_reviews_authorIdTolocal_users", fields: [authorId], references: [id], onDelete: Cascade)
   targetUser LocalUser     @relation("local_reviews_targetUserIdTolocal_users", fields: [targetUserId], references: [id], onDelete: Cascade)
-  mission    LocalMission? @relation(fields: [missionId], references: [id])
+  mission    LocalMission? @relation("local_reviews_mission", fields: [missionId], references: [id])
 
   @@index([missionId])
   @@index([targetUserId])
@@ -192,6 +194,7 @@ model LocalUser {
   assignedMissions LocalMission[] @relation("local_missions_assignedToUserIdTolocal_users")
   createdMissions  LocalMission[] @relation("local_missions_createdByUserIdTolocal_users")
   offers           LocalOffer[]
+  sentMessages     LocalMessage[] @relation("local_messages_sender")
   authoredReviews  LocalReview[]  @relation("local_reviews_authorIdTolocal_users")
   receivedReviews  LocalReview[]  @relation("local_reviews_targetUserIdTolocal_users")
   deviceTokens     LocalDeviceToken[]
@@ -604,8 +607,8 @@ model LocalMessage {
   status    LocalMessageStatus @default(SENT)
   createdAt DateTime           @default(now())
 
-  mission LocalMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  sender  LocalUser    @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  mission LocalMission @relation("local_messages_mission", fields: [missionId], references: [id], onDelete: Cascade)
+  sender  LocalUser    @relation("local_messages_sender", fields: [senderId], references: [id], onDelete: Cascade)
 
   @@index([missionId])
   @@index([senderId])
