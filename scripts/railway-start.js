@@ -33,6 +33,16 @@ function run(command, args, label) {
 }
 
 const dbHost = getDbHost();
+const isCi = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+if (isCi) {
+  log('CI detected, skipping migrate + server start');
+  process.exit(0);
+}
+const isCi = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+if (isCi) {
+  log('CI detected, skipping migrate + server start');
+  process.exit(0);
+}
 log('boot');
 log(`DB host: ${dbHost || 'unknown'}`);
 if (!dbHost || dbHost.includes('localhost') || dbHost.includes('127.0.0.1')) {
