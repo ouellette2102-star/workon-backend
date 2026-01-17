@@ -26,21 +26,23 @@ export class CreateUserDto {
   @IsNotEmpty()
   password: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'John',
     description: 'User first name',
+    default: '',
   })
   @IsString()
-  @IsNotEmpty()
-  firstName: string;
+  @IsOptional()
+  firstName?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'Doe',
     description: 'User last name',
+    default: '',
   })
   @IsString()
-  @IsNotEmpty()
-  lastName: string;
+  @IsOptional()
+  lastName?: string;
 
   @ApiPropertyOptional({
     example: '+1 514 555 0100',
@@ -58,13 +60,14 @@ export class CreateUserDto {
   @IsOptional()
   city?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     enum: UserRole,
     example: UserRole.WORKER,
     description: 'User role in the platform',
+    default: UserRole.WORKER,
   })
   @IsEnum(UserRole)
-  @IsNotEmpty()
-  role: UserRole;
+  @IsOptional()
+  role?: UserRole;
 }
 
