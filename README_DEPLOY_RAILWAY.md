@@ -221,44 +221,21 @@ openssl rand -base64 32
 
 ## 🔄 ÉTAPE 5: Configurer le Build et Déploiement
 
-### 5.1. Vérifier les Build Settings
+### 5.1. Build et Start Commands (Railway)
 
-Railway détecte automatiquement NestJS, mais vérifiez:
-
-1. Dans votre service backend → "Settings"
-2. Section "Build Command":
-   - Devrait être: `npm run build`
-   - OU vide (Railway utilise `package.json` scripts)
-3. Section "Start Command":
-   - Devrait être: `npm run start:prod`
-   - OU vide (Railway utilise `package.json` start script)
-
-### 5.2. Ajouter un Build Command Personnalisé (Recommandé)
-
-Pour que Prisma génère le client et exécute les migrations:
+**Start Command requis (Railway):** `npm run start:railway`
 
 **Build Command:**
 ```bash
-npm install && npx prisma generate && npm run build
+npm run build
 ```
 
 **Start Command:**
 ```bash
-npx prisma migrate deploy && npm run start:prod
+npm run start:railway
 ```
 
-**Comment configurer:**
-1. Settings → "Build" section
-2. Build Command: `npm install && npx prisma generate && npm run build`
-3. Start Command: `npx prisma migrate deploy && npm run start:prod`
-4. Sauvegarder
-
-**Explications:**
-- `npm install`: Installe les dépendances
-- `npx prisma generate`: Génère le client Prisma TypeScript
-- `npm run build`: Compile NestJS → `dist/`
-- `npx prisma migrate deploy`: Exécute les migrations SQL en production
-- `npm run start:prod`: Lance `node dist/main`
+**Start script:** `scripts/railway-start.js` exécute `npx prisma migrate deploy` puis lance `node dist/main.js`.
 
 ---
 
