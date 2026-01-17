@@ -186,6 +186,13 @@ export class LocalAuthService {
    */
   async resetPassword(token: string, newPassword: string) {
     try {
+      if (!token || token.trim().length < 10) {
+        throw new BadRequestException('Invalid or expired reset token');
+      }
+      if (!newPassword || newPassword.trim().length < 8) {
+        throw new BadRequestException('Password must be at least 8 characters');
+      }
+
       const resetSecret = this.getResetTokenSecret();
 
       // Verify reset token
@@ -197,11 +204,14 @@ export class LocalAuthService {
       if (payload.type !== 'password-reset') {
         throw new BadRequestException('Invalid reset token');
       }
+      if (!payload.sub || !payload.email) {
+        throw new BadRequestException('Invalid reset token');
+      }
 
       // Get user
-      const user = await this.usersService.findByEmail(payload.email);
+      const user = await this.usersService.findById(payload.sub);
       
-      if (!user || !user.active) {
+      if (!user || !user.active || user.email !== payload.email) {
         throw new BadRequestException('User not found or inactive');
       }
 
