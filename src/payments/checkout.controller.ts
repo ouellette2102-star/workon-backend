@@ -25,16 +25,24 @@ import {
   InvoiceResponseDto,
   InvoicePreviewDto,
 } from './dto/checkout.dto';
+import { ConsentGuard, RequireConsent } from '../compliance/guards/consent.guard';
 
 /**
  * Checkout Controller
  * 
  * Provides Stripe Checkout Session flow for LocalMissions.
  * Simpler than PaymentIntent for mobile apps - just redirect to URL.
+ *
+ * PROTECTION LÉGALE: Tous les endpoints de checkout sont protégés par @RequireConsent.
+ * Un utilisateur DOIT avoir accepté les Terms et Privacy Policy avant de pouvoir
+ * créer ou consulter des factures.
+ *
+ * Conformité: Loi 25 Québec, GDPR, Apple App Store, Google Play
  */
 @ApiTags('Payments')
 @ApiBearerAuth()
 @Controller('api/v1/payments')
+@RequireConsent() // PROTECTION LÉGALE - Fail-closed sur tous les endpoints checkout
 export class CheckoutController {
   private readonly logger = new Logger(CheckoutController.name);
 
@@ -45,7 +53,7 @@ export class CheckoutController {
    * Create a Stripe Checkout Session for a LocalMission
    */
   @Post('checkout')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ConsentGuard)
   @ApiOperation({
     summary: 'Create Checkout Session',
     description: `
@@ -71,7 +79,7 @@ export class CheckoutController {
     type: CheckoutResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Mission not in payable state' })
-  @ApiResponse({ status: 403, description: 'Not authorized to pay this mission' })
+  @ApiResponse({ status: 403, description: 'Consent required or not authorized' })
   @ApiResponse({ status: 404, description: 'Mission not found' })
   @ApiResponse({ status: 503, description: 'Stripe not configured' })
   async createCheckout(
@@ -99,7 +107,7 @@ export class CheckoutController {
    * Get invoice details
    */
   @Get('invoice/:id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ConsentGuard)
   @ApiOperation({
     summary: 'Get invoice details',
     description: 'Returns the invoice details including amounts and status.',
@@ -110,6 +118,7 @@ export class CheckoutController {
     description: 'Invoice details',
     type: InvoiceResponseDto,
   })
+  @ApiResponse({ status: 403, description: 'Consent required - user must accept Terms and Privacy' })
   @ApiResponse({ status: 404, description: 'Invoice not found' })
   async getInvoice(
     @Request() req: any,
@@ -124,7 +133,7 @@ export class CheckoutController {
    * Preview invoice calculation without creating
    */
   @Get('preview')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ConsentGuard)
   @ApiOperation({
     summary: 'Preview invoice calculation',
     description: 'Returns the calculated amounts for a given price without creating an invoice.',

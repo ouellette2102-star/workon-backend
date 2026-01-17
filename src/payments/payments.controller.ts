@@ -6,10 +6,21 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { UserRole } from '@prisma/client';
+import { ConsentGuard, RequireConsent } from '../compliance/guards/consent.guard';
 
+/**
+ * Payments Controller - Gestion des paiements Stripe
+ *
+ * PROTECTION LÉGALE: Tous les endpoints de paiement sont protégés par @RequireConsent.
+ * Un utilisateur DOIT avoir accepté les Terms et Privacy Policy avant de pouvoir
+ * créer ou gérer des paiements.
+ *
+ * Conformité: Loi 25 Québec, GDPR, Apple App Store, Google Play
+ */
 @ApiTags('Payments')
 @ApiBearerAuth()
 @Controller('api/v1/payments')
+@RequireConsent() // PROTECTION LÉGALE - Fail-closed sur tous les endpoints paiement
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
@@ -18,7 +29,7 @@ export class PaymentsController {
    * Créer un PaymentIntent escrow pour une mission
    */
   @Post('mission/:missionId/intent')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, ConsentGuard)
   @Roles(UserRole.EMPLOYER, UserRole.RESIDENTIAL)
   @ApiOperation({
     summary: 'Create escrow PaymentIntent for a mission',
@@ -30,6 +41,7 @@ export class PaymentsController {
   @ApiParam({ name: 'missionId', description: 'Mission ID', example: 'mission_123' })
   @ApiResponse({ status: 201, description: 'PaymentIntent created successfully' })
   @ApiResponse({ status: 400, description: 'Invalid amount or Stripe not configured' })
+  @ApiResponse({ status: 403, description: 'Consent required - user must accept Terms and Privacy' })
   @ApiResponse({ status: 404, description: 'Mission not found' })
   @ApiResponse({ status: 409, description: 'Payment already captured for this mission' })
   async createPaymentIntent(
@@ -46,7 +58,7 @@ export class PaymentsController {
    * Capturer les fonds d'un PaymentIntent
    */
   @Post('mission/:missionId/capture')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, ConsentGuard)
   @Roles(UserRole.EMPLOYER, UserRole.RESIDENTIAL)
   @ApiOperation({
     summary: 'Capture authorized payment',
@@ -58,6 +70,7 @@ export class PaymentsController {
   @ApiParam({ name: 'missionId', description: 'Mission ID', example: 'mission_123' })
   @ApiResponse({ status: 200, description: 'Payment captured successfully' })
   @ApiResponse({ status: 400, description: 'Payment not in capturable state' })
+  @ApiResponse({ status: 403, description: 'Consent required - user must accept Terms and Privacy' })
   @ApiResponse({ status: 404, description: 'Payment not found' })
   async capturePayment(@Request() req: any, @Param('missionId') missionId: string) {
     const userId = req.user.userId || req.user.sub;
@@ -69,7 +82,7 @@ export class PaymentsController {
    * Annuler un PaymentIntent avant capture
    */
   @Post('mission/:missionId/cancel')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, ConsentGuard)
   @Roles(UserRole.EMPLOYER, UserRole.RESIDENTIAL)
   @ApiOperation({
     summary: 'Cancel authorized payment',
@@ -81,6 +94,7 @@ export class PaymentsController {
   @ApiParam({ name: 'missionId', description: 'Mission ID', example: 'mission_123' })
   @ApiResponse({ status: 200, description: 'Payment cancelled successfully' })
   @ApiResponse({ status: 400, description: 'Payment already captured or cancelled' })
+  @ApiResponse({ status: 403, description: 'Consent required - user must accept Terms and Privacy' })
   @ApiResponse({ status: 404, description: 'Payment not found' })
   async cancelPayment(@Request() req: any, @Param('missionId') missionId: string) {
     const userId = req.user.userId || req.user.sub;
@@ -92,13 +106,14 @@ export class PaymentsController {
    * Récupérer le status d'un paiement
    */
   @Get('mission/:missionId/status')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ConsentGuard)
   @ApiOperation({
     summary: 'Get payment status for a mission',
     description: 'Returns the current payment status and details for a mission.',
   })
   @ApiParam({ name: 'missionId', description: 'Mission ID', example: 'mission_123' })
   @ApiResponse({ status: 200, description: 'Payment status returned' })
+  @ApiResponse({ status: 403, description: 'Consent required - user must accept Terms and Privacy' })
   @ApiResponse({ status: 404, description: 'Payment not found' })
   async getPaymentStatus(@Param('missionId') missionId: string) {
     return this.paymentsService.getPaymentStatus(missionId);
@@ -108,9 +123,10 @@ export class PaymentsController {
    * Legacy endpoint (backward compatibility)
    */
   @Post('create-intent')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, ConsentGuard)
   @Roles(UserRole.EMPLOYER, UserRole.RESIDENTIAL)
   @ApiOperation({ summary: 'Create PaymentIntent (legacy)', deprecated: true })
+  @ApiResponse({ status: 403, description: 'Consent required - user must accept Terms and Privacy' })
   async createPaymentIntentLegacy(@Request() req: any, @Body() createPaymentIntentDto: CreatePaymentIntentDto) {
     const userId = req.user.userId || req.user.sub;
     return this.paymentsService.createPaymentIntent(userId, createPaymentIntentDto);
