@@ -15,7 +15,7 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
-    "start:railway": "node dist/main.js",
+    "start:railway": "node scripts/railway-start.js",
     "lint": "cross-env ESLINT_USE_FLAT_CONFIG=false node ./node_modules/eslint/bin/eslint.js --config .eslintrc.js --resolve-plugins-relative-to . \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -32,6 +32,11 @@
     "prisma:validate": "prisma validate",
     "prisma:db:push": "prisma db push",
     "prisma:studio": "prisma studio",
+    "db:status": "prisma migrate status",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio",
+    "db:validate": "prisma validate",
+    "db:generate": "prisma generate",
     "env:generate": "node scripts/generate-env.js",
     "check:env": "ts-node ./scripts/check-env.ts || node ./scripts/check-env.ts",
     "smoke:contracts": "ts-node ./scripts/check-api-contracts.ts",
@@ -60,14 +65,14 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
+    "prisma": "^6.0.0",
     "reflect-metadata": "0.1.14",
     "rxjs": "^7.8.1",
     "stripe": "^17.7.0",
     "swagger-ui-express": "4.6.3",
     "uuid": "^13.0.0",
     "winston": "^3.11.0",
-    "zod": "^3.23.0",
-    "prisma": "^6.0.0"
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.2.1",
@@ -81,9 +86,11 @@
     "@types/node": "^20.10.6",
     "@types/passport-jwt": "^4.0.1",
     "@types/passport-local": "^1.0.38",
+    "@types/supertest": "^6.0.3",
     "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^6.17.0",
     "@typescript-eslint/parser": "^6.17.0",
+    "cross-env": "^7.0.3",
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.1.2",
@@ -95,8 +102,7 @@
     "ts-loader": "^9.5.1",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.3.3",
-    "cross-env": "^7.0.3"
+    "typescript": "^5.3.3"
   },
   "jest": {
     "moduleFileExtensions": [
