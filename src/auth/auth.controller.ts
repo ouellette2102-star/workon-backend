@@ -14,6 +14,8 @@ import { ForgotPasswordDto, ForgotPasswordResponseDto } from './dto/forgot-passw
 import { ResetPasswordDto, ResetPasswordResponseDto } from './dto/reset-password.dto';
 import { DeleteAccountDto, DeleteAccountResponseDto } from './dto/delete-account.dto';
 import { UserResponseDto } from '../users/dto/user-response.dto';
+import { ChangeEmailDto } from './dto/change-email.dto';
+import { VerifyEmailOtpDto } from './dto/verify-email-otp.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { UsersService } from '../users/users.service';
 import { plainToInstance } from 'class-transformer';
@@ -145,6 +147,59 @@ export class AuthController {
   @ApiResponse({ status: 400, description: 'Invalid or expired token' })
   async resetPassword(@Body() resetDto: ResetPasswordDto): Promise<ResetPasswordResponseDto> {
     return this.localAuthService.resetPassword(resetDto.token, resetDto.newPassword);
+  }
+
+  // ============================================
+  // LOGOUT (stateless JWT - no server state)
+  // ============================================
+
+  @Post('logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Logout (stateless)',
+    description: 'Stateless JWT logout. Client should clear tokens.',
+  })
+  @ApiResponse({ status: 204, description: 'Logged out' })
+  async logout() {
+    return;
+  }
+
+  // ============================================
+  // EMAIL CHANGE (OTP)
+  // ============================================
+
+  @Post('change-email')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Request email change (OTP)',
+  })
+  @ApiResponse({ status: 200, description: 'OTP sent' })
+  async requestEmailChange(
+    @Body() dto: ChangeEmailDto,
+    @Request() req: { user: { sub: string } },
+  ) {
+    return this.localAuthService.requestEmailChange(req.user.sub, dto.newEmail);
+  }
+
+  @Post('verify-email-otp')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Verify email change OTP',
+  })
+  @ApiResponse({ status: 200, description: 'Email updated' })
+  async verifyEmailOtp(
+    @Body() dto: VerifyEmailOtpDto,
+    @Request() req: { user: { sub: string } },
+  ) {
+    return this.localAuthService.verifyEmailOtp(
+      req.user.sub,
+      dto.newEmail,
+      dto.code,
+    );
   }
 
   // ============================================

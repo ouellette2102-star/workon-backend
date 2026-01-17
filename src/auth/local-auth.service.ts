@@ -11,6 +11,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { plainToInstance } from 'class-transformer';
 import { UserResponseDto } from '../users/dto/user-response.dto';
+import { PrismaService } from '../prisma/prisma.service';
 
 /**
  * Local Authentication Service
@@ -31,6 +32,7 @@ export class LocalAuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
   ) {}
 
   /**
@@ -230,6 +232,101 @@ export class LocalAuthService {
       this.logger.warn(`Password reset failed: ${(error as Error).message}`);
       throw new BadRequestException('Invalid or expired reset token');
     }
+  }
+
+  // ============================================
+  // EMAIL CHANGE (OTP)
+  // ============================================
+
+  async requestEmailChange(userId: string, newEmail: string) {
+    const normalized = newEmail.trim().toLowerCase();
+
+    // Ensure user exists
+    await this.usersService.findById(userId);
+
+    // Ensure email not already in use
+    const existing = await this.usersService.findByEmail(normalized);
+    if (existing && existing.id !== userId) {
+      throw new BadRequestException({
+        errorCode: 'EMAIL_IN_USE',
+        message: 'Cette adresse email est déjà utilisée.',
+      });
+    }
+
+    // Generate OTP (6 digits)
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    await this.prisma.localEmailChangeRequest.upsert({
+      where: {
+        userId_newEmail: { userId, newEmail: normalized },
+      },
+      update: {
+        code,
+        attempts: 0,
+        expiresAt,
+        updatedAt: new Date(),
+      },
+      create: {
+        id: `chg_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        userId,
+        newEmail: normalized,
+        code,
+        expiresAt,
+      },
+    });
+
+    // In prod this would be emailed. Here we return ok only.
+    return { ok: true };
+  }
+
+  async verifyEmailOtp(userId: string, newEmail: string, code: string) {
+    const normalized = newEmail.trim().toLowerCase();
+
+    const request = await this.prisma.localEmailChangeRequest.findUnique({
+      where: {
+        userId_newEmail: { userId, newEmail: normalized },
+      },
+    });
+
+    if (!request) {
+      throw new BadRequestException({
+        errorCode: 'OTP_NOT_FOUND',
+        message: 'Aucune demande de changement trouvée. Recommencez.',
+      });
+    }
+
+    if (request.expiresAt < new Date()) {
+      throw new BadRequestException({
+        errorCode: 'OTP_EXPIRED',
+        message: 'Code expiré. Demandez un nouveau code.',
+      });
+    }
+
+    if (request.attempts >= 5) {
+      throw new BadRequestException({
+        errorCode: 'OTP_LOCKED',
+        message: 'Trop de tentatives. Demandez un nouveau code.',
+      });
+    }
+
+    if (request.code !== code.trim()) {
+      await this.prisma.localEmailChangeRequest.update({
+        where: { id: request.id },
+        data: { attempts: request.attempts + 1, updatedAt: new Date() },
+      });
+      throw new BadRequestException({
+        errorCode: 'OTP_INVALID',
+        message: 'Code incorrect. Vérifiez et réessayez.',
+      });
+    }
+
+    await this.usersService.updateEmail(userId, normalized);
+    await this.prisma.localEmailChangeRequest.delete({
+      where: { id: request.id },
+    });
+
+    return { ok: true };
   }
 
   /**

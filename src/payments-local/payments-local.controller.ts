@@ -7,6 +7,7 @@ import {
   Headers,
   RawBodyRequest,
   Req,
+  Get,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -53,6 +54,18 @@ export class PaymentsLocalController {
       req.user.sub,
       req.user.role,
     );
+  }
+
+  @Get('history')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get local payment history',
+    description: 'Returns payment history for the current user (local missions).',
+  })
+  @ApiResponse({ status: 200, description: 'Payment history' })
+  async getHistory(@Request() req: any) {
+    return this.paymentsService.getPaymentHistory(req.user.sub);
   }
 
   @Post('webhook')

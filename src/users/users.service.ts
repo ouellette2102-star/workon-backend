@@ -99,6 +99,20 @@ export class UsersService {
   }
 
   /**
+   * Update user email with uniqueness check
+   */
+  async updateEmail(id: string, newEmail: string) {
+    const normalized = newEmail.trim().toLowerCase();
+
+    const existing = await this.usersRepository.findByEmail(normalized);
+    if (existing && existing.id !== id) {
+      throw new ConflictException('Email already registered');
+    }
+
+    return this.usersRepository.updateEmail(id, normalized);
+  }
+
+  /**
    * Verify user password (for login)
    */
   async verifyPassword(

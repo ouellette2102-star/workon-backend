@@ -32,6 +32,8 @@ import { MissionEventsModule } from './mission-events/mission-events.module';
 import { OffersModule } from './offers/offers.module';
 import { ComplianceModule } from './compliance/compliance.module';
 import { AuditModule } from './common/audit/audit.module';
+import { DevicesModule } from './devices/devices.module';
+import { ReviewsModule } from './reviews/reviews.module';
 
 @Module({
   imports: [
@@ -167,6 +169,10 @@ import { AuditModule } from './common/audit/audit.module';
     OffersModule,
     // Compliance module - Consentement légal (Loi 25 / GDPR / Stores)
     ComplianceModule,
+    // Devices module (push token registration)
+    DevicesModule,
+    // Reviews module (ratings & reviews)
+    ReviewsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -28,6 +28,193 @@ export class MessagesService {
     private readonly notificationsService: NotificationsService,
   ) {}
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // LOCAL CONVERSATIONS (missions-local + local_users)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  private async getLocalMissionAccess(
+    missionId: string,
+    userId: string,
+  ): Promise<{ canAccess: boolean }> {
+    const mission = await this.prisma.localMission.findUnique({
+      where: { id: missionId },
+      select: {
+        id: true,
+        createdByUserId: true,
+        assignedToUserId: true,
+      },
+    });
+
+    if (!mission) {
+      throw new NotFoundException('Mission introuvable');
+    }
+
+    const canAccess =
+      mission.createdByUserId === userId || mission.assignedToUserId === userId;
+    return { canAccess };
+  }
+
+  async getLocalConversations(userId: string) {
+    const missions = await this.prisma.localMission.findMany({
+      where: {
+        OR: [{ createdByUserId: userId }, { assignedToUserId: userId }],
+      },
+      select: {
+        id: true,
+        title: true,
+        createdByUserId: true,
+        assignedToUserId: true,
+        createdByUser: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            pictureUrl: true,
+          },
+        },
+        assignedToUser: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            pictureUrl: true,
+          },
+        },
+      },
+    });
+
+    const conversations = await Promise.all(
+      missions
+        .filter((mission) => mission.assignedToUserId)
+        .map(async (mission) => {
+          const isOwner = mission.createdByUserId === userId;
+          const participant = isOwner ? mission.assignedToUser : mission.createdByUser;
+
+          const lastMessage = await this.prisma.localMessage.findFirst({
+            where: { missionId: mission.id },
+            orderBy: { createdAt: 'desc' },
+            select: { content: true, createdAt: true },
+          });
+
+          const unreadCount = await this.prisma.localMessage.count({
+            where: {
+              missionId: mission.id,
+              senderId: { not: userId },
+              status: { not: 'READ' },
+            },
+          });
+
+          const participantName = participant
+            ? [participant.firstName, participant.lastName].filter(Boolean).join(' ').trim() ||
+              'Utilisateur'
+            : 'Utilisateur';
+
+          return {
+            id: mission.id,
+            participantId: participant?.id ?? '',
+            participantName,
+            participantAvatar: participant?.pictureUrl ?? null,
+            lastMessage: lastMessage?.content ?? null,
+            lastMessageAt: lastMessage?.createdAt ?? null,
+            unreadCount,
+            missionId: mission.id,
+            missionTitle: mission.title,
+          };
+        }),
+    );
+
+    return conversations;
+  }
+
+  async getLocalMessagesForMission(missionId: string, userId: string) {
+    const { canAccess } = await this.getLocalMissionAccess(missionId, userId);
+    if (!canAccess) {
+      throw new ForbiddenException("Vous n'avez pas accès aux messages de cette mission");
+    }
+
+    const messages = await this.prisma.localMessage.findMany({
+      where: { missionId },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        missionId: true,
+        senderId: true,
+        content: true,
+        status: true,
+        createdAt: true,
+      },
+    });
+
+    return messages.map((msg) => ({
+      id: msg.id,
+      conversationId: msg.missionId,
+      senderId: msg.senderId,
+      text: msg.content,
+      createdAt: msg.createdAt.toISOString(),
+      isRead: msg.status === 'READ',
+    }));
+  }
+
+  async createLocalMessage(missionId: string, userId: string, text: string) {
+    const trimmed = text?.trim();
+    if (!trimmed) {
+      throw new BadRequestException('Le message ne peut pas être vide');
+    }
+
+    const mission = await this.prisma.localMission.findUnique({
+      where: { id: missionId },
+      select: {
+        id: true,
+        createdByUserId: true,
+        assignedToUserId: true,
+      },
+    });
+
+    if (!mission) {
+      throw new NotFoundException('Mission introuvable');
+    }
+
+    const isParticipant =
+      mission.createdByUserId === userId || mission.assignedToUserId === userId;
+    if (!isParticipant) {
+      throw new ForbiddenException(
+        "Vous n'avez pas le droit d'envoyer des messages pour cette mission",
+      );
+    }
+
+    if (!mission.assignedToUserId) {
+      throw new BadRequestException(
+        'Le chat est disponible uniquement lorsqu’un worker est assigné',
+      );
+    }
+
+    const message = await this.prisma.localMessage.create({
+      data: {
+        id: `lmsg_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        missionId,
+        senderId: userId,
+        content: trimmed,
+      },
+      select: {
+        id: true,
+        missionId: true,
+        senderId: true,
+        content: true,
+        createdAt: true,
+        status: true,
+      },
+    });
+
+    return {
+      id: message.id,
+      conversationId: message.missionId,
+      senderId: message.senderId,
+      text: message.content,
+      createdAt: message.createdAt.toISOString(),
+      isRead: message.status === 'READ',
+    };
+  }
+
   /**
    * Vérifie que l'utilisateur a le droit d'accéder au chat de cette mission
    * Retourne { canAccess: boolean, senderRole: 'WORKER' | 'EMPLOYER' | null }
