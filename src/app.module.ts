@@ -30,6 +30,8 @@ import { MediaModule } from './media/media.module';
 import { StorageModule } from './storage/storage.module';
 import { MissionEventsModule } from './mission-events/mission-events.module';
 import { OffersModule } from './offers/offers.module';
+import { ComplianceModule } from './compliance/compliance.module';
+import { AuditModule } from './common/audit/audit.module';
 
 @Module({
   imports: [
@@ -123,10 +125,9 @@ import { OffersModule } from './offers/offers.module';
     // ============================================================
     PrismaModule,
     LoggerModule,
-    // ============================================================
-    // USER & AUTH (order preserved)
-    // ============================================================
-    // Users first (needed by AuthModule)
+    // Audit logging for critical business events (PR-I2)
+    AuditModule,
+    // Nouveaux modules - Users first (needed by AuthModule)
     UsersModule,
     // Auth module (depends on UsersModule)
     AuthModule,
@@ -164,6 +165,8 @@ import { OffersModule } from './offers/offers.module';
     MissionEventsModule,
     // Offers module (marketplace offers flow)
     OffersModule,
+    // Compliance module - Consentement légal (Loi 25 / GDPR / Stores)
+    ComplianceModule,
   ],
   controllers: [AppController],
   providers: [

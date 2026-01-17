@@ -146,6 +146,36 @@ export class MissionsLocalController {
     });
   }
 
+  /**
+   * PR-S5: POST /api/v1/missions-local/:id/start
+   * Start a mission (assigned -> in_progress)
+   */
+  @Post(':id/start')
+  @ApiOperation({
+    summary: 'Start a mission',
+    description: 'Worker starts working on an assigned mission',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Mission started successfully',
+    type: MissionResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Only assigned worker can start' })
+  @ApiResponse({ status: 400, description: 'Mission not in assigned status' })
+  @ApiResponse({ status: 404, description: 'Mission not found' })
+  async start(@Param('id') id: string, @Request() req: any) {
+    const mission = await this.missionsService.start(
+      id,
+      req.user.sub,
+      req.user.role,
+    );
+
+    return plainToInstance(MissionResponseDto, mission, {
+      excludeExtraneousValues: true,
+    });
+  }
+
   @Post(':id/complete')
   @ApiOperation({
     summary: 'Mark mission as completed',

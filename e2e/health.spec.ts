@@ -7,7 +7,7 @@
 
 import { test, expect } from '@playwright/test';
 
-const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:8080';
+const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000';
 
 test.describe('Health Endpoints', () => {
   /**
