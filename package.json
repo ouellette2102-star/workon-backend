@@ -15,7 +15,7 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
-    "start:railway": "node dist/main.js",
+    "start:railway": "node scripts/railway-start.js",
     "lint": "cross-env ESLINT_USE_FLAT_CONFIG=false node ./node_modules/eslint/bin/eslint.js --config .eslintrc.js --resolve-plugins-relative-to . \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "jest",
     "test:watch": "jest --watch",

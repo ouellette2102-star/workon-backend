@@ -301,6 +301,7 @@ async function bootstrap() {
 
   // Railway requires binding to 0.0.0.0 to accept external connections
   await app.listen(port, '0.0.0.0');
+  console.log('[backend] app booted');
   
   const logger = app.get(WINSTON_MODULE_NEST_PROVIDER);
   

@@ -120,6 +120,13 @@ docker build -t workon-backend .
 docker run -p 3000:3000 --env-file .env workon-backend
 ```
 
+## 🚂 Railway (production)
+
+**Start Command recommandé:**
+```bash
+npm run start:railway
+```
+
 ## 📚 API Endpoints
 
 ### Authentification

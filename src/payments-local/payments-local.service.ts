@@ -190,6 +190,39 @@ export class PaymentsLocalService {
   }
 
   /**
+   * Get payment history for local missions
+   */
+  async getPaymentHistory(userId: string) {
+    const missions = await this.prisma.localMission.findMany({
+      where: {
+        createdByUserId: userId,
+        stripePaymentIntentId: { not: null },
+      },
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        title: true,
+        price: true,
+        status: true,
+        stripePaymentIntentId: true,
+        updatedAt: true,
+        createdAt: true,
+      },
+    });
+
+    return missions.map((mission) => ({
+      id: mission.stripePaymentIntentId ?? mission.id,
+      amount: Math.round(mission.price * 100),
+      currency: 'CAD',
+      status: mission.status,
+      missionId: mission.id,
+      missionTitle: mission.title,
+      createdAt: mission.updatedAt ?? mission.createdAt,
+      description: `Paiement mission: ${mission.title}`,
+    }));
+  }
+
+  /**
    * Handle successful payment
    * 
    * PR-6: Mark mission as paid in database

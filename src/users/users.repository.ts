@@ -150,6 +150,34 @@ export class UsersRepository {
   }
 
   /**
+   * Update user email
+   */
+  async updateEmail(id: string, email: string) {
+    this.logger.log(`Updating email for user: ${id}`);
+
+    return this.prisma.localUser.update({
+      where: { id },
+      data: {
+        email,
+        updatedAt: new Date(),
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        city: true,
+        pictureUrl: true,
+        role: true,
+        active: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  /**
    * Update user profile picture URL
    */
   async updatePictureUrl(id: string, pictureUrl: string) {

@@ -151,6 +151,30 @@ enum LocalOfferStatus {
   DECLINED
 }
 
+// ============================================
+// LOCAL REVIEWS - Avis pour missions locales
+// ============================================
+
+model LocalReview {
+  id           String      @id
+  authorId     String
+  targetUserId String
+  missionId    String?
+  rating       Int
+  comment      String?
+  tags         String[]    @default([])
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  author     LocalUser     @relation("local_reviews_authorIdTolocal_users", fields: [authorId], references: [id], onDelete: Cascade)
+  targetUser LocalUser     @relation("local_reviews_targetUserIdTolocal_users", fields: [targetUserId], references: [id], onDelete: Cascade)
+  mission    LocalMission? @relation(fields: [missionId], references: [id])
+
+  @@index([missionId])
+  @@index([targetUserId])
+  @@map("local_reviews")
+}
+
 model LocalUser {
   id               String         @id
   email            String         @unique
@@ -168,6 +192,10 @@ model LocalUser {
   assignedMissions LocalMission[] @relation("local_missions_assignedToUserIdTolocal_users")
   createdMissions  LocalMission[] @relation("local_missions_createdByUserIdTolocal_users")
   offers           LocalOffer[]
+  authoredReviews  LocalReview[]  @relation("local_reviews_authorIdTolocal_users")
+  receivedReviews  LocalReview[]  @relation("local_reviews_targetUserIdTolocal_users")
+  deviceTokens     LocalDeviceToken[]
+  emailChangeRequests LocalEmailChangeRequest[]
 
   @@index([active])
   @@index([city])
@@ -175,6 +203,46 @@ model LocalUser {
   @@index([role])
   @@index([deletedAt])
   @@map("local_users")
+}
+
+// ============================================
+// LOCAL EMAIL CHANGE REQUESTS - OTP flow
+// ============================================
+
+model LocalEmailChangeRequest {
+  id        String   @id
+  userId    String
+  newEmail  String
+  code      String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user LocalUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, newEmail])
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("local_email_change_requests")
+}
+
+// ============================================
+// LOCAL DEVICE TOKENS - Push registrations
+// ============================================
+
+model LocalDeviceToken {
+  id        String   @id
+  userId    String
+  token     String   @unique
+  platform  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user LocalUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("local_device_tokens")
 }
 
 model Mission {
@@ -519,6 +587,33 @@ enum MessageSenderRole {
 }
 
 enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+}
+
+// ============================================
+// LOCAL MESSAGES - Chat pour missions locales
+// ============================================
+
+model LocalMessage {
+  id        String             @id
+  missionId String
+  senderId  String
+  content   String
+  status    LocalMessageStatus @default(SENT)
+  createdAt DateTime           @default(now())
+
+  mission LocalMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  sender  LocalUser    @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([missionId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@map("local_messages")
+}
+
+enum LocalMessageStatus {
   SENT
   DELIVERED
   READ
