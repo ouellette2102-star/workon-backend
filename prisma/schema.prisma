@@ -168,7 +168,6 @@ model LocalReview {
 
   author     LocalUser     @relation("local_reviews_authorIdTolocal_users", fields: [authorId], references: [id], onDelete: Cascade)
   targetUser LocalUser     @relation("local_reviews_targetUserIdTolocal_users", fields: [targetUserId], references: [id], onDelete: Cascade)
-  mission    LocalMission? @relation(fields: [missionId], references: [id])
 
   @@index([missionId])
   @@index([targetUserId])
@@ -604,8 +603,6 @@ model LocalMessage {
   status    LocalMessageStatus @default(SENT)
   createdAt DateTime           @default(now())
 
-  mission LocalMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  sender  LocalUser    @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
   @@index([missionId])
   @@index([senderId])
