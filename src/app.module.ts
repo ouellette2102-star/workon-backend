@@ -118,22 +118,28 @@ import { OffersModule } from './offers/offers.module';
       },
     }),
 
-    // Modules métier
+    // ============================================================
+    // CORE INFRASTRUCTURE (no behavior change)
+    // ============================================================
     PrismaModule,
     LoggerModule,
-    // Nouveaux modules - Users first (needed by AuthModule)
+    // ============================================================
+    // USER & AUTH (order preserved)
+    // ============================================================
+    // Users first (needed by AuthModule)
     UsersModule,
     // Auth module (depends on UsersModule)
     AuthModule,
+    // ============================================================
+    // LEGACY (Clerk-based) MODULES - ACTIVE IN PRODUCTION
+    // NOTE: Do not remove without explicit release decision.
+    // ============================================================
     // Notifications module (needed by MissionsModule and MessagesModule)
     NotificationsModule,
-    // Missions module (re-enabled and fixed for current Prisma schema)
+    // Legacy modules (kept active)
     MissionsModule,
-    // Messages module (chat between worker and employer)
     MessagesModule,
-    // Contracts module (mission contracts)
     ContractsModule,
-    // Payments & Stripe modules (re-enabled with minimal MVP implementation)
     PaymentsModule,
     StripeModule,
     AdminModule,
@@ -141,7 +147,9 @@ import { OffersModule } from './offers/offers.module';
     // MissionTimeLogsModule,
     // Health check
     HealthModule,
-    // MVP Marketplace modules (depend on AuthModule)
+    // ============================================================
+    // NATIVE (LocalUser/LocalMission) MODULES - ACTIVE IN PRODUCTION
+    // ============================================================
     MissionsLocalModule,
     MetricsModule,
     PaymentsLocalModule,
