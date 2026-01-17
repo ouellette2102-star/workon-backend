@@ -120,7 +120,9 @@ import { AuditModule } from './common/audit/audit.module';
       },
     }),
 
-    // Modules métier
+    // ============================================================
+    // CORE INFRASTRUCTURE (no behavior change)
+    // ============================================================
     PrismaModule,
     LoggerModule,
     // Audit logging for critical business events (PR-I2)
@@ -129,15 +131,16 @@ import { AuditModule } from './common/audit/audit.module';
     UsersModule,
     // Auth module (depends on UsersModule)
     AuthModule,
+    // ============================================================
+    // LEGACY (Clerk-based) MODULES - ACTIVE IN PRODUCTION
+    // NOTE: Do not remove without explicit release decision.
+    // ============================================================
     // Notifications module (needed by MissionsModule and MessagesModule)
     NotificationsModule,
-    // Missions module (re-enabled and fixed for current Prisma schema)
+    // Legacy modules (kept active)
     MissionsModule,
-    // Messages module (chat between worker and employer)
     MessagesModule,
-    // Contracts module (mission contracts)
     ContractsModule,
-    // Payments & Stripe modules (re-enabled with minimal MVP implementation)
     PaymentsModule,
     StripeModule,
     AdminModule,
@@ -145,7 +148,9 @@ import { AuditModule } from './common/audit/audit.module';
     // MissionTimeLogsModule,
     // Health check
     HealthModule,
-    // MVP Marketplace modules (depend on AuthModule)
+    // ============================================================
+    // NATIVE (LocalUser/LocalMission) MODULES - ACTIVE IN PRODUCTION
+    // ============================================================
     MissionsLocalModule,
     MetricsModule,
     PaymentsLocalModule,
