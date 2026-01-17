@@ -170,7 +170,7 @@ describe('LocalAuthService', () => {
         email: 'test@example.com',
         type: 'password-reset',
       });
-      usersService.findByEmail.mockResolvedValue(mockUser);
+      usersService.findById.mockResolvedValue(mockUser);
       usersService.updatePassword.mockResolvedValue(undefined);
 
       const result = await service.resetPassword('valid.token', 'newPassword123');
