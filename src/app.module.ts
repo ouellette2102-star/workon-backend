@@ -33,6 +33,7 @@ import { OffersModule } from './offers/offers.module';
 import { ComplianceModule } from './compliance/compliance.module';
 import { AuditModule } from './common/audit/audit.module';
 import { ReviewsModule } from './reviews/reviews.module';
+import { DevicesModule } from './devices/devices.module';
 
 @Module({
   imports: [
@@ -170,6 +171,8 @@ import { ReviewsModule } from './reviews/reviews.module';
     ComplianceModule,
     // Reviews module - User ratings & reviews
     ReviewsModule,
+    // Devices module - Push notification tokens & device management
+    DevicesModule,
   ],
   controllers: [AppController],
   providers: [
