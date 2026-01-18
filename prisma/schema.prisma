@@ -361,8 +361,29 @@ model User {
   sentMessages        Message[]
   employerContracts   Contract[]           @relation("contracts_employerIdTousers")
   workerContracts     Contract[]           @relation("contracts_workerIdTousers")
+  devices             Device[]
 
   @@map("users")
+}
+
+/// Device registration for push notifications
+model Device {
+  id         String   @id @default(uuid())
+  userId     String
+  deviceId   String   // Unique device identifier (vendor ID, etc.)
+  platform   String   // ios, android, web
+  pushToken  String?  // FCM/APNs token
+  appVersion String?
+  active     Boolean  @default(true)
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+  @@index([active])
+  @@map("devices")
 }
 
 model WorkerProfile {
