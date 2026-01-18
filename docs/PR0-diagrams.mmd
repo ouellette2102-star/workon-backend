@@ -1,0 +1,266 @@
+%% PR-0: WorkOn Architecture Diagrams
+%% Date: 2026-01-18 (Corrigé)
+%% Format: Mermaid
+
+%% ===========================================
+%% DIAGRAM 1: Identity & Data Linking (OFFICIAL)
+%% ===========================================
+
+---
+title: Identity & Data Linking Pattern (Official)
+---
+graph TD
+    subgraph "Auth Layer"
+        CLERK[Clerk<br/>JWT Provider]
+    end
+
+    subgraph "Backend NestJS"
+        GUARD[JwtAuthGuard]
+        CLERKSVC[ClerkAuthService<br/>verifyAndSyncUser]
+    end
+
+    subgraph "Database"
+        USER[(User<br/>id + clerkId unique)]
+        PROFILE[(UserProfile)]
+        WORKER[(WorkerProfile)]
+        
+        MESSAGE[(Message<br/>senderId → User.id)]
+        REVIEW[(Review<br/>authorId → User.id)]
+        COMPLIANCE[(ComplianceDocument<br/>userId → User.id)]
+        DEVICE[(DeviceToken<br/>userId → User.id)]
+        NOTIF[(Notification<br/>userId → User.id)]
+        CONTRACT[(Contract<br/>employerId, workerId → User.id)]
+        MISSION[(Mission<br/>authorClientId → User.id)]
+    end
+
+    CLERK -->|JWT| GUARD
+    GUARD -->|token| CLERKSVC
+    CLERKSVC -->|sync/create| USER
+    CLERKSVC -->|returns| RESULT["req.user.sub = User.id"]
+
+    USER --> PROFILE
+    USER --> WORKER
+    USER --> MESSAGE
+    USER --> REVIEW
+    USER --> COMPLIANCE
+    USER --> DEVICE
+    USER --> NOTIF
+    USER --> CONTRACT
+    USER --> MISSION
+
+    style CLERK fill:#4ade80,color:#000
+    style USER fill:#60a5fa,color:#fff
+    style RESULT fill:#fbbf24,color:#000
+
+%% ===========================================
+%% DIAGRAM 2: E2E Flow Status (Corrigé)
+%% ===========================================
+
+---
+title: E2E Flow - Flutter via Clerk Auth
+---
+flowchart LR
+    subgraph "✅ Fonctionnel"
+        REG[Register<br/>Clerk]
+        LOGIN[Login<br/>Clerk JWT]
+        BROWSE[Browse<br/>Missions]
+        CREATE[Create<br/>Mission]
+        APPLY[Apply<br/>Offer]
+        ACCEPT[Accept<br/>Offer]
+        COMP[Complete]
+        PAY[Pay]
+    end
+
+    subgraph "🔄 À adapter"
+        CHAT[Chat<br/>path mismatch]
+        CONSENT[Compliance<br/>bypass à supprimer]
+    end
+
+    subgraph "🆕 À créer"
+        REVIEW[Review]
+        PUSH[Push<br/>Devices]
+    end
+
+    REG --> LOGIN --> BROWSE --> CREATE
+    BROWSE --> APPLY --> ACCEPT
+    ACCEPT --> CHAT
+    ACCEPT --> COMP --> PAY --> REVIEW
+    LOGIN --> CONSENT
+    LOGIN --> PUSH
+
+    style CHAT fill:#ffd93d,color:#000
+    style CONSENT fill:#ffd93d,color:#000
+    style REVIEW fill:#ff6b6b,color:#fff
+    style PUSH fill:#ff6b6b,color:#fff
+
+%% ===========================================
+%% DIAGRAM 3: API Gaps (Corrigé)
+%% ===========================================
+
+---
+title: Flutter API → Backend Mapping
+---
+flowchart TB
+    subgraph "Flutter Services"
+        F_MSG[messages_api.dart]
+        F_RAT[ratings_api.dart]
+        F_PUSH[push_api.dart]
+        F_COMP[consent_api.dart]
+    end
+
+    subgraph "Flutter Calls"
+        E_CONV["/conversations/:id/messages"]
+        E_REV["/reviews/*"]
+        E_DEV["/devices/*"]
+        E_COMP["/compliance/*"]
+    end
+
+    subgraph "Backend Exists"
+        B_MSG["/messages/thread/:missionId" ✅]
+        B_REV["❌ Aucun endpoint"]
+        B_DEV["❌ Aucun endpoint"]
+        B_COMP["/compliance/* ✅"]
+    end
+
+    F_MSG --> E_CONV
+    F_RAT --> E_REV
+    F_PUSH --> E_DEV
+    F_COMP --> E_COMP
+
+    E_CONV -.->|"🔄 PATH DIFFERENT"| B_MSG
+    E_COMP -->|✅| B_COMP
+    
+    E_REV -.->|"🆕 CREATE"| B_REV
+    E_DEV -.->|"🆕 CREATE"| B_DEV
+
+    style E_CONV fill:#ffd93d,color:#000
+    style E_REV fill:#ff6b6b,color:#fff
+    style E_DEV fill:#ff6b6b,color:#fff
+    style B_MSG fill:#4ade80,color:#000
+    style B_COMP fill:#4ade80,color:#000
+
+%% ===========================================
+%% DIAGRAM 4: PR Dependencies
+%% ===========================================
+
+---
+title: PR Plan - Strict Sequence
+---
+flowchart TD
+    PR0[PR-0: Audit & Design Decision ✅]
+    
+    PR1[PR-1: Backend Reviews<br/>🆕 CREATE module]
+    PR2[PR-2: Backend Devices<br/>🆕 CREATE model + module]
+    PR3[PR-3: Backend Compliance<br/>🔄 Supprimer bypass]
+    
+    PR4[PR-4: Flutter Wiring<br/>🔄 Aligner API calls]
+    
+    PR5[PR-5: E2E Validation<br/>Checklist complète]
+
+    PR0 --> PR1
+    PR0 --> PR2
+    PR0 --> PR3
+    
+    PR1 --> PR4
+    PR2 --> PR4
+    PR3 --> PR4
+    
+    PR4 --> PR5
+
+    style PR0 fill:#4ade80,color:#000
+    style PR1 fill:#ff6b6b,color:#fff
+    style PR2 fill:#ff6b6b,color:#fff
+    style PR3 fill:#ffd93d,color:#000
+    style PR4 fill:#ffd93d,color:#000
+    style PR5 fill:#60a5fa,color:#fff
+
+%% ===========================================
+%% DIAGRAM 5: Database FK (Clerk Auth)
+%% ===========================================
+
+---
+title: Prisma FK Relationships (Clerk Auth)
+---
+erDiagram
+    User ||--o{ UserProfile : "userId"
+    User ||--o{ WorkerProfile : "userId"
+    User ||--o{ Mission : "authorClient/assignee"
+    User ||--o{ Message : "senderId"
+    User ||--o{ Review : "author/target"
+    User ||--o{ ComplianceDocument : "userId"
+    User ||--o{ Notification : "userId"
+    User ||--o{ Contract : "employer/worker"
+    User ||--o{ DeviceToken : "userId (à créer)"
+
+    User {
+        string id PK
+        string clerkId UK
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    Message {
+        string id PK
+        string missionId FK
+        string senderId FK
+        string content
+    }
+
+    Review {
+        string id PK
+        string authorId FK
+        string targetUserId FK
+        string missionId FK
+        int rating
+    }
+
+    ComplianceDocument {
+        string id PK
+        string userId FK
+        string type
+        string version
+    }
+
+    DeviceToken {
+        string id PK
+        string userId FK
+        string token UK
+        string platform
+    }
+
+%% ===========================================
+%% DIAGRAM 6: Ce qui est INTERDIT
+%% ===========================================
+
+---
+title: Patterns INTERDITS
+---
+flowchart TB
+    subgraph "❌ INTERDIT"
+        LOCAL_MSG[LocalMessage<br/>contournement FK]
+        LOCAL_REV[LocalReview<br/>contournement FK]
+        ROUTING["Routing conditionnel<br/>if userId.startsWith('local_')"]
+        MERGE["Merge User/LocalUser"]
+        CLERK_ONLY["Features Clerk-only<br/>Flutter incomplet"]
+    end
+
+    subgraph "✅ AUTORISÉ"
+        CLERK_AUTH[Clerk JWT auth]
+        USER_FK[FK → User.id]
+        LOCALUSER_LINK["LocalUser lié à clerkUserId<br/>(si besoin marketplace)"]
+    end
+
+    LOCAL_MSG -.->|"NON"| X1[X]
+    LOCAL_REV -.->|"NON"| X2[X]
+    ROUTING -.->|"NON"| X3[X]
+    MERGE -.->|"NON"| X4[X]
+    CLERK_ONLY -.->|"NON"| X5[X]
+
+    style LOCAL_MSG fill:#ff6b6b,color:#fff
+    style LOCAL_REV fill:#ff6b6b,color:#fff
+    style ROUTING fill:#ff6b6b,color:#fff
+    style MERGE fill:#ff6b6b,color:#fff
+    style CLERK_ONLY fill:#ff6b6b,color:#fff
+    style CLERK_AUTH fill:#4ade80,color:#000
+    style USER_FK fill:#4ade80,color:#000
+    style LOCALUSER_LINK fill:#4ade80,color:#000
