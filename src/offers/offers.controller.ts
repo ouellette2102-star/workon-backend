@@ -5,6 +5,7 @@ import {
   Patch,
   Body,
   Param,
+  Query,
   UseGuards,
   Request,
   HttpCode,
@@ -16,6 +17,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { OffersService } from './offers.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
@@ -65,6 +67,42 @@ export class OffersController {
     @Body() createOfferDto: CreateOfferDto,
   ): Promise<OfferResponseDto> {
     return this.offersService.create(req.user.sub, createOfferDto);
+  }
+
+  /**
+   * PR-B1: GET /api/v1/offers
+   * Get offers with optional missionId query filter
+   * 
+   * Backward-compatible: supports ?missionId=X in addition to /mission/:missionId
+   */
+  @Get()
+  @ApiOperation({
+    summary: 'Get offers (optional missionId filter)',
+    description:
+      'Returns offers. If missionId query param is provided, returns offers for that mission. ' +
+      'Otherwise returns current user offers (same as /mine).',
+  })
+  @ApiQuery({
+    name: 'missionId',
+    required: false,
+    description: 'Filter by mission ID',
+    example: 'local_1234567890_abc123',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of offers',
+    type: [OfferResponseDto],
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Consent required' })
+  async findWithQuery(
+    @Request() req: { user: { sub: string } },
+    @Query('missionId') missionId?: string,
+  ): Promise<OfferResponseDto[]> {
+    if (missionId) {
+      return this.offersService.findByMission(missionId, req.user.sub);
+    }
+    return this.offersService.findByWorker(req.user.sub);
   }
 
   /**
