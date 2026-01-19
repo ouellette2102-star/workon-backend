@@ -269,6 +269,24 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   SIGNED_URL_TTL_SECONDS?: string;
+
+  // ========================================
+  // NOTIFICATION DELIVERY (PR-A)
+  // ========================================
+
+  @IsString()
+  @IsOptional()
+  SENDGRID_API_KEY?: string; // SendGrid API key for email delivery
+
+  @IsString()
+  @IsOptional()
+  SENDGRID_FROM_EMAIL?: string; // Sender email address (default: noreply@workon.app)
+
+  @IsString()
+  @IsOptional()
+  SENDGRID_FROM_NAME?: string; // Sender name (default: WorkOn)
+
+  // Firebase is already configured via FIREBASE_* env vars in push module
 }
 
 /**
