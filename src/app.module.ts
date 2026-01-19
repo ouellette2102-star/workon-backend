@@ -40,6 +40,7 @@ import { PushModule } from './push/push.module';
 import { EarningsModule } from './earnings/earnings.module';
 import { SupportModule } from './support/support.module';
 import { IdentityModule } from './identity/identity.module';
+import { SecurityModule } from './common/security/security.module';
 
 @Module({
   imports: [
@@ -189,6 +190,8 @@ import { IdentityModule } from './identity/identity.module';
     SupportModule,
     // Identity module - Verification hooks (PR-06)
     IdentityModule,
+    // Security module - Log sanitization, input validation (PR-09)
+    SecurityModule,
   ],
   controllers: [AppController],
   providers: [
