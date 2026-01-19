@@ -35,6 +35,7 @@ import { AuditModule } from './common/audit/audit.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { DevicesModule } from './devices/devices.module';
 import { PushModule } from './push/push.module';
+import { EarningsModule } from './earnings/earnings.module';
 
 @Module({
   imports: [
@@ -176,6 +177,8 @@ import { PushModule } from './push/push.module';
     DevicesModule,
     // Push module - Firebase Cloud Messaging (PR-PUSH)
     PushModule,
+    // Earnings module - Worker earnings & payout tracking (PR-EARNINGS)
+    EarningsModule,
   ],
   controllers: [AppController],
   providers: [
