@@ -71,6 +71,55 @@ model ComplianceDocument {
   @@map("compliance_documents")
 }
 
+// PR-07: Legal Compliance - Terms & Conditions Versioning
+model TermsVersion {
+  id          String                 @id @default(cuid())
+  type        ComplianceDocumentType
+  version     String                 // Semantic versioning: "1.0.0", "1.1.0", etc.
+  title       String                 // Human-readable title
+  contentUrl  String                 // URL to full document (PDF/HTML)
+  contentHash String?                // SHA256 hash for integrity verification
+  summary     String?                // Brief summary of changes
+  effectiveAt DateTime               // When this version becomes active
+  createdAt   DateTime               @default(now())
+  isActive    Boolean                @default(false) // Only one active per type
+  
+  @@unique([type, version])
+  @@index([type, isActive])
+  @@index([effectiveAt])
+  @@map("terms_versions")
+}
+
+// PR-07: Legal Compliance - User Consent Tracking
+model UserConsent {
+  id           String      @id @default(cuid())
+  userId       String
+  consentType  ConsentType
+  granted      Boolean     @default(false)
+  grantedAt    DateTime?
+  revokedAt    DateTime?
+  ipAddress    String?     // IP when consent was given/revoked
+  userAgent    String?     // Browser/device info
+  source       String?     // Where consent was collected (signup, settings, etc.)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, consentType])
+  @@index([userId])
+  @@index([consentType])
+  @@map("user_consents")
+}
+
+enum ConsentType {
+  MARKETING_EMAIL     // Marketing emails
+  MARKETING_PUSH      // Marketing push notifications
+  ANALYTICS           // Analytics and tracking
+  THIRD_PARTY_SHARING // Sharing data with partners
+  PERSONALIZATION     // Personalized recommendations
+}
+
 model Dispute {
   id         String        @id
   missionId  String        @unique
@@ -169,6 +218,22 @@ model LocalUser {
   deletedAt        DateTime?      // GDPR: timestamp of account deletion
   createdAt        DateTime       @default(now())
   updatedAt        DateTime
+  
+  // PR-07: Legal Compliance - Terms & Consent
+  termsAcceptedAt      DateTime?      // When user accepted current terms
+  termsVersion         String?        // Version of terms accepted (e.g., "1.0.0")
+  privacyAcceptedAt    DateTime?      // When user accepted privacy policy
+  privacyVersion       String?        // Version of privacy policy accepted
+  marketingConsent     Boolean        @default(false) // Marketing communications
+  marketingConsentAt   DateTime?      // When marketing consent was given/revoked
+  
+  // PR-07: Data Retention & GDPR/Loi 25
+  dataRetentionConsent Boolean        @default(true)  // Consent to retain data
+  dataExportRequestedAt DateTime?     // Last data export request (GDPR Art. 20)
+  dataExportCompletedAt DateTime?     // When last export was completed
+  deletionRequestedAt  DateTime?      // When deletion was requested
+  deletionScheduledFor DateTime?      // When data will be deleted (30-day grace)
+  
   assignedMissions LocalMission[] @relation("local_missions_assignedToUserIdTolocal_users")
   createdMissions  LocalMission[] @relation("local_missions_createdByUserIdTolocal_users")
   offers           LocalOffer[]
@@ -178,6 +243,7 @@ model LocalUser {
   @@index([email])
   @@index([role])
   @@index([deletedAt])
+  @@index([deletionScheduledFor])
   @@map("local_users")
 }
 
@@ -366,6 +432,7 @@ model User {
   employerContracts   Contract[]           @relation("contracts_employerIdTousers")
   workerContracts     Contract[]           @relation("contracts_workerIdTousers")
   devices             Device[]
+  consents            UserConsent[]        // PR-07: User consent tracking
 
   @@map("users")
 }
