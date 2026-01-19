@@ -17,6 +17,7 @@ import {
 } from '@nestjs/swagger';
 import { MessagesService } from './messages.service';
 import { CreateMessageDto } from './dto/create-message.dto';
+import { ConversationResponseDto } from './dto/conversation-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Messages')
@@ -25,6 +26,27 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 export class MessagesController {
   constructor(private readonly messagesService: MessagesService) {}
+
+  /**
+   * PR-INBOX: GET /api/v1/messages/conversations
+   * List all conversations for the current user.
+   */
+  @Get('conversations')
+  @ApiOperation({
+    summary: 'Get all conversations',
+    description:
+      'Returns all chat threads where the user is involved (as employer or worker). ' +
+      'Sorted by most recent message first.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of conversations',
+    type: [ConversationResponseDto],
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  getConversations(@Request() req: any) {
+    return this.messagesService.getConversations(req.user.sub);
+  }
 
   /**
    * GET /api/v1/messages/thread/:missionId

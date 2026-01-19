@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
+import { DevicesService } from '../devices/devices.service';
 
 export interface NotificationResponse {
   id: string;
@@ -15,15 +17,23 @@ export interface NotificationResponse {
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pushService: PushService,
+    private readonly devicesService: DevicesService,
+  ) {}
 
   /**
-   * Créer une notification pour un nouveau message dans une mission
+   * Créer une notification pour un nouveau message dans une mission.
+   *
+   * PR-PUSH: Also sends a push notification to the receiver's devices.
    */
   async createForNewMessage(
     missionId: string,
     messageId: string,
     receiverClerkId: string,
+    senderName?: string,
+    messagePreview?: string,
   ): Promise<void> {
     try {
       // Trouver l'utilisateur par clerkId
@@ -37,6 +47,7 @@ export class NotificationsService {
         return;
       }
 
+      // Create in-app notification
       await this.prisma.notification.create({
         data: {
           id: `notif_${Date.now()}_${Math.random().toString(36).substring(7)}`,
@@ -48,8 +59,51 @@ export class NotificationsService {
           },
         },
       });
+
+      // PR-PUSH: Send push notification
+      await this.sendPushForNewMessage(
+        user.id,
+        missionId,
+        senderName || 'Quelqu\'un',
+        messagePreview || 'Nouveau message',
+      );
     } catch (error) {
       this.logger.error(`Failed to create notification for new message: ${error.message}`);
+    }
+  }
+
+  /**
+   * PR-PUSH: Send push notification for a new message.
+   *
+   * @param userId - Internal user ID (not clerkId)
+   * @param missionId - Mission/conversation ID
+   * @param senderName - Name of the sender
+   * @param preview - Message preview text
+   */
+  private async sendPushForNewMessage(
+    userId: string,
+    missionId: string,
+    senderName: string,
+    preview: string,
+  ): Promise<void> {
+    try {
+      // Get push tokens for this user
+      const tokens = await this.devicesService.getPushTokensForUser(userId);
+
+      if (!tokens.length) {
+        this.logger.debug(`No push tokens for user ${userId}`);
+        return;
+      }
+
+      await this.pushService.sendChatMessageNotification(tokens, {
+        conversationId: missionId,
+        missionId,
+        senderName,
+        preview,
+      });
+    } catch (error) {
+      // Don't throw - push failure shouldn't break the message flow
+      this.logger.error(`Failed to send push notification: ${error.message}`);
     }
   }
 
