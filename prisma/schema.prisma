@@ -155,6 +155,22 @@ enum LocalOfferStatus {
   DECLINED
 }
 
+// PR-06: Identity Verification Enums
+enum IdVerificationStatus {
+  NOT_STARTED     // User hasn't initiated verification
+  PENDING         // Verification in progress
+  VERIFIED        // Successfully verified
+  FAILED          // Verification failed
+  EXPIRED         // Verification expired, needs renewal
+}
+
+enum TrustTier {
+  BASIC           // Default: email verified only
+  VERIFIED        // Phone verified
+  TRUSTED         // Phone + ID verified
+  PREMIUM         // Phone + ID + Bank verified (for workers)
+}
+
 model LocalUser {
   id               String         @id
   email            String         @unique
@@ -169,6 +185,27 @@ model LocalUser {
   deletedAt        DateTime?      // GDPR: timestamp of account deletion
   createdAt        DateTime       @default(now())
   updatedAt        DateTime
+  
+  // PR-06: Identity Verification Hooks
+  // Phone verification
+  phoneVerified    Boolean        @default(false)
+  phoneVerifiedAt  DateTime?
+  
+  // ID verification (government ID, passport, etc.)
+  idVerificationStatus IdVerificationStatus @default(NOT_STARTED)
+  idVerifiedAt     DateTime?
+  idVerificationProvider String?   // e.g., "stripe_identity", "jumio"
+  idVerificationRef String?        // External reference ID
+  
+  // Bank verification (via Stripe)
+  bankVerified     Boolean        @default(false)
+  bankVerifiedAt   DateTime?
+  stripeAccountId  String?        // Stripe Connect account ID
+  
+  // Trust tier (computed from verifications)
+  trustTier        TrustTier      @default(BASIC)
+  trustTierUpdatedAt DateTime?
+  
   assignedMissions LocalMission[] @relation("local_missions_assignedToUserIdTolocal_users")
   createdMissions  LocalMission[] @relation("local_missions_createdByUserIdTolocal_users")
   offers           LocalOffer[]
@@ -178,6 +215,9 @@ model LocalUser {
   @@index([email])
   @@index([role])
   @@index([deletedAt])
+  @@index([trustTier])
+  @@index([phoneVerified])
+  @@index([idVerificationStatus])
   @@map("local_users")
 }
 
