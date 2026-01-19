@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { SupportController } from './support.controller';
 import { SupportService } from './support.service';
 import { PrismaModule } from '../prisma/prisma.module';
+import { AuthModule } from '../auth/auth.module';
 
 /**
  * PR-00: Support Module
@@ -10,7 +11,7 @@ import { PrismaModule } from '../prisma/prisma.module';
  * Integrated but can be feature-flagged for controlled rollout.
  */
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, AuthModule],
   controllers: [SupportController],
   providers: [SupportService],
   exports: [SupportService],
