@@ -39,6 +39,9 @@ import { DevicesModule } from './devices/devices.module';
 import { PushModule } from './push/push.module';
 import { EarningsModule } from './earnings/earnings.module';
 import { SupportModule } from './support/support.module';
+import { IdentityModule } from './identity/identity.module';
+import { SecurityModule } from './common/security/security.module';
+import { SchedulingModule } from './scheduling/scheduling.module';
 
 @Module({
   imports: [
@@ -186,6 +189,12 @@ import { SupportModule } from './support/support.module';
     EarningsModule,
     // Support module - In-app customer support tickets (PR-00)
     SupportModule,
+    // Identity module - Verification hooks (PR-06)
+    IdentityModule,
+    // Security module - Log sanitization, input validation (PR-09)
+    SecurityModule,
+    // Scheduling module - Bookings, availability, recurring templates (PR-10)
+    SchedulingModule,
   ],
   controllers: [AppController],
   providers: [

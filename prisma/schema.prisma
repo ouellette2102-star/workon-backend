@@ -35,6 +35,7 @@ model Category {
   createdAt          DateTime  @default(now())
   missions           Mission[]
   skills             Skill[]
+  recurringTemplates RecurringMissionTemplate[] // PR-10
 
   @@map("categories")
 }
@@ -204,6 +205,22 @@ enum LocalOfferStatus {
   DECLINED
 }
 
+// PR-06: Identity Verification Enums
+enum IdVerificationStatus {
+  NOT_STARTED     // User hasn't initiated verification
+  PENDING         // Verification in progress
+  VERIFIED        // Successfully verified
+  FAILED          // Verification failed
+  EXPIRED         // Verification expired, needs renewal
+}
+
+enum TrustTier {
+  BASIC           // Default: email verified only
+  VERIFIED        // Phone verified
+  TRUSTED         // Phone + ID verified
+  PREMIUM         // Phone + ID + Bank verified (for workers)
+}
+
 model LocalUser {
   id               String         @id
   email            String         @unique
@@ -218,6 +235,26 @@ model LocalUser {
   deletedAt        DateTime?      // GDPR: timestamp of account deletion
   createdAt        DateTime       @default(now())
   updatedAt        DateTime
+  
+// PR-06: Identity Verification Hooks
+  // Phone verification
+  phoneVerified    Boolean        @default(false)
+  phoneVerifiedAt  DateTime?
+  
+  // ID verification (government ID, passport, etc.)
+  idVerificationStatus IdVerificationStatus @default(NOT_STARTED)
+  idVerifiedAt     DateTime?
+  idVerificationProvider String?   // e.g., "stripe_identity", "jumio"
+  idVerificationRef String?        // External reference ID
+  
+  // Bank verification (via Stripe)
+  bankVerified     Boolean        @default(false)
+  bankVerifiedAt   DateTime?
+  stripeAccountId  String?        // Stripe Connect account ID
+  
+  // Trust tier (computed from verifications)
+  trustTier        TrustTier      @default(BASIC)
+  trustTierUpdatedAt DateTime?
   
   // PR-07: Legal Compliance - Terms & Consent
   termsAcceptedAt      DateTime?      // When user accepted current terms
@@ -243,6 +280,9 @@ model LocalUser {
   @@index([email])
   @@index([role])
   @@index([deletedAt])
+  @@index([trustTier])
+  @@index([phoneVerified])
+  @@index([idVerificationStatus])
   @@index([deletionScheduledFor])
   @@map("local_users")
 }
@@ -433,6 +473,7 @@ model User {
   workerContracts     Contract[]           @relation("contracts_workerIdTousers")
   devices             Device[]
   consents            UserConsent[]        // PR-07: User consent tracking
+  bookings            Booking[]            @relation("bookings_clientIdTousers") // PR-10
 
   @@map("users")
 }
@@ -473,6 +514,10 @@ model WorkerProfile {
   offers             Offer[]
   user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   workerSkills       WorkerSkill[]
+  // PR-10: Scheduling relations
+  recurringTemplates RecurringMissionTemplate[]
+  availabilitySlots  AvailabilitySlot[]
+  bookings           Booking[]
 
   @@map("worker_profiles")
 }
@@ -999,4 +1044,127 @@ enum AuditCategory {
   SECURITY
   DISPUTE
   REFUND
+}
+
+// ============================================
+// PR-10: SCHEDULING & RECURRENCE PRIMITIVES
+// ============================================
+
+/// Recurring mission template
+/// Allows workers to create repeatable service offerings
+model RecurringMissionTemplate {
+  id              String                    @id @default(cuid())
+  workerId        String
+  title           String
+  description     String
+  categoryId      String
+  priceType       String                    // "hourly", "fixed"
+  price           Float
+  duration        Int                       // Duration in minutes
+  recurrenceRule  RecurrenceRule
+  recurrenceData  Json?                     // Additional rule data (days of week, etc.)
+  maxOccurrences  Int?                      // Max times this can be booked
+  validFrom       DateTime?                 // When template becomes active
+  validUntil      DateTime?                 // When template expires
+  isActive        Boolean                   @default(true)
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  
+  // Relations
+  worker          WorkerProfile             @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  category        Category                  @relation(fields: [categoryId], references: [id])
+  bookings        Booking[]
+  
+  @@index([workerId, isActive])
+  @@index([categoryId])
+  @@index([validFrom, validUntil])
+  @@map("recurring_mission_templates")
+}
+
+enum RecurrenceRule {
+  ONCE          // One-time booking
+  DAILY         // Every day
+  WEEKLY        // Same day(s) every week
+  BIWEEKLY      // Every two weeks
+  MONTHLY       // Same day of month
+  CUSTOM        // Custom rule in recurrenceData
+}
+
+/// Worker availability slots
+/// Defines when a worker is available for bookings
+model AvailabilitySlot {
+  id              String                    @id @default(cuid())
+  workerId        String
+  dayOfWeek       Int                       // 0 = Sunday, 6 = Saturday
+  startTime       String                    // "09:00" (24h format)
+  endTime         String                    // "17:00"
+  timezone        String                    @default("America/Toronto")
+  isRecurring     Boolean                   @default(true)
+  specificDate    DateTime?                 // For one-time availability
+  isBlocked       Boolean                   @default(false) // Block time off
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  
+  // Relations
+  worker          WorkerProfile             @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  
+  @@index([workerId, dayOfWeek])
+  @@index([workerId, specificDate])
+  @@map("availability_slots")
+}
+
+/// Booking for a service
+/// Represents a confirmed or pending appointment
+model Booking {
+  id              String                    @id @default(cuid())
+  clientId        String
+  workerId        String
+  templateId      String?                   // If booked from a recurring template
+  missionId       String?                   // Link to actual mission when created
+  
+  // Booking details
+  title           String
+  description     String?
+  scheduledAt     DateTime                  // When the service is scheduled
+  duration        Int                       // Duration in minutes
+  endAt           DateTime                  // Computed: scheduledAt + duration
+  timezone        String                    @default("America/Toronto")
+  
+  // Status tracking
+  status          BookingStatus             @default(PENDING)
+  confirmedAt     DateTime?
+  cancelledAt     DateTime?
+  cancelledBy     String?                   // User ID who cancelled
+  cancellationReason String?
+  
+  // Reminders
+  reminderSent    Boolean                   @default(false)
+  reminderSentAt  DateTime?
+  
+  // Pricing (snapshot at booking time)
+  price           Float
+  priceType       String
+  
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  
+  // Relations
+  client          User                      @relation("bookings_clientIdTousers", fields: [clientId], references: [id], onDelete: Cascade)
+  worker          WorkerProfile             @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  template        RecurringMissionTemplate? @relation(fields: [templateId], references: [id])
+  
+  @@index([clientId])
+  @@index([workerId, scheduledAt])
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("bookings")
+}
+
+enum BookingStatus {
+  PENDING         // Awaiting worker confirmation
+  CONFIRMED       // Worker confirmed
+  IN_PROGRESS     // Service started
+  COMPLETED       // Service completed
+  CANCELLED       // Cancelled by either party
+  NO_SHOW         // Client didn't show up
 }
