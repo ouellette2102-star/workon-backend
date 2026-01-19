@@ -5,6 +5,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { WinstonModule } from 'nest-winston';
 import * as winston from 'winston';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
+import { RequestContextMiddleware } from './common/middleware/request-context.middleware';
 import { AppController } from './app.controller';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -36,6 +37,7 @@ import { ReviewsModule } from './reviews/reviews.module';
 import { DevicesModule } from './devices/devices.module';
 import { PushModule } from './push/push.module';
 import { EarningsModule } from './earnings/earnings.module';
+import { SupportModule } from './support/support.module';
 
 @Module({
   imports: [
@@ -179,6 +181,8 @@ import { EarningsModule } from './earnings/earnings.module';
     PushModule,
     // Earnings module - Worker earnings & payout tracking (PR-EARNINGS)
     EarningsModule,
+    // Support module - In-app customer support tickets (PR-00)
+    SupportModule,
   ],
   controllers: [AppController],
   providers: [
@@ -190,6 +194,8 @@ import { EarningsModule } from './earnings/earnings.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
+    // PR-00: Request context middleware (language, timezone, currency, device tracking)
+    consumer.apply(RequestContextMiddleware).forRoutes('*');
     // Appliquer le middleware correlationId sur toutes les routes
     consumer.apply(CorrelationIdMiddleware).forRoutes('*');
   }
