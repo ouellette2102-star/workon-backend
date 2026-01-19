@@ -11,12 +11,21 @@ export interface ServiceCheck {
   message?: string;
 }
 
+export interface SystemMetrics {
+  memoryUsageMB: number;
+  heapUsedMB: number;
+  heapTotalMB: number;
+  cpuUsage?: number;
+  activeConnections?: number;
+}
+
 export interface HealthResponse {
   status: 'ok' | 'degraded' | 'error';
   timestamp: string;
   version: string;
   environment: string;
   uptime: number;
+  system?: SystemMetrics;
   checks: {
     database: ServiceCheck;
     stripe: ServiceCheck;
@@ -26,21 +35,94 @@ export interface HealthResponse {
 }
 
 @ApiTags('Health')
-@Controller('api/v1')
+@Controller()
 @SkipThrottle() // Exclure les health checks du rate limiting
 export class HealthController {
   private readonly logger = new Logger(HealthController.name);
+  private readonly startTime = Date.now();
 
   constructor(
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
   ) {}
 
+  // ============================================
+  // K8s / Railway Standard Probes (root level)
+  // ============================================
+
+  /**
+   * GET /healthz
+   * Liveness probe - Simple check that the process is running
+   * Used by Railway/K8s to know if the container should be restarted
+   */
+  @Get('healthz')
+  @ApiOperation({
+    summary: 'Liveness probe (K8s/Railway)',
+    description: 'Returns 200 if the process is alive. Does not check dependencies.',
+  })
+  @ApiResponse({ status: 200, description: 'Process is alive' })
+  getLiveness(): { status: string; timestamp: string; uptime: number } {
+    return {
+      status: 'alive',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+    };
+  }
+
+  /**
+   * GET /readyz
+   * Readiness probe - Check if the service can accept traffic
+   * Used by Railway/K8s to know if traffic should be routed to this instance
+   */
+  @Get('readyz')
+  @ApiOperation({
+    summary: 'Readiness probe (K8s/Railway)',
+    description: 'Returns 200 if the service is ready to accept traffic, 503 otherwise.',
+  })
+  @ApiResponse({ status: 200, description: 'Service ready' })
+  @ApiResponse({ status: 503, description: 'Service not ready' })
+  async getReadiness(@Res() res: Response): Promise<void> {
+    const timestamp = new Date().toISOString();
+
+    try {
+      // Critical check: Database must be reachable
+      const start = Date.now();
+      await Promise.race([
+        this.prisma.$queryRaw`SELECT 1`,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('DB timeout')), 2000),
+        ),
+      ]);
+      const dbLatency = Date.now() - start;
+
+      res.status(HttpStatus.OK).json({
+        status: 'ready',
+        timestamp,
+        uptime: process.uptime(),
+        checks: {
+          database: { status: 'ok', latencyMs: dbLatency },
+        },
+      });
+    } catch (error) {
+      this.logger.error(`Readiness probe failed: ${(error as Error).message}`);
+
+      res.status(HttpStatus.SERVICE_UNAVAILABLE).json({
+        status: 'not_ready',
+        timestamp,
+        error: 'Database connection failed',
+      });
+    }
+  }
+
+  // ============================================
+  // Detailed Health Endpoints (api/v1 prefix)
+  // ============================================
+
   /**
    * GET /api/v1/health
    * Health check complet avec statut de tous les services
    */
-  @Get('health')
+  @Get('api/v1/health')
   @ApiOperation({
     summary: 'Health check complet',
     description:
@@ -80,7 +162,7 @@ export class HealthController {
     const timestamp = new Date().toISOString();
     const checks = {
       database: await this.checkDatabase(),
-      stripe: this.checkStripe(),
+      stripe: await this.checkStripe(),
       storage: this.checkStorage(),
       signedUrls: this.checkSignedUrls(),
     };
@@ -102,20 +184,33 @@ export class HealthController {
       version: process.env.npm_package_version || '1.0.0',
       environment: this.configService.get<string>('NODE_ENV', 'development'),
       uptime: process.uptime(),
+      system: this.getSystemMetrics(),
       checks,
     };
   }
 
   /**
-   * GET /api/v1/ready
-   * Readiness probe pour Railway/K8s
+   * Get system metrics (memory, heap)
    */
-  @Get('ready')
+  private getSystemMetrics(): SystemMetrics {
+    const memUsage = process.memoryUsage();
+    return {
+      memoryUsageMB: Math.round(memUsage.rss / 1024 / 1024),
+      heapUsedMB: Math.round(memUsage.heapUsed / 1024 / 1024),
+      heapTotalMB: Math.round(memUsage.heapTotal / 1024 / 1024),
+    };
+  }
+
+  /**
+   * GET /api/v1/ready
+   * Detailed readiness check with all services
+   */
+  @Get('api/v1/ready')
   @ApiOperation({
-    summary: 'Readiness probe',
+    summary: 'Detailed readiness probe',
     description:
       'Retourne 200 si le service est prêt à recevoir du trafic, 503 sinon. ' +
-      'Utilisé par Railway pour les health checks.',
+      'Inclut le statut de tous les services critiques.',
   })
   @ApiResponse({ status: 200, description: 'Service prêt' })
   @ApiResponse({ status: 503, description: 'Service non prêt' })
@@ -124,28 +219,28 @@ export class HealthController {
 
     try {
       // Check critique: Database (timeout 2s)
-      const start = Date.now();
-      await Promise.race([
-        this.prisma.$queryRaw`SELECT 1`,
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('DB timeout')), 2000),
-        ),
-      ]);
-      const latencyMs = Date.now() - start;
-
-      // Check optionnel: Stripe config
-      const stripeOk = !!this.configService.get<string>('STRIPE_SECRET_KEY');
+      const dbCheck = await this.checkDatabase();
+      
+      // Check Stripe
+      const stripeCheck = await this.checkStripe();
 
       // Check optionnel: Signed URL config
-      const signedUrlOk = !!this.configService.get<string>('SIGNED_URL_SECRET');
+      const signedUrlCheck = this.checkSignedUrls();
+
+      // Database must be OK for readiness
+      if (dbCheck.status === 'error') {
+        throw new Error('Database not ready');
+      }
 
       res.status(HttpStatus.OK).json({
         status: 'ready',
         timestamp,
+        uptime: process.uptime(),
+        system: this.getSystemMetrics(),
         checks: {
-          database: { status: 'ok', latencyMs },
-          stripe: { status: stripeOk ? 'ok' : 'degraded' },
-          signedUrls: { status: signedUrlOk ? 'ok' : 'degraded' },
+          database: dbCheck,
+          stripe: stripeCheck,
+          signedUrls: signedUrlCheck,
         },
       });
     } catch (error) {
@@ -154,9 +249,7 @@ export class HealthController {
       res.status(HttpStatus.SERVICE_UNAVAILABLE).json({
         status: 'not_ready',
         timestamp,
-        checks: {
-          database: { status: 'error', message: 'Connection failed' },
-        },
+        error: (error as Error).message,
       });
     }
   }
@@ -187,21 +280,52 @@ export class HealthController {
   }
 
   /**
-   * Check Stripe configuration
+   * Check Stripe configuration and connectivity
+   * PR-02: Enhanced check with API verification
    */
-  private checkStripe(): ServiceCheck {
+  private async checkStripe(): Promise<ServiceCheck> {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     const webhookSecret = this.configService.get<string>('STRIPE_WEBHOOK_SECRET');
 
-    if (secretKey && webhookSecret) {
-      return { status: 'ok' };
+    // Check configuration
+    if (!secretKey) {
+      return { status: 'error', message: 'STRIPE_SECRET_KEY not configured' };
     }
 
-    if (secretKey || webhookSecret) {
-      return { status: 'degraded', message: 'Partial configuration' };
+    if (!webhookSecret) {
+      return { status: 'degraded', message: 'STRIPE_WEBHOOK_SECRET not configured' };
     }
 
-    return { status: 'error', message: 'Not configured' };
+    // Verify API connectivity (only in production or if explicitly enabled)
+    const verifyApi = this.configService.get<string>('STRIPE_HEALTH_CHECK_API') === 'true';
+    const isProd = this.configService.get<string>('NODE_ENV') === 'production';
+    
+    if (verifyApi || isProd) {
+      try {
+        const start = Date.now();
+        // Light API call to verify connectivity
+        const response = await fetch('https://api.stripe.com/v1/balance', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${secretKey}`,
+          },
+        });
+        const latencyMs = Date.now() - start;
+
+        if (response.ok) {
+          return { status: 'ok', latencyMs };
+        } else if (response.status === 401) {
+          return { status: 'error', message: 'Invalid API key' };
+        } else {
+          return { status: 'degraded', message: `API returned ${response.status}`, latencyMs };
+        }
+      } catch (error) {
+        return { status: 'degraded', message: `API unreachable: ${(error as Error).message}` };
+      }
+    }
+
+    // Configuration OK, API check skipped
+    return { status: 'ok', message: 'Config valid (API check skipped)' };
   }
 
   /**
