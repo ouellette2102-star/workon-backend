@@ -34,6 +34,7 @@ import { ComplianceModule } from './compliance/compliance.module';
 import { AuditModule } from './common/audit/audit.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { DevicesModule } from './devices/devices.module';
+import { PushModule } from './push/push.module';
 
 @Module({
   imports: [
@@ -173,6 +174,8 @@ import { DevicesModule } from './devices/devices.module';
     ReviewsModule,
     // Devices module - Push notification tokens & device management
     DevicesModule,
+    // Push module - Firebase Cloud Messaging (PR-PUSH)
+    PushModule,
   ],
   controllers: [AppController],
   providers: [

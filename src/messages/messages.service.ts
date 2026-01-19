@@ -181,10 +181,19 @@ export class MessagesService {
         : mission.authorClient.clerkId;
 
     if (receiverClerkId) {
+      // PR-PUSH: Get sender name for push notification
+      const sender = await this.prisma.user.findUnique({
+        where: { clerkId: clerkUserId },
+        include: { userProfile: true },
+      });
+      const senderName = sender?.userProfile?.name || 'Utilisateur';
+
       await this.notificationsService.createForNewMessage(
         missionId,
         message.id,
         receiverClerkId,
+        senderName,
+        trimmedContent,
       );
     }
 
@@ -264,5 +273,83 @@ export class MessagesService {
     });
 
     return { count };
+  }
+
+  /**
+   * PR-INBOX: Get all conversations for a user.
+   * A conversation is a mission thread where the user is involved and has messages.
+   */
+  async getConversations(clerkUserId: string) {
+    // Find all missions where user is involved (as employer or worker)
+    // and that have at least one message
+    const missions = await this.prisma.mission.findMany({
+      where: {
+        OR: [
+          { authorClient: { clerkId: clerkUserId } },
+          { assigneeWorker: { clerkId: clerkUserId } },
+        ],
+        messages: {
+          some: {}, // Has at least one message
+        },
+      },
+      include: {
+        authorClient: {
+          include: {
+            userProfile: true,
+          },
+        },
+        assigneeWorker: {
+          include: {
+            userProfile: true,
+          },
+        },
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    // Transform to conversation DTOs
+    const conversations = await Promise.all(
+      missions.map(async (mission) => {
+        const isEmployer = mission.authorClient.clerkId === clerkUserId;
+        const lastMessage = mission.messages[0];
+
+        // Get participant info (the other person)
+        const participant = isEmployer
+          ? mission.assigneeWorker
+          : mission.authorClient;
+
+        // Count unread messages (messages from the other party not read)
+        const unreadCount = await this.prisma.message.count({
+          where: {
+            missionId: mission.id,
+            senderId: { not: clerkUserId },
+            status: { not: 'READ' },
+          },
+        });
+
+        return {
+          id: mission.id,
+          missionId: mission.id,
+          missionTitle: mission.title,
+          participantName: participant?.userProfile?.name || 'Participant',
+          participantAvatar: null, // UserProfile doesn't have avatar field
+          lastMessage: lastMessage?.content || '',
+          lastMessageAt: lastMessage?.createdAt.toISOString() || new Date().toISOString(),
+          unreadCount,
+          myRole: isEmployer ? 'EMPLOYER' : 'WORKER',
+        };
+      }),
+    );
+
+    // Sort by lastMessageAt descending (most recent first)
+    conversations.sort(
+      (a, b) =>
+        new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime(),
+    );
+
+    return conversations;
   }
 }

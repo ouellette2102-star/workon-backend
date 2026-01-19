@@ -22,7 +22,7 @@ import { RegisterDeviceDto } from './dto/register-device.dto';
 import { DeviceResponseDto } from './dto/device-response.dto';
 
 @ApiTags('devices')
-@Controller('devices')
+@Controller('api/v1/devices')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class DevicesController {
