@@ -265,18 +265,23 @@ async function bootstrap() {
         },
         'JWT',
       )
-      // Tags organisés par domaine
+      // Tags organisés par domaine fonctionnel
       .addTag('Health', 'Endpoints de santé et monitoring (publics)')
       .addTag('Auth', 'Authentification et gestion de session (public → JWT)')
       .addTag('Users', 'Gestion des utilisateurs (JWT)')
       .addTag('Profiles', 'Profils utilisateurs (JWT)')
+      .addTag('Compliance', 'Consentement légal - Terms & Privacy (JWT, Loi 25)')
       .addTag('Catalog', 'Catégories et compétences (public, read-only)')
       .addTag('Missions', 'Gestion des missions (JWT)')
+      .addTag('Offers', 'Offres/candidatures sur les missions (JWT)')
       .addTag('Events', 'Journal d\'événements des missions (JWT)')
+      .addTag('Earnings', 'Revenus des travailleurs (JWT)')
       .addTag('Payments', 'Paiements Stripe escrow (JWT)')
       .addTag('Media', 'Photos et fichiers (JWT + token signé)')
       .addTag('Messages', 'Messagerie entre parties (JWT)')
       .addTag('Contracts', 'Contrats de mission (JWT)')
+      .addTag('Devices', 'Appareils pour push notifications (JWT)')
+      .addTag('Reviews', 'Avis et évaluations (JWT)')
       .addTag('Notifications', 'Notifications utilisateur (JWT)')
       .addTag('Admin', 'Administration (JWT + rôle Admin)')
       .addTag('Webhooks', 'Webhooks externes (signature Stripe)')

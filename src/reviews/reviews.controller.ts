@@ -23,7 +23,16 @@ import {
   RatingSummaryDto,
 } from './dto/review-response.dto';
 
-@ApiTags('reviews')
+/**
+ * Reviews Controller - Gestion des avis et évaluations
+ *
+ * Endpoints pour créer, consulter et récupérer les avis
+ * laissés par les utilisateurs après une mission.
+ *
+ * Note: Ce controller utilise le path /reviews (sans préfixe api/v1)
+ * pour compatibilité avec les clients existants.
+ */
+@ApiTags('Reviews')
 @Controller('reviews')
 export class ReviewsController {
   constructor(private readonly reviewsService: ReviewsService) {}
@@ -34,10 +43,26 @@ export class ReviewsController {
    */
   @Get('summary')
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get rating summary for a user' })
-  @ApiQuery({ name: 'userId', required: true, description: 'Target user ID' })
-  @ApiResponse({ status: 200, type: RatingSummaryDto })
+  @ApiBearerAuth('JWT')
+  @ApiOperation({
+    summary: 'Get rating summary for a user',
+    description:
+      'Returns aggregated rating statistics for a user: average rating, ' +
+      'total number of reviews, and rating distribution (1-5 stars).',
+  })
+  @ApiQuery({
+    name: 'userId',
+    required: true,
+    description: 'Target user ID to get rating summary for',
+    example: 'user_abc123',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Rating summary retrieved successfully',
+    type: RatingSummaryDto,
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized - invalid or missing JWT token' })
+  @ApiResponse({ status: 404, description: 'User not found' })
   async getSummary(@Query('userId') userId: string): Promise<RatingSummaryDto> {
     return this.reviewsService.getSummaryForUser(userId);
   }
@@ -48,12 +73,37 @@ export class ReviewsController {
    */
   @Get()
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get reviews for a user' })
-  @ApiQuery({ name: 'userId', required: true, description: 'Target user ID' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Max results' })
-  @ApiQuery({ name: 'offset', required: false, description: 'Skip results' })
-  @ApiResponse({ status: 200, type: [ReviewResponseDto] })
+  @ApiBearerAuth('JWT')
+  @ApiOperation({
+    summary: 'Get reviews for a user',
+    description:
+      'Returns paginated list of reviews received by a user. ' +
+      'Ordered by most recent first.',
+  })
+  @ApiQuery({
+    name: 'userId',
+    required: true,
+    description: 'Target user ID to get reviews for',
+    example: 'user_abc123',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Maximum number of reviews to return (default: 20)',
+    example: 10,
+  })
+  @ApiQuery({
+    name: 'offset',
+    required: false,
+    description: 'Number of reviews to skip for pagination',
+    example: 0,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of reviews',
+    type: [ReviewResponseDto],
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized - invalid or missing JWT token' })
   async getReviews(
     @Query('userId') userId: string,
     @Query('limit') limit?: string,
@@ -72,10 +122,21 @@ export class ReviewsController {
    */
   @Post()
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a review' })
-  @ApiResponse({ status: 201, type: ReviewResponseDto })
-  @ApiResponse({ status: 409, description: 'Review already exists' })
+  @ApiBearerAuth('JWT')
+  @ApiOperation({
+    summary: 'Create a review',
+    description:
+      'Submit a review for another user after a completed mission. ' +
+      'Only one review per mission per reviewer is allowed.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Review created successfully',
+    type: ReviewResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid review data' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - invalid or missing JWT token' })
+  @ApiResponse({ status: 409, description: 'Review already exists for this mission' })
   async create(
     @Request() req: { user: { userId: string } },
     @Body() dto: CreateReviewDto,
@@ -89,9 +150,17 @@ export class ReviewsController {
    */
   @Get(':id')
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get a review by ID' })
-  @ApiResponse({ status: 200, type: ReviewResponseDto })
+  @ApiBearerAuth('JWT')
+  @ApiOperation({
+    summary: 'Get a review by ID',
+    description: 'Returns details of a specific review.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Review details',
+    type: ReviewResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized - invalid or missing JWT token' })
   @ApiResponse({ status: 404, description: 'Review not found' })
   async findOne(@Param('id') id: string): Promise<ReviewResponseDto> {
     return this.reviewsService.findOne(id);
