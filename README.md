@@ -1,369 +1,352 @@
 # WorkOn Backend API
 
-Backend production-ready pour l'application WorkOn, construit avec NestJS, TypeScript, Prisma et PostgreSQL.
+**WorkOn** est une marketplace de services pour travailleurs autonomes au Québec. Ce backend NestJS gère l'authentification, les missions, les paiements (Stripe), la messagerie, les revenus et les notifications push.
 
-## 🚀 Fonctionnalités
+[![CI](https://github.com/ouellette2102-star/workon-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/ouellette2102-star/workon-backend/actions/workflows/ci.yml)
 
-- **Authentification JWT** avec refresh tokens
-- **Gestion des missions** avec réservation atomique
-- **Intégration Stripe** pour les paiements
-- **Signature de contrats** avec nonce pour sécurité
-- **Logging Winston** avec intégration Sentry
-- **Rate limiting** et sécurité (Helmet)
-- **Tests unitaires** (Jest) et E2E (Playwright)
-- **Docker** et docker-compose pour développement
-- **CI/CD** avec GitHub Actions
+---
 
-## 📋 Prérequis
+## 📚 Documentation
 
-- Node.js 20+
-- PostgreSQL 16+
-- npm ou yarn
-- Docker et Docker Compose (optionnel, pour développement)
+| Document | Description |
+|----------|-------------|
+| [GETTING_STARTED.md](docs/GETTING_STARTED.md) | Quickstart 10 minutes |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture technique détaillée |
+| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Déploiement Railway (staging/prod) |
+| [STAGING_RAILWAY.md](docs/STAGING_RAILWAY.md) | Guide spécifique staging |
 
-## 🛠️ Installation
+---
 
-### 1. Cloner et installer les dépendances
+## 🔧 Requirements
+
+| Outil | Version | Installation |
+|-------|---------|--------------|
+| Node.js | 20.x LTS | [nodejs.org](https://nodejs.org/) |
+| npm | 10.x+ | Inclus avec Node.js |
+| PostgreSQL | 14+ | [postgresql.org](https://www.postgresql.org/) ou Docker |
+| Git | 2.x+ | [git-scm.com](https://git-scm.com/) |
+
+**Comptes externes (optionnels en dev):**
+- [Stripe](https://stripe.com) - Paiements (clés TEST)
+- [Clerk](https://clerk.com) - Auth legacy (optionnel)
+- [Firebase](https://firebase.google.com) - Push notifications
+
+---
+
+## ⚡ Installation rapide
 
 ```bash
-cd backend
+# 1. Cloner le repo
+git clone https://github.com/ouellette2102-star/workon-backend.git
+cd workon-backend
+
+# 2. Installer les dépendances
 npm install
-```
 
-### 2. Configuration de l'environnement
-
-Copier le fichier `env.example` vers `.env` et configurer les variables :
-
-```bash
+# 3. Copier le fichier d'environnement
 cp env.example .env
-```
 
-Variables d'environnement requises :
+# 4. Éditer .env avec vos valeurs (DATABASE_URL minimum)
+# Voir section "Variables d'environnement" ci-dessous
 
-```env
-# Database
-DATABASE_URL="postgresql://user:password@localhost:5432/workon?schema=public"
-
-# JWT
-JWT_SECRET="your-super-secret-jwt-key-min-32-chars"
-JWT_REFRESH_SECRET="your-super-secret-refresh-key-min-32-chars"
-
-# Stripe (optionnel pour développement)
-STRIPE_SECRET_KEY="sk_test_..."
-STRIPE_WEBHOOK_SECRET="whsec_..."
-```
-
-### 3. Base de données
-
-#### Option A : Avec Docker Compose (recommandé pour développement)
-
-```bash
-docker-compose up -d postgres
-```
-
-#### Option B : PostgreSQL local
-
-Créer une base de données PostgreSQL :
-
-```sql
-CREATE DATABASE workon;
-```
-
-### 4. Migrations Prisma
-
-```bash
-# Générer le client Prisma
+# 5. Générer le client Prisma
 npm run prisma:generate
 
-# Appliquer les migrations
-npm run migrate
+# 6. Appliquer les migrations
+npm run migrate:deploy
 
-# (Optionnel) Seed la base de données
-npm run seed
-```
+# 7. (Optionnel) Seeder des données de test
+npm run seed:dev
 
-### 5. Démarrer l'application
-
-```bash
-# Développement
+# 8. Lancer le serveur
 npm run start:dev
-
-# Production
-npm run build
-npm run start:prod
 ```
 
-L'API sera disponible sur `http://localhost:3000/api/v1`
+Le serveur démarre sur `http://localhost:3001` (ou PORT configuré).
 
-## 🐳 Docker
+---
 
-### Développement avec Docker Compose
+## 📜 Scripts npm
 
-```bash
-# Démarrer tous les services (PostgreSQL + Backend)
-docker-compose up
+### Développement
 
-# Démarrer en arrière-plan
-docker-compose up -d
+| Script | Description |
+|--------|-------------|
+| `npm run start:dev` | Démarre en mode watch (hot reload) |
+| `npm run start:debug` | Démarre avec debugger Node.js |
+| `npm run start` | Démarre sans watch |
 
-# Voir les logs
-docker-compose logs -f backend
+### Build & Production
 
-# Arrêter
-docker-compose down
-```
+| Script | Description |
+|--------|-------------|
+| `npm run build` | Compile TypeScript vers `dist/` |
+| `npm run start:prod` | Lance `node dist/main.js` |
+| `npm run start:railway` | Script de démarrage Railway |
 
-### Build de l'image Docker
+### Tests
 
-```bash
-docker build -t workon-backend .
-docker run -p 3000:3000 --env-file .env workon-backend
-```
+| Script | Description |
+|--------|-------------|
+| `npm run test` | Tests unitaires (Jest) |
+| `npm run test:watch` | Tests en mode watch |
+| `npm run test:cov` | Tests avec couverture |
+| `npm run test:e2e` | Tests E2E (Jest config) |
+| `npx playwright test` | Tests E2E Playwright |
 
-## 🚂 Railway (production)
+### Qualité de code
 
-**Start Command recommandé:**
-```bash
-npm run start:railway
-```
+| Script | Description |
+|--------|-------------|
+| `npm run lint` | ESLint sur `src/` et `test/` |
+| `npm run format` | Prettier sur `src/` et `test/` |
+| `npm run qa:gate` | Lint + Build + Test + Contracts |
 
-## 📚 API Endpoints
+### Base de données (Prisma)
 
-### Authentification
+| Script | Description |
+|--------|-------------|
+| `npm run prisma:generate` | Génère le client Prisma |
+| `npm run prisma:validate` | Valide le schema |
+| `npm run migrate` | Crée une nouvelle migration (dev) |
+| `npm run migrate:deploy` | Applique les migrations |
+| `npm run migrate:reset:local` | ⚠️ Reset complet (DEV ONLY) |
+| `npm run prisma:studio` | UI web pour explorer la DB |
+| `npm run db:status` | Statut des migrations |
 
-- `POST /auth/signup` - Inscription
-- `POST /auth/login` - Connexion
-- `POST /auth/refresh` - Rafraîchir le token
-- `POST /auth/logout` - Déconnexion
-- `GET /auth/me` - Obtenir l'utilisateur actuel
+### Smoke tests
 
-### Missions
+| Script | Description |
+|--------|-------------|
+| `npm run smoke:contracts` | Vérifie les contrats API |
+| `npm run smoke:local` | Tests smoke locaux (PowerShell) |
+| `npm run smoke:ci` | Tests smoke CI (bash) |
 
-- `POST /missions` - Créer une mission (EMPLOYER)
-- `GET /missions` - Lister les missions (paginé, filtres géographiques)
-- `GET /missions/:id` - Obtenir une mission
-- `POST /missions/:id/reserve` - Réserver une mission (WORKER)
-- `POST /missions/:id/accept` - Accepter une mission réservée (WORKER)
-- `POST /missions/:id/cancel` - Annuler une mission
+---
 
-### Paiements
+## 🔐 Variables d'environnement
 
-- `POST /payments/create-intent` - Créer un PaymentIntent Stripe (EMPLOYER)
-- `POST /webhooks/stripe` - Webhook Stripe (idempotent)
+Copier `env.example` vers `.env` et configurer :
 
-### Contrats
+### Obligatoires
 
-- `GET /contracts/:missionId` - Obtenir le statut d'un contrat
-- `GET /contracts/:missionId/create` - Créer ou obtenir un contrat
-- `POST /contracts/:missionId/sign` - Signer un contrat (WORKER/EMPLOYER)
+| Variable | Description | Exemple |
+|----------|-------------|---------|
+| `DATABASE_URL` | URL PostgreSQL | `postgresql://user:pass@localhost:5432/workon` |
+| `NODE_ENV` | Environnement | `development`, `staging`, `production` |
 
-### Admin
+### Authentification (obligatoires en production)
 
-- `POST /admin/reconcile-payments` - Réconciliation manuelle des paiements (ADMIN)
+| Variable | Description | Exemple |
+|----------|-------------|---------|
+| `JWT_SECRET` | Secret JWT (min 32 chars) | `votre-secret-jwt-min-32-caracteres` |
+| `JWT_EXPIRES_IN` | Durée token | `1d` |
+| `JWT_REFRESH_SECRET` | Secret refresh token | `votre-refresh-secret-32-chars` |
+| `JWT_REFRESH_EXPIRES_IN` | Durée refresh | `7d` |
 
-### Health Checks (Infrastructure)
+### Stripe (paiements)
 
-| Endpoint | Type | Description |
-|----------|------|-------------|
-| `GET /healthz` | Liveness | Retourne toujours 200 si le process est vivant. Ne vérifie pas les dépendances. |
-| `GET /readyz` | Readiness | Retourne 200 si DB accessible (timeout 2s), 503 sinon. Utilisé par Railway/K8s. |
-| `GET /api/v1/health` | Détaillé | Statut complet avec DB, Stripe, Storage, SignedUrls. |
-| `GET /api/v1/ready` | Détaillé | Readiness détaillé avec latence DB. |
+| Variable | Description | Où l'obtenir |
+|----------|-------------|--------------|
+| `STRIPE_SECRET_KEY` | Clé secrète | [Stripe Dashboard](https://dashboard.stripe.com/test/apikeys) |
+| `STRIPE_WEBHOOK_SECRET` | Secret webhook | Dashboard → Webhooks |
+| `STRIPE_PUBLISHABLE_KEY` | Clé publique | Dashboard → API Keys |
 
-**Usage Railway** : Configurer `/healthz` pour le health check et `/readyz` pour le readiness check.
+> ⚠️ Utiliser uniquement des clés **TEST** (`sk_test_*`, `pk_test_*`) en dev/staging.
 
-## 🧪 Tests
+### Optionnelles
 
-### Tests unitaires
+| Variable | Description | Défaut |
+|----------|-------------|--------|
+| `PORT` | Port du serveur | `3001` |
+| `CORS_ORIGIN` | Origines CORS autorisées | `http://localhost:3000` |
+| `CLERK_SECRET_KEY` | Clé Clerk (legacy auth) | _(vide)_ |
+| `SENTRY_DSN` | DSN Sentry (monitoring) | _(vide = désactivé)_ |
+| `THROTTLE_TTL` | Fenêtre rate limit (sec) | `60` |
+| `THROTTLE_LIMIT` | Max requêtes/fenêtre | `100` |
+| `SIGNED_URL_SECRET` | Secret pour URLs signées | _(requis en prod)_ |
+| `ENABLE_SWAGGER_PROD` | Swagger en prod | `false` |
+| `DEBUG_ENV` | Debug variables env | `0` |
 
-```bash
-npm run test
-npm run test:watch
-npm run test:cov
-```
-
-### Tests E2E
-
-```bash
-# Démarrer l'application en mode test
-npm run start:dev
-
-# Dans un autre terminal
-npm run test:e2e
-```
-
-### Tests avec Playwright
-
-```bash
-# Installer Playwright
-npx playwright install
-
-# Lancer les tests E2E
-npx playwright test
-```
-
-## 🔒 Sécurité
-
-### Recommandations de production
-
-1. **Secrets** : Utiliser un gestionnaire de secrets (AWS Secrets Manager, HashiCorp Vault, etc.)
-2. **HTTPS** : Toujours utiliser HTTPS en production
-3. **CORS** : Configurer `CORS_ORIGIN` avec les domaines autorisés uniquement
-4. **Rate Limiting** : Ajuster `THROTTLE_TTL` et `THROTTLE_LIMIT` selon vos besoins
-5. **Database** : Utiliser un utilisateur PostgreSQL avec permissions minimales :
-
-```sql
--- Exemple de permissions recommandées
-CREATE USER workon_app WITH PASSWORD 'secure_password';
-GRANT CONNECT ON DATABASE workon TO workon_app;
-GRANT USAGE ON SCHEMA public TO workon_app;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO workon_app;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO workon_app;
-```
-
-## 📊 Monitoring
-
-### Sentry
-
-Pour activer Sentry, configurer `SENTRY_DSN` dans `.env` :
-
-```env
-SENTRY_DSN="https://..."
-SENTRY_ENVIRONMENT="production"
-```
-
-### Health Check
-
-- `GET /healthz` - Health check endpoint
-- `GET /metrics` - Placeholder pour métriques Prometheus
-
-### Logs
-
-Les logs sont configurés avec Winston. En production, configurer des transports vers :
-- Fichiers de logs
-- Services de logging (Datadog, Loggly, etc.)
-- Sentry pour les erreurs
-
-## 🔌 Webhooks Stripe
-
-### Configuration locale avec ngrok
-
-1. Installer ngrok : `npm install -g ngrok` ou télécharger depuis [ngrok.com](https://ngrok.com)
-
-2. Démarrer le backend localement
-
-3. Exposer le webhook avec ngrok :
-
-```bash
-ngrok http 3000
-```
-
-4. Configurer le webhook dans Stripe Dashboard :
-   - URL : `https://your-ngrok-url.ngrok.io/api/v1/webhooks/stripe`
-   - Événements : `payment_intent.succeeded`, `payment_intent.payment_failed`
-
-5. Copier le `Signing secret` et l'ajouter à `STRIPE_WEBHOOK_SECRET`
-
-## 📝 Scripts disponibles
-
-```bash
-# Développement
-npm run start:dev      # Démarrer en mode watch
-npm run start:debug    # Démarrer en mode debug
-
-# Production
-npm run build          # Build l'application
-npm run start:prod     # Démarrer en production
-
-# Base de données
-npm run migrate        # Appliquer les migrations
-npm run migrate:deploy  # Déployer les migrations (production)
-npm run migrate:reset  # Réinitialiser la base de données
-npm run seed           # Seed la base de données
-npm run prisma:studio  # Ouvrir Prisma Studio
-
-# Tests
-npm run test           # Tests unitaires
-npm run test:watch     # Tests en mode watch
-npm run test:cov       # Tests avec couverture
-npm run test:e2e       # Tests E2E
-
-# Qualité
-npm run lint           # Linter le code
-npm run format         # Formatter le code
-```
+---
 
 ## 🏗️ Architecture
 
 ```
-backend/
-├── src/
-│   ├── auth/           # Module d'authentification
-│   ├── missions/        # Module des missions
-│   ├── payments/        # Module des paiements
-│   ├── contracts/       # Module des contrats
-│   ├── admin/           # Module admin
-│   ├── prisma/          # Service Prisma
-│   ├── logger/          # Service de logging
-│   └── main.ts          # Point d'entrée
-├── prisma/
-│   ├── schema.prisma    # Schéma Prisma
-│   └── seed.ts          # Script de seed
-├── test/                # Tests E2E
-├── e2e/                 # Tests Playwright
-└── Dockerfile           # Configuration Docker
+src/
+├── auth/           # Authentification (JWT, guards, strategies)
+├── users/          # Gestion utilisateurs
+├── missions-local/ # Missions (CRUD, lifecycle)
+├── offers/         # Offres/candidatures workers
+├── messages/       # Chat mission-scoped
+├── earnings/       # Revenus workers
+├── payments/       # Stripe escrow
+├── devices/        # Push tokens (FCM)
+├── notifications/  # Notifications push
+├── reviews/        # Avis/ratings
+├── compliance/     # Consentement légal (TERMS, PRIVACY)
+├── contracts/      # Contrats de mission
+├── health/         # Health checks (/healthz, /readyz)
+├── prisma/         # Prisma service
+└── common/         # Guards, filters, DTOs partagés
 ```
 
-## ⚠️ Limitations et points d'attention
-
-### Ce qui nécessite une configuration manuelle
-
-1. **Stripe Connect** : L'intégration Stripe Connect (transfert vers les workers) n'est pas complètement implémentée. Placeholder dans `payments.service.ts`
-
-2. **Recherche géographique** : La recherche par proximité utilise une approximation simple. Pour production, considérer :
-   - PostGIS avec Prisma
-   - Service de géolocalisation dédié (Google Maps API, Mapbox, etc.)
-
-3. **Génération de contrats PDF** : Le champ `contractUrl` est un placeholder. Implémenter :
-   - Génération de PDF (PDFKit, Puppeteer)
-   - Stockage (S3, Cloud Storage)
-
-4. **Notifications** : Placeholder pour notifications (email, push, SMS)
-
-5. **Dead-letter queue** : Les webhooks en erreur sont enregistrés mais pas automatiquement retraités. Implémenter :
-   - Système de queue (Bull, RabbitMQ)
-   - Exponential backoff automatique
-
-6. **Feature flags** : Non implémenté. Considérer LaunchDarkly, Unleash, etc.
-
-### Vérifications manuelles recommandées
-
-- [ ] Vérifier que tous les secrets sont configurés en production
-- [ ] Tester les webhooks Stripe avec des événements réels
-- [ ] Vérifier les permissions de la base de données
-- [ ] Configurer les backups de la base de données
-- [ ] Tester la réconciliation des paiements avec des données réelles
-- [ ] Vérifier que les migrations Prisma sont appliquées correctement
-- [ ] Configurer les alertes Sentry
-- [ ] Tester le rate limiting avec des charges réelles
-- [ ] Vérifier les logs en production
-
-## 🤝 Contribution
-
-1. Créer une branche : `git checkout -b feature/ma-feature`
-2. Commiter les changements : `git commit -m 'Ajout de ma feature'`
-3. Pousser vers la branche : `git push origin feature/ma-feature`
-4. Ouvrir une Pull Request
-
-## 📄 License
-
-Propriétaire - WorkOn
-
-## 🆘 Support
-
-Pour toute question ou problème, ouvrir une issue sur le repository.
+Voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) pour les détails.
 
 ---
 
-**Note** : Ce backend est conçu pour être déployé en production mais nécessite une configuration et des tests supplémentaires selon votre infrastructure et vos besoins spécifiques.
+## 🚀 CI/CD (GitHub Actions)
 
+Le workflow `.github/workflows/ci.yml` exécute :
+
+| Job | Description | Trigger |
+|-----|-------------|---------|
+| `lint` | ESLint | Push/PR sur main/develop |
+| `build` | Compilation TypeScript | Push/PR sur main/develop |
+| `test` | Tests unitaires + DB | Push/PR sur main/develop |
+| `qa-gate` | Contract checks | Après build |
+| `smoke-e2e` | Tests E2E avec serveur | Après build+test |
+| `release-gate` | Validation finale | Tous jobs OK |
+
+### Reproduire la CI localement
+
+```bash
+# Lint
+npm run lint
+
+# Build
+npm run prisma:generate
+npm run build
+
+# Tests (nécessite PostgreSQL)
+npm run test
+
+# Smoke tests
+npm run smoke:contracts
+
+# QA Gate complet
+npm run qa:gate
+```
+
+---
+
+## 🔥 Troubleshooting
+
+### 1. `Cannot find module '@prisma/client'`
+
+**Cause:** Client Prisma non généré.
+
+```bash
+npm run prisma:generate
+```
+
+### 2. `Connection refused` à PostgreSQL
+
+**Causes possibles:**
+- PostgreSQL n'est pas démarré
+- Mauvais port dans `DATABASE_URL`
+- Credentials incorrects
+
+**Solutions:**
+```bash
+# Vérifier que Postgres tourne
+pg_isready -h localhost -p 5432
+
+# Ou avec Docker
+docker run -d --name postgres -p 5432:5432 \
+  -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_DB=workon \
+  postgres:16-alpine
+```
+
+### 3. `JWT_SECRET is required in production`
+
+**Cause:** Variables d'env non configurées pour `NODE_ENV=production`.
+
+**Solution:** Configurer toutes les variables marquées "obligatoires en production".
+
+### 4. `SIGNED_URL_SECRET is required in production`
+
+**Cause:** Variable manquante pour les URLs signées des médias.
+
+**Solution:**
+```bash
+# Ajouter dans .env (min 32 caractères)
+SIGNED_URL_SECRET=votre-secret-urls-signees-32-chars
+```
+
+### 5. Migrations échouent
+
+```bash
+# Vérifier le statut
+npm run db:status
+
+# Forcer le déploiement
+npm run migrate:deploy
+
+# En dernier recours (DEV ONLY - perte de données!)
+npm run migrate:reset:local
+```
+
+### 6. `Port 3001 already in use`
+
+```bash
+# Trouver le process
+# Windows
+netstat -ano | findstr :3001
+taskkill /PID <PID> /F
+
+# macOS/Linux
+lsof -i :3001
+kill -9 <PID>
+```
+
+### 7. Tests E2E échouent (Playwright)
+
+```bash
+# Installer les navigateurs Playwright
+npx playwright install
+
+# Vérifier que le serveur tourne
+curl http://localhost:3000/healthz
+```
+
+### 8. ESLint warnings `@typescript-eslint/*`
+
+```bash
+# Assurez-vous d'utiliser la bonne config
+npm run lint
+```
+
+### 9. `Rate limit exceeded`
+
+**Cause:** Trop de requêtes depuis la même IP.
+
+**Solution dev:** Augmenter `THROTTLE_LIMIT` dans `.env`.
+
+### 10. Swagger non accessible
+
+**En production:** Configurer `ENABLE_SWAGGER_PROD=true`.
+
+**URL:** `http://localhost:3001/api/docs`
+
+---
+
+## 📖 API Documentation
+
+- **Swagger UI:** `http://localhost:3001/api/docs` (dev) ou configuré en prod
+- **Health check:** `http://localhost:3001/healthz`
+- **Readiness:** `http://localhost:3001/readyz`
+- **Full health:** `http://localhost:3001/api/v1/health`
+
+---
+
+## 📄 License
+
+Proprietary - WorkOn Team
+
+---
+
+## 📞 Support
+
+Pour les questions techniques, ouvrir une issue sur GitHub.
