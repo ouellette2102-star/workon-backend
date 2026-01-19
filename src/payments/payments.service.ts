@@ -5,12 +5,15 @@ import {
   BadRequestException,
   ConflictException,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentStatus } from '@prisma/client';
 import Stripe from 'stripe';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
+import { StripeSecurityService } from './stripe-security.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -21,6 +24,8 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    @Inject(forwardRef(() => StripeSecurityService))
+    private readonly stripeSecurityService: StripeSecurityService,
   ) {
     const stripeSecretKey =
       this.configService.get<string>('STRIPE_SECRET_KEY');
@@ -114,6 +119,15 @@ export class PaymentsService {
     const amountCents = Math.round(amount * 100);
     const idempotencyKey = this.generateIdempotencyKey(missionId!, 'create');
 
+    // PR-03: Velocity checks for fraud prevention
+    await this.stripeSecurityService.checkVelocityLimits(userId, amountCents);
+
+    // PR-03: Build Radar metadata for fraud detection
+    const radarMetadata = this.stripeSecurityService.buildRadarMetadata(
+      userId,
+      missionId!,
+    );
+
     // Créer le PaymentIntent avec capture_method: 'manual' (escrow)
     const paymentIntent = await this.stripe!.paymentIntents.create(
       {
@@ -126,6 +140,7 @@ export class PaymentsService {
           authorClientId: mission.authorClientId,
           assigneeWorkerId: mission.assigneeWorkerId || '',
           type: 'escrow',
+          ...radarMetadata, // PR-03: Enhanced Radar metadata
         },
         description: `WorkOn Mission: ${mission.title}`,
       },
@@ -154,6 +169,16 @@ export class PaymentsService {
     });
 
     this.logger.log(`PaymentIntent escrow créé: ${paymentIntent.id} pour mission ${missionId}, montant: ${amount} CAD`);
+
+    // PR-03: Log payment initiation to audit trail
+    await this.stripeSecurityService.logPaymentEvent(
+      'initiated',
+      userId,
+      payment.id,
+      missionId!,
+      amountCents,
+      { stripePaymentIntentId: paymentIntent.id },
+    );
 
     return {
       clientSecret: paymentIntent.client_secret,
