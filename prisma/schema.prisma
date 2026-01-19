@@ -82,6 +82,10 @@ model Dispute {
   updatedAt  DateTime
   mission    Mission       @relation(fields: [missionId], references: [id], onDelete: Cascade)
   openedBy   User          @relation(fields: [openedById], references: [id], onDelete: Cascade)
+  
+  // PR-00: Trust foundation relations
+  evidence   DisputeEvidence[]
+  timeline   DisputeTimeline[]
 
   @@index([status])
   @@map("disputes")
@@ -734,4 +738,198 @@ model EmailOtp {
   @@index([userId, newEmail])
   @@index([expiresAt])
   @@map("email_otp")
+}
+
+// ============================================
+// PR-00: CORE TRUST FOUNDATION
+// Support Tickets, Dispute Evidence, Device Tracking
+// ============================================
+
+/// Support tickets for in-app customer support
+model SupportTicket {
+  id          String              @id @default(cuid())
+  userId      String              // User who opened the ticket
+  missionId   String?             // Related mission (optional)
+  subject     String
+  description String
+  category    SupportTicketCategory
+  priority    SupportTicketPriority @default(NORMAL)
+  status      SupportTicketStatus   @default(OPEN)
+  assignedTo  String?             // Admin user ID (if assigned)
+  resolvedAt  DateTime?
+  metadata    Json?               // Additional context
+  
+  // Device/request context for fraud detection
+  deviceId    String?             // Hashed device ID
+  ipAddress   String?
+  userAgent   String?
+  
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  // Relations
+  messages    SupportTicketMessage[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([category])
+  @@index([missionId])
+  @@index([createdAt])
+  @@map("support_tickets")
+}
+
+/// Messages within a support ticket
+model SupportTicketMessage {
+  id          String   @id @default(cuid())
+  ticketId    String
+  senderId    String   // User or admin ID
+  senderType  String   // "user" or "admin"
+  content     String
+  attachments Json?    // Array of attachment URLs
+  createdAt   DateTime @default(now())
+
+  // Relations
+  ticket      SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("support_ticket_messages")
+}
+
+enum SupportTicketCategory {
+  PAYMENT
+  MISSION
+  ACCOUNT
+  TECHNICAL
+  DISPUTE
+  OTHER
+}
+
+enum SupportTicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_USER
+  WAITING_ADMIN
+  RESOLVED
+  CLOSED
+}
+
+/// Evidence attached to disputes (photos, videos, documents)
+model DisputeEvidence {
+  id          String              @id @default(cuid())
+  disputeId   String
+  uploadedBy  String              // User ID who uploaded
+  type        DisputeEvidenceType
+  url         String              // Storage URL
+  filename    String?
+  mimeType    String?
+  size        Int?                // File size in bytes
+  description String?             // User description
+  metadata    Json?               // EXIF, location, timestamp
+  
+  // Moderation
+  reviewed    Boolean             @default(false)
+  reviewedBy  String?             // Admin who reviewed
+  reviewedAt  DateTime?
+  flagged     Boolean             @default(false)
+  flagReason  String?
+  
+  createdAt   DateTime            @default(now())
+
+  // Relations
+  dispute     Dispute             @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+
+  @@index([disputeId])
+  @@index([uploadedBy])
+  @@index([reviewed])
+  @@map("dispute_evidence")
+}
+
+enum DisputeEvidenceType {
+  PHOTO
+  VIDEO
+  DOCUMENT
+  SCREENSHOT
+  OTHER
+}
+
+/// Timeline of actions/events in a dispute
+model DisputeTimeline {
+  id          String              @id @default(cuid())
+  disputeId   String
+  action      DisputeAction
+  actorId     String?             // User or admin who performed action
+  actorType   String?             // "user", "admin", "system"
+  details     String?             // Human-readable description
+  metadata    Json?               // Additional structured data
+  createdAt   DateTime            @default(now())
+
+  // Relations
+  dispute     Dispute             @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+
+  @@index([disputeId, createdAt])
+  @@map("dispute_timeline")
+}
+
+enum DisputeAction {
+  OPENED
+  EVIDENCE_ADDED
+  ASSIGNED
+  STATUS_CHANGED
+  MESSAGE_SENT
+  ESCALATED
+  RESOLVED
+  CLOSED
+  REOPENED
+}
+
+/// Audit log for sensitive operations (price changes, payments, admin actions)
+model TrustAuditLog {
+  id            String          @id @default(cuid())
+  category      AuditCategory
+  action        String          // Specific action (e.g., "price_changed", "payment_captured")
+  actorId       String?         // User or admin who performed action
+  actorType     String?         // "user", "admin", "system", "webhook"
+  targetType    String?         // "mission", "payment", "user", etc.
+  targetId      String?
+  
+  // Before/after state for sensitive changes
+  previousValue Json?
+  newValue      Json?
+  
+  // Context
+  reason        String?         // Why the action was taken
+  ipAddress     String?
+  userAgent     String?
+  deviceId      String?         // Hashed device ID
+  correlationId String?         // Request correlation ID
+  
+  // Risk signals
+  riskScore     Int?            // 0-100 risk assessment
+  flagged       Boolean         @default(false)
+  
+  createdAt     DateTime        @default(now())
+
+  @@index([category, createdAt])
+  @@index([actorId])
+  @@index([targetType, targetId])
+  @@index([flagged])
+  @@map("trust_audit_logs")
+}
+
+enum AuditCategory {
+  PRICE_CHANGE
+  PAYMENT
+  MISSION_STATUS
+  USER_ACCOUNT
+  ADMIN_ACTION
+  SECURITY
+  DISPUTE
+  REFUND
 }
