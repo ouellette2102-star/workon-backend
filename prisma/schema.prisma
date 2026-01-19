@@ -474,6 +474,9 @@ model User {
   devices             Device[]
   consents            UserConsent[]        // PR-07: User consent tracking
   bookings            Booking[]            @relation("bookings_clientIdTousers") // PR-10
+  notificationPreferences NotificationPreference[] // PR-12: Notification preferences
+  notificationQueue   NotificationQueue[]  // PR-12: Queued notifications
+  notificationDeliveries NotificationDelivery[] // PR-12: Delivery logs
 
   @@map("users")
 }
@@ -1167,4 +1170,204 @@ enum BookingStatus {
   COMPLETED       // Service completed
   CANCELLED       // Cancelled by either party
   NO_SHOW         // Client didn't show up
+}
+
+// ============================================
+// PR-12: NOTIFICATION PRIMITIVES
+// Preferences, Queue, and Delivery Tracking
+// ============================================
+
+/// User notification preferences per type and channel
+model NotificationPreference {
+  id              String                   @id @default(cuid())
+  userId          String
+  notificationType NotificationType
+  
+  // Channel preferences
+  pushEnabled     Boolean                  @default(true)
+  emailEnabled    Boolean                  @default(true)
+  inAppEnabled    Boolean                  @default(true)
+  smsEnabled      Boolean                  @default(false)
+  
+  // Timing preferences
+  quietHoursStart String?                  // "22:00" - start of quiet hours
+  quietHoursEnd   String?                  // "08:00" - end of quiet hours
+  timezone        String                   @default("America/Toronto")
+  
+  // Frequency controls
+  digestEnabled   Boolean                  @default(false) // Bundle notifications
+  digestFrequency DigestFrequency?         // How often to send digest
+  
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  
+  // Relations
+  user            User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, notificationType])
+  @@index([userId])
+  @@map("notification_preferences")
+}
+
+/// Types of notifications (for preference management)
+enum NotificationType {
+  // Mission lifecycle
+  MISSION_NEW_OFFER        // New offer on your mission
+  MISSION_OFFER_ACCEPTED   // Your offer was accepted
+  MISSION_STARTED          // Mission started
+  MISSION_COMPLETED        // Mission completed
+  MISSION_CANCELLED        // Mission cancelled
+  
+  // Messages
+  MESSAGE_NEW              // New chat message
+  MESSAGE_UNREAD_REMINDER  // Reminder for unread messages
+  
+  // Payments
+  PAYMENT_RECEIVED         // Payment received (worker)
+  PAYMENT_SENT             // Payment sent (client)
+  PAYMENT_FAILED           // Payment failed
+  PAYOUT_PROCESSED         // Payout to bank processed
+  
+  // Reviews
+  REVIEW_RECEIVED          // Someone reviewed you
+  REVIEW_REMINDER          // Reminder to leave a review
+  
+  // Account
+  ACCOUNT_SECURITY         // Security alerts (always enabled)
+  ACCOUNT_VERIFICATION     // Verification status updates
+  
+  // Bookings (PR-10)
+  BOOKING_REQUEST          // New booking request
+  BOOKING_CONFIRMED        // Booking confirmed
+  BOOKING_REMINDER         // Upcoming booking reminder
+  BOOKING_CANCELLED        // Booking cancelled
+  
+  // Marketing (requires consent)
+  MARKETING_PROMO          // Promotions and offers
+  MARKETING_NEWS           // News and updates
+}
+
+enum DigestFrequency {
+  IMMEDIATE   // Send immediately (no digest)
+  HOURLY      // Hourly digest
+  DAILY       // Daily digest
+  WEEKLY      // Weekly digest
+}
+
+/// Notification queue for reliable delivery
+model NotificationQueue {
+  id              String                   @id @default(cuid())
+  userId          String
+  notificationType NotificationType
+  
+  // Content
+  title           String
+  body            String
+  data            Json?                    // Additional payload data
+  
+  // Delivery channels requested
+  channels        String[]                 @default([]) // ["push", "email", "in_app", "sms"]
+  
+  // Scheduling
+  scheduledFor    DateTime                 @default(now())
+  priority        NotificationPriority     @default(NORMAL)
+  
+  // Delivery status
+  status          NotificationQueueStatus  @default(PENDING)
+  attempts        Int                      @default(0)
+  maxAttempts     Int                      @default(3)
+  lastAttemptAt   DateTime?
+  deliveredAt     DateTime?
+  failedAt        DateTime?
+  errorMessage    String?
+  
+  // Tracking
+  correlationId   String?                  // Link to source event
+  idempotencyKey  String?                  @unique // Prevent duplicates
+  
+  // Delivery results per channel
+  deliveryResults Json?                    // { push: { success: true, messageId: "..." }, email: { ... } }
+  
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  
+  // Relations
+  user            User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries      NotificationDelivery[]
+  
+  @@index([userId])
+  @@index([status, scheduledFor])
+  @@index([notificationType])
+  @@index([priority, scheduledFor])
+  @@index([correlationId])
+  @@map("notification_queue")
+}
+
+enum NotificationPriority {
+  LOW         // Can be delayed, batched
+  NORMAL      // Standard delivery
+  HIGH        // Deliver quickly
+  CRITICAL    // Security alerts - always deliver immediately
+}
+
+enum NotificationQueueStatus {
+  PENDING     // Waiting to be processed
+  PROCESSING  // Currently being sent
+  DELIVERED   // Successfully delivered (at least one channel)
+  PARTIAL     // Some channels failed
+  FAILED      // All channels failed
+  CANCELLED   // Cancelled before delivery
+  EXPIRED     // TTL expired
+}
+
+/// Notification delivery log for analytics and debugging
+model NotificationDelivery {
+  id              String                   @id @default(cuid())
+  queueId         String
+  userId          String
+  channel         String                   // "push", "email", "in_app", "sms"
+  
+  // Delivery details
+  status          DeliveryStatus           @default(PENDING)
+  provider        String?                  // "fcm", "apns", "sendgrid", "twilio"
+  providerMessageId String?                // External message ID
+  
+  // Device info (for push)
+  deviceId        String?
+  pushToken       String?
+  
+  // Email info
+  emailAddress    String?
+  
+  // Timing
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  readAt          DateTime?
+  failedAt        DateTime?
+  
+  // Error handling
+  errorCode       String?
+  errorMessage    String?
+  
+  createdAt       DateTime                 @default(now())
+  
+  // Relations
+  queue           NotificationQueue        @relation(fields: [queueId], references: [id], onDelete: Cascade)
+  user            User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([queueId])
+  @@index([userId, createdAt])
+  @@index([channel, status])
+  @@index([providerMessageId])
+  @@map("notification_deliveries")
+}
+
+enum DeliveryStatus {
+  PENDING     // Queued for delivery
+  SENT        // Sent to provider
+  DELIVERED   // Confirmed delivered
+  READ        // User opened/read
+  FAILED      // Delivery failed
+  BOUNCED     // Email bounced
+  UNSUBSCRIBED // User unsubscribed
 }
