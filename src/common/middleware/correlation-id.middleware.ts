@@ -39,7 +39,7 @@ export class CorrelationIdMiddleware implements NestMiddleware {
       const { method, originalUrl, ip } = req;
       const { statusCode } = res;
 
-      // Log structuré (sans données sensibles)
+      // PR-01: Log structuré enrichi avec contexte (sans données sensibles)
       const logData = {
         correlationId,
         method,
@@ -48,6 +48,11 @@ export class CorrelationIdMiddleware implements NestMiddleware {
         durationMs: duration,
         ip: this.sanitizeIp(ip),
         userAgent: this.truncate(req.headers['user-agent'] || '', 100),
+        // PR-01: Enrichissement avec contexte de requête
+        timezone: req.headers['x-timezone'] as string || undefined,
+        currency: req.headers['x-currency'] as string || undefined,
+        language: req.headers['accept-language']?.split(',')[0] || undefined,
+        deviceId: req.headers['x-device-id'] ? '[PRESENT]' : undefined, // Ne pas logger le deviceId en clair
       };
 
       // Ne pas loguer les health checks en prod pour éviter le bruit

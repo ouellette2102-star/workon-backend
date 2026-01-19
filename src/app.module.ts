@@ -33,6 +33,7 @@ import { MissionEventsModule } from './mission-events/mission-events.module';
 import { OffersModule } from './offers/offers.module';
 import { ComplianceModule } from './compliance/compliance.module';
 import { AuditModule } from './common/audit/audit.module';
+import { AlertModule } from './common/alerts/alert.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { DevicesModule } from './devices/devices.module';
 import { PushModule } from './push/push.module';
@@ -133,6 +134,8 @@ import { SupportModule } from './support/support.module';
     LoggerModule,
     // Audit logging for critical business events (PR-I2)
     AuditModule,
+    // Alert service for production monitoring (PR-01)
+    AlertModule,
     // Nouveaux modules - Users first (needed by AuthModule)
     UsersModule,
     // Auth module (depends on UsersModule)
