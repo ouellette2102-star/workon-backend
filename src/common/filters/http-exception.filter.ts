@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import * as Sentry from '@sentry/node';
 
 /**
  * Codes d'erreur standardisés pour le frontend
@@ -122,11 +123,27 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
       code = ErrorCode.INTERNAL_ERROR;
     }
 
-    // Log des erreurs 5xx
+    // Log des erreurs 5xx et report à Sentry
     if (status >= 500) {
       this.logger.error(`[${requestId}] ${status} ${request.url}`, {
         code,
         message: isProduction ? undefined : message,
+      });
+
+      // PR-01: Report à Sentry pour monitoring et alertes
+      Sentry.withScope((scope) => {
+        scope.setTag('http.status_code', String(status));
+        scope.setTag('error.code', code);
+        scope.setTag('correlation_id', requestId);
+        scope.setExtra('url', request.url);
+        scope.setExtra('method', request.method);
+        scope.setUser({ ip_address: request.ip });
+
+        if (exception instanceof Error) {
+          Sentry.captureException(exception);
+        } else {
+          Sentry.captureMessage(`${code}: ${message}`, 'error');
+        }
       });
     }
 
