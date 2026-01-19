@@ -1,8 +1,23 @@
 # WorkOn Backend API
 
-**WorkOn** est une marketplace de services pour travailleurs autonomes au Québec. Ce backend NestJS gère l'authentification, les missions, les paiements (Stripe), la messagerie, les revenus et les notifications push.
+**WorkOn** est une **marketplace de services** qui connecte des **travailleurs autonomes** avec des **clients** (particuliers ou entreprises) pour des missions ponctuelles au Québec.
+
+> ⚠️ **Important:** WorkOn n'est **pas** une agence de placement ni un employeur. C'est une plateforme de mise en relation entre prestataires indépendants et donneurs d'ouvrage. Voir [VISION.md](docs/VISION.md) pour les détails du modèle juridique.
 
 [![CI](https://github.com/ouellette2102-star/workon-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/ouellette2102-star/workon-backend/actions/workflows/ci.yml)
+
+---
+
+## 🎯 Modèle produit
+
+| Aspect | Description |
+|--------|-------------|
+| **Type** | Marketplace bilatérale (two-sided) |
+| **Offre** | Travailleurs autonomes proposant des services |
+| **Demande** | Clients (particuliers/entreprises) publiant des missions |
+| **Matching** | Opt-in bilatéral (travailleur postule, client accepte) |
+| **Revenus** | Commission 15% sur transactions réussies |
+| **Paiements** | Escrow Stripe, libérés à la complétion |
 
 ---
 
@@ -10,6 +25,7 @@
 
 | Document | Description |
 |----------|-------------|
+| [VISION.md](docs/VISION.md) | **Vision produit & modèle juridique** |
 | [GETTING_STARTED.md](docs/GETTING_STARTED.md) | Quickstart 10 minutes |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture technique détaillée |
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Déploiement Railway (staging/prod) |
