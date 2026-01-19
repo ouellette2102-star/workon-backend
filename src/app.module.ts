@@ -42,6 +42,7 @@ import { SupportModule } from './support/support.module';
 import { IdentityModule } from './identity/identity.module';
 import { SecurityModule } from './common/security/security.module';
 import { SchedulingModule } from './scheduling/scheduling.module';
+import { ProductionConfigModule } from './config/production-config.module';
 
 @Module({
   imports: [
@@ -195,6 +196,8 @@ import { SchedulingModule } from './scheduling/scheduling.module';
     SecurityModule,
     // Scheduling module - Bookings, availability, recurring templates (PR-10)
     SchedulingModule,
+    // Production configuration - Feature flags, secrets validation, safe defaults (PR-11)
+    ProductionConfigModule,
   ],
   controllers: [AppController],
   providers: [
