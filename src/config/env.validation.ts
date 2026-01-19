@@ -287,6 +287,26 @@ export class EnvironmentVariables {
   SENDGRID_FROM_NAME?: string; // Sender name (default: WorkOn)
 
   // Firebase is already configured via FIREBASE_* env vars in push module
+
+  // ========================================
+  // NOTIFICATION WORKER (PR-B)
+  // ========================================
+
+  @IsString()
+  @IsOptional()
+  NOTIFICATION_WORKER_ENABLED?: string; // "1" = enabled (default), "0" = disabled
+
+  @IsString()
+  @IsOptional()
+  NOTIFICATION_WORKER_BATCH_SIZE?: string; // Notifications per batch (default: 10)
+
+  @IsString()
+  @IsOptional()
+  NOTIFICATION_WORKER_POLL_INTERVAL_MS?: string; // Polling interval in ms (default: 5000)
+
+  @IsString()
+  @IsOptional()
+  NOTIFICATION_WORKER_MAX_ITERATIONS?: string; // Max iterations before exit (default: 1000)
 }
 
 /**

@@ -7,6 +7,7 @@ import { NotificationsService } from './notifications.service';
 import { NotificationPreferencesService } from './notification-preferences.service';
 import { NotificationQueueService } from './notification-queue.service';
 import { NotificationDeliveryService } from './notification-delivery.service';
+import { NotificationWorkerService } from './notification-worker.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { DevicesModule } from '../devices/devices.module';
@@ -34,6 +35,11 @@ import {
  * - SendGrid for email
  * - FCM for push notifications
  * - Feature flags control (default: OFF)
+ *
+ * PR-B: Worker process for queue consumption:
+ * - NotificationWorkerService for reliable delivery
+ * - Batch processing with locking
+ * - Retry with exponential backoff
  */
 @Module({
   imports: [
@@ -54,6 +60,7 @@ import {
     NotificationPreferencesService,
     NotificationQueueService,
     NotificationDeliveryService,
+    NotificationWorkerService,
     // Email provider
     SendGridEmailProvider,
     {
@@ -72,6 +79,7 @@ import {
     NotificationPreferencesService,
     NotificationQueueService,
     NotificationDeliveryService,
+    NotificationWorkerService,
   ],
 })
 export class NotificationsModule {}
