@@ -34,6 +34,9 @@ describe('HealthController', () => {
     controller = module.get<HealthController>(HealthController);
   });
 
+  // NOTE: /health and /healthz are defined in main.ts, not in HealthController
+  // Tests for those endpoints should be integration tests, not unit tests
+
   describe('/api/v1/health (detailed health)', () => {
     it('should return health status with checks', async () => {
       const result = await controller.getHealth();
