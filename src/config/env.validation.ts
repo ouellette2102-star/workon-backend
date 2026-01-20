@@ -93,7 +93,7 @@ function logDetailedDiagnostic(config: Record<string, unknown>): void {
   console.log('╠══════════════════════════════════════════════════════════════════╣');
   console.log(`║ BUILD VERSION : ${PACKAGE_VERSION.padEnd(49)}║`);
   console.log(`║ GIT SHA       : ${String(gitSha).substring(0, 40).padEnd(49)}║`);
-  console.log(`║ NODE_ENV      : "${nodeEnv}" ${isProduction ? '(PRODUCTION)' : '(DEV/TEST)'}`.padEnd(69) + '║');
+  console.log(`║ NODE_ENV      : "${nodeEnv}" ${isProduction ? '(PRODUCTION)' : nodeEnv === 'staging' ? '(STAGING)' : '(DEV/TEST)'}`.padEnd(69) + '║');
   console.log(`║ TIMESTAMP     : ${new Date().toISOString().padEnd(49)}║`);
   console.log('╠══════════════════════════════════════════════════════════════════╣');
   console.log('║ CRITICAL VARIABLES ANALYSIS:                                     ║');
@@ -157,7 +157,7 @@ export class EnvironmentVariables {
   DATABASE_URL: string;
 
   @IsString()
-  @IsIn(['development', 'production', 'test'])
+  @IsIn(['development', 'production', 'test', 'staging'])
   @IsNotEmpty()
   NODE_ENV: string;
 
@@ -344,10 +344,13 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
   }
 
   const isProduction = validatedConfig.NODE_ENV === 'production';
+  const isStaging = validatedConfig.NODE_ENV === 'staging';
 
   // ========================================
   // VALIDATIONS PRODUCTION-ONLY
   // Utilise isPresent() pour rejeter: undefined, null, "", "   "
+  // Note: Staging utilise les mêmes checks que development (lenient)
+  //       pour permettre le déploiement sans tous les secrets
   // ========================================
   
   if (isProduction) {
