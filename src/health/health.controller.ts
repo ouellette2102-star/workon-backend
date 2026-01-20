@@ -47,72 +47,10 @@ export class HealthController {
   ) {}
 
   // ============================================
-  // K8s / Railway Standard Probes (root level)
+  // NOTE: /health, /healthz, /readyz sont définis dans main.ts
+  // pour garantir qu'ils répondent AVANT le boot complet de NestJS.
+  // Ce controller ne définit que les endpoints détaillés sous /api/v1/
   // ============================================
-
-  /**
-   * GET /healthz
-   * Liveness probe - Simple check that the process is running
-   * Used by Railway/K8s to know if the container should be restarted
-   */
-  @Get('healthz')
-  @ApiOperation({
-    summary: 'Liveness probe (K8s/Railway)',
-    description: 'Returns 200 if the process is alive. Does not check dependencies.',
-  })
-  @ApiResponse({ status: 200, description: 'Process is alive' })
-  getLiveness(): { status: string; timestamp: string; uptime: number } {
-    return {
-      status: 'alive',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-    };
-  }
-
-  /**
-   * GET /readyz
-   * Readiness probe - Check if the service can accept traffic
-   * Used by Railway/K8s to know if traffic should be routed to this instance
-   */
-  @Get('readyz')
-  @ApiOperation({
-    summary: 'Readiness probe (K8s/Railway)',
-    description: 'Returns 200 if the service is ready to accept traffic, 503 otherwise.',
-  })
-  @ApiResponse({ status: 200, description: 'Service ready' })
-  @ApiResponse({ status: 503, description: 'Service not ready' })
-  async getReadiness(@Res() res: Response): Promise<void> {
-    const timestamp = new Date().toISOString();
-
-    try {
-      // Critical check: Database must be reachable
-      const start = Date.now();
-      await Promise.race([
-        this.prisma.$queryRaw`SELECT 1`,
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('DB timeout')), 2000),
-        ),
-      ]);
-      const dbLatency = Date.now() - start;
-
-      res.status(HttpStatus.OK).json({
-        status: 'ready',
-        timestamp,
-        uptime: process.uptime(),
-        checks: {
-          database: { status: 'ok', latencyMs: dbLatency },
-        },
-      });
-    } catch (error) {
-      this.logger.error(`Readiness probe failed: ${(error as Error).message}`);
-
-      res.status(HttpStatus.SERVICE_UNAVAILABLE).json({
-        status: 'not_ready',
-        timestamp,
-        error: 'Database connection failed',
-      });
-    }
-  }
 
   // ============================================
   // Detailed Health Endpoints (api/v1 prefix)
