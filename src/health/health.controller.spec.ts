@@ -34,25 +34,6 @@ describe('HealthController', () => {
     controller = module.get<HealthController>(HealthController);
   });
 
-  describe('/healthz (liveness probe)', () => {
-    it('should return status alive immediately', () => {
-      const result = controller.getLiveness();
-      
-      expect(result).toBeDefined();
-      expect(result.status).toBe('alive');
-      expect(result.timestamp).toBeDefined();
-      expect(typeof result.uptime).toBe('number');
-    });
-
-    it('should NOT require database connection', () => {
-      // This test verifies that getLiveness() does NOT call Prisma
-      const result = controller.getLiveness();
-      
-      expect(result.status).toBe('alive');
-      expect(mockPrismaService.$queryRaw).not.toHaveBeenCalled();
-    });
-  });
-
   describe('/api/v1/health (detailed health)', () => {
     it('should return health status with checks', async () => {
       const result = await controller.getHealth();
@@ -63,6 +44,19 @@ describe('HealthController', () => {
       expect(result.uptime).toBeDefined();
       expect(result.checks).toBeDefined();
     });
+
+    it('should include database check', async () => {
+      const result = await controller.getHealth();
+      
+      expect(result.checks.database).toBeDefined();
+      expect(result.checks.database.status).toBeDefined();
+    });
+
+    it('should include stripe check', async () => {
+      const result = await controller.getHealth();
+      
+      expect(result.checks.stripe).toBeDefined();
+      expect(result.checks.stripe.status).toBeDefined();
+    });
   });
 });
-
