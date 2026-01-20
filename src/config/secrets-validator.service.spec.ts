@@ -176,14 +176,17 @@ describe('SecretsValidatorService', () => {
   });
 
   describe('production validation', () => {
-    it('should throw in production when required secrets are missing', () => {
+    it('should NOT throw in production when required secrets are missing (allows healthcheck to work)', () => {
+      // RAILWAY FIX: The service no longer throws - it logs errors but lets the server start
+      // This allows /healthz to respond even if some secrets are missing
       mockConfigService.get.mockImplementation((key: string) => {
         if (key === 'NODE_ENV') return 'production';
         // Missing all required secrets
         return undefined;
       });
 
-      expect(() => service.onModuleInit()).toThrow('Secret validation failed');
+      // Should NOT throw - server must start to respond to healthchecks
+      expect(() => service.onModuleInit()).not.toThrow();
     });
 
     it('should not throw in production when all required secrets are present', () => {

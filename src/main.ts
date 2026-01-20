@@ -161,17 +161,27 @@ async function bootstrap() {
   app.useGlobalFilters(new GlobalHttpExceptionFilter());
 
   // ============================================
-  // LIVENESS PROBE (/healthz)
+  // LIVENESS PROBE (/healthz) + RAILWAY HEALTHCHECK (/health)
   // ============================================
   // Retourne TOUJOURS 200 si le process répond (même si DB down)
   // Utilisé par Railway/K8s pour vérifier que le container est vivant
+  // /health = alias pour Railway (default healthcheck path)
+  // /healthz = K8s standard
+  const livenessResponse = () => ({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+    version: process.env.npm_package_version || '1.0.0',
+  });
+
+  // Railway default healthcheck endpoint
+  app.getHttpAdapter().get('/health', (req: any, res: any) => {
+    res.json(livenessResponse());
+  });
+
+  // K8s standard liveness probe
   app.getHttpAdapter().get('/healthz', (req: any, res: any) => {
-    res.json({
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      uptime: Math.floor(process.uptime()),
-      version: process.env.npm_package_version || '1.0.0',
-    });
+    res.json(livenessResponse());
   });
 
   // ============================================
@@ -331,7 +341,7 @@ async function bootstrap() {
   logger.log(`🔒 SECURITY:`);
   logger.log(`    - Helmet: ✅ (noSniff, frameguard, xssFilter)`);
   logger.log(`    - CORS: ${Array.isArray(allowedOrigins) ? allowedOrigins.join(', ') : (allowedOrigins ? 'ALL (⚠️ configure CORS_ORIGIN!)' : 'restricted')}`);
-  logger.log(`💚 Health: /healthz, /readyz, /api/v1/health (no throttle)`);
+  logger.log(`💚 Health: /health, /healthz, /readyz, /api/v1/health (no throttle)`);
   
   // Warnings
   if (isProd && !corsOrigin && !frontendUrl) {
