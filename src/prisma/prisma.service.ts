@@ -28,13 +28,19 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 
   async onModuleInit() {
-    try {
-      await this.$connect();
-      this.logger.log('Database connection established');
-    } catch (error) {
-      this.logger.error('Failed to connect to database', error);
-      throw error;
-    }
+    // RAILWAY FIX: Ne pas bloquer le boot avec $connect()
+    // Prisma se connectera automatiquement à la première requête (lazy connection)
+    // Cela permet au healthcheck /health de répondre immédiatement
+    this.logger.log('Prisma initialized (lazy connection - will connect on first query)');
+    
+    // Tentative de connexion en arrière-plan (non-bloquante)
+    // Si échec, le serveur reste UP et la connexion sera retentée à la première requête
+    this.$connect()
+      .then(() => this.logger.log('Database connection established'))
+      .catch((error) => {
+        this.logger.warn('Initial database connection failed, will retry on first query', error);
+        // NE PAS throw - permet au serveur de démarrer
+      });
   }
 
   async onModuleDestroy() {
