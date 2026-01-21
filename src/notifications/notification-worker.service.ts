@@ -298,7 +298,7 @@ export class NotificationWorkerService implements OnModuleDestroy {
         },
       });
 
-      // TODO: Could trigger alert for critical notifications that failed
+      // NOTE (Post-MVP): Could trigger alert for critical notifications that failed
       return;
     }
 
