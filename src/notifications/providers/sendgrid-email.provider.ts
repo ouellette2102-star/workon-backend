@@ -46,8 +46,21 @@ export class SendGridEmailProvider implements EmailProvider, OnModuleInit {
 
   /**
    * Initialize SendGrid with API key
+   * 
+   * SAFETY: Skips initialization in test environment to prevent
+   * real network calls during CI/test runs.
    */
   private initializeSendGrid(): void {
+    // Safety guard: Never initialize real SendGrid in tests
+    const nodeEnv = this.configService.get<string>('NODE_ENV');
+    if (nodeEnv === 'test') {
+      this.logger.debug(
+        'SendGrid initialization skipped: test environment detected. ' +
+          'Use mock providers for testing.',
+      );
+      return;
+    }
+
     const apiKey = this.configService.get<string>('SENDGRID_API_KEY');
 
     if (!apiKey) {
