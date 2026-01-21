@@ -38,7 +38,7 @@ export class ComplianceService {
    * TEMPORARY: Detect LocalUser (email/password auth from Flutter)
    * LocalUser IDs start with 'local_'
    *
-   * TODO: Remove when LocalComplianceDocument migration is applied
+   * NOTE (Tech Debt): Remove when LocalComplianceDocument migration is applied
    */
   private isLocalUser(userId: string): boolean {
     return userId.startsWith('local_');
