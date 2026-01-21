@@ -67,6 +67,24 @@ describe('SendGridEmailProvider', () => {
 
       expect(noKeyProvider.isReady()).toBe(false);
     });
+
+    it('should skip initialization in test environment (CI safety)', () => {
+      const testEnvConfig = {
+        get: jest.fn((key: string) => {
+          if (key === 'NODE_ENV') return 'test';
+          if (key === 'SENDGRID_API_KEY') return 'real-api-key';
+          return undefined;
+        }),
+      };
+
+      const testProvider = new SendGridEmailProvider(testEnvConfig as any);
+      jest.clearAllMocks(); // Clear any previous calls
+      testProvider.onModuleInit();
+
+      // Should NOT call setApiKey when NODE_ENV === 'test'
+      expect(sgMail.setApiKey).not.toHaveBeenCalled();
+      expect(testProvider.isReady()).toBe(false);
+    });
   });
 
   describe('send', () => {
