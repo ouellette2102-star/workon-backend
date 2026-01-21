@@ -11,9 +11,9 @@ import { PaymentStatus, UserRole } from '@prisma/client';
 import Stripe from 'stripe';
 
 /**
- * Service de gestion Stripe pour WorkOn (version MVP minimale)
+ * Service de gestion Stripe pour WorkOn (version MVP).
  * 
- * TODO: Stripe Connect à implémenter dans une version ultérieure.
+ * NOTE (Post-MVP): Stripe Connect à implémenter pour transferts directs aux workers.
  * Pour l'instant, ce service gère uniquement les paiements directs simples.
  */
 @Injectable()
@@ -70,8 +70,8 @@ export class StripeService {
    * @param amountDollars - Montant en dollars CAD
    * @returns Client secret pour le frontend
    * 
-   * TODO: Implémenter Stripe Connect pour transfert direct au worker
-   * TODO: Vérifier que le worker a complété son onboarding avant de créer le payment
+   * NOTE (Post-MVP): Implémenter Stripe Connect pour transfert direct au worker.
+   * NOTE (Post-MVP): Vérifier que le worker a complété son onboarding avant de créer le payment.
    */
   async createPaymentIntent(
     userId: string,
@@ -128,7 +128,7 @@ export class StripeService {
       throw new BadRequestException('Aucun worker assigné à cette mission');
     }
 
-    // TODO: Vérifier que le worker a complété son onboarding Stripe Connect
+    // NOTE (Post-MVP): Vérifier onboarding Stripe Connect du worker
     // const workerStripeAccountId = mission.assigneeWorker.stripeAccountId;
 
     // Calculer le montant en centimes
@@ -144,7 +144,7 @@ export class StripeService {
         assigneeWorkerId: mission.assigneeWorkerId,
       },
       description: `Paiement mission: ${mission.title}`,
-      // TODO: Ajouter Stripe Connect pour transfert direct
+      // NOTE (Post-MVP): Ajouter Stripe Connect pour transfert direct
       // application_fee_amount: Math.ceil(amountCents * this.PLATFORM_FEE_PERCENT),
       // transfer_data: {
       //   destination: workerStripeAccountId,
@@ -183,7 +183,7 @@ export class StripeService {
    * @param signature - Signature Stripe
    * @returns Event traité
    * 
-   * TODO: Ajouter table WebhookEvent pour idempotence
+   * NOTE (Post-MVP): Ajouter table WebhookEvent pour idempotence
    */
   async handleWebhook(
     rawBody: Buffer,
@@ -211,7 +211,7 @@ export class StripeService {
       throw new BadRequestException('Signature webhook invalide');
     }
 
-    // TODO: Vérifier l'idempotence avec une table WebhookEvent
+    // NOTE (Post-MVP): Vérifier l'idempotence avec une table WebhookEvent
     // Pour l'instant, on traite directement
 
     // Traiter selon le type d'event
@@ -328,7 +328,7 @@ export class StripeService {
   /**
    * Récupérer l'historique des paiements d'un Worker (version simplifiée)
    * 
-   * TODO: Ajouter filtres par date, statut, etc.
+   * NOTE (Post-MVP): Ajouter filtres par date, statut, etc.
    */
   async getWorkerPayments(userId: string): Promise<any[]> {
     const user = await this.prisma.user.findUnique({
@@ -374,20 +374,21 @@ export class StripeService {
   }
 
   /**
-   * Stub pour l'onboarding Stripe Connect (à implémenter)
+   * Stub pour l'onboarding Stripe Connect.
    * 
-   * TODO: Implémenter l'onboarding complet Stripe Connect pour workers
-   * TODO: Ajouter champs stripeAccountId, stripeOnboarded sur User
+   * NOTE (Post-MVP): Implémenter l'onboarding complet Stripe Connect pour workers.
+   * Requiert: champs stripeAccountId, stripeOnboarded sur User model.
    */
   async createConnectOnboardingLink(_userId: string): Promise<string> {
     throw new BadRequestException(
-      'Stripe Connect onboarding pas encore implémenté. ' +
-      'TODO: Ajouter champs stripeAccountId, stripeOnboarded sur User model.',
+      'Stripe Connect n\'est pas encore disponible. ' +
+      'Les paiements directs seront activés dans une prochaine version.',
     );
   }
 
   /**
-   * Stub pour vérifier le statut d'onboarding (à implémenter)
+   * Stub pour vérifier le statut d'onboarding.
+   * NOTE (Post-MVP): Implémenter avec Stripe Connect.
    */
   async checkOnboardingStatus(_userId: string): Promise<{
     onboarded: boolean;
