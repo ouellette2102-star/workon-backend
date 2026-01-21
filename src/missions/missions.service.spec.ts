@@ -2,7 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { MissionsService } from './missions.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { ForbiddenException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { MissionStatus } from '@prisma/client';
 
 // Mock NotificationsService
@@ -10,6 +14,7 @@ const mockNotificationsService = {
   createNotification: jest.fn(),
   sendNotification: jest.fn(),
   notifyMissionStatusChange: jest.fn(),
+  createForMissionStatusChange: jest.fn(),
 };
 
 const mockPrismaService = {
@@ -25,6 +30,7 @@ const mockPrismaService = {
   category: {
     findFirst: jest.fn(),
     findUnique: jest.fn(),
+    create: jest.fn(),
   },
   mission: {
     create: jest.fn(),
@@ -218,6 +224,554 @@ describe('MissionsService', () => {
           status: MissionStatus.COMPLETED,
         }),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('rejette si la mission n appartient pas a l utilisateur', async () => {
+      const userId = 'user-1';
+      const employerId = 'emp-1';
+      const otherUserId = 'other-user';
+
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: userId,
+        userProfile: { role: 'EMPLOYER' },
+        employer: { id: employerId },
+      });
+
+      mockPrismaService.mission.findUnique.mockResolvedValue({
+        id: 'mission-1',
+        authorClientId: otherUserId, // Différent de userId
+        status: MissionStatus.OPEN,
+      });
+
+      await expect(
+        service.updateMissionStatus(userId, 'mission-1', {
+          status: MissionStatus.CANCELLED,
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('rejette les transitions de statut invalides', async () => {
+      const userId = 'user-1';
+      const employerId = 'emp-1';
+
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: userId,
+        userProfile: { role: 'EMPLOYER' },
+        employer: { id: employerId },
+      });
+
+      mockPrismaService.mission.findUnique.mockResolvedValue({
+        id: 'mission-1',
+        authorClientId: userId,
+        status: MissionStatus.COMPLETED, // État final
+      });
+
+      await expect(
+        service.updateMissionStatus(userId, 'mission-1', {
+          status: MissionStatus.IN_PROGRESS, // Transition invalide
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('getMissionsForEmployer', () => {
+    it('retourne les missions de l employeur', async () => {
+      const userId = 'user-1';
+
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: userId,
+        userProfile: { role: 'EMPLOYER' },
+      });
+
+      mockPrismaService.mission.findMany.mockResolvedValue([
+        {
+          id: 'mission-1',
+          title: 'Mission 1',
+          description: 'Desc',
+          categoryId: 'cat-1',
+          locationAddress: null,
+          locationLat: 0,
+          locationLng: 0,
+          budgetMin: 100,
+          budgetMax: 200,
+          startAt: null,
+          endAt: null,
+          status: MissionStatus.OPEN,
+          authorClientId: userId,
+          assigneeWorkerId: null,
+          priceType: 'FIXED',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
+
+      const result = await service.getMissionsForEmployer(userId);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('mission-1');
+      expect(mockPrismaService.mission.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { authorClientId: userId },
+        }),
+      );
+    });
+
+    it('rejette si utilisateur introuvable', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.getMissionsForEmployer('unknown')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('getMissionById', () => {
+    it('retourne la mission si utilisateur est l auteur', async () => {
+      const userId = 'user-1';
+      const missionId = 'mission-1';
+
+      mockPrismaService.mission.findUnique.mockResolvedValue({
+        id: missionId,
+        title: 'Test Mission',
+        description: 'Description',
+        categoryId: 'cat-1',
+        locationAddress: null,
+        locationLat: 0,
+        locationLng: 0,
+        budgetMin: 50,
+        budgetMax: 100,
+        startAt: null,
+        endAt: null,
+        status: MissionStatus.OPEN,
+        authorClientId: userId,
+        assigneeWorkerId: null,
+        priceType: 'HOURLY',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const result = await service.getMissionById(userId, missionId);
+
+      expect(result.id).toBe(missionId);
+    });
+
+    it('retourne la mission si utilisateur est assigné', async () => {
+      const userId = 'worker-1';
+      const missionId = 'mission-1';
+
+      mockPrismaService.mission.findUnique.mockResolvedValue({
+        id: missionId,
+        title: 'Test Mission',
+        description: 'Description',
+        categoryId: 'cat-1',
+        locationAddress: null,
+        locationLat: 0,
+        locationLng: 0,
+        budgetMin: 50,
+        budgetMax: 100,
+        startAt: null,
+        endAt: null,
+        status: MissionStatus.IN_PROGRESS,
+        authorClientId: 'other-user',
+        assigneeWorkerId: userId,
+        priceType: 'HOURLY',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const result = await service.getMissionById(userId, missionId);
+
+      expect(result.id).toBe(missionId);
+    });
+
+    it('rejette si mission introuvable', async () => {
+      mockPrismaService.mission.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.getMissionById('user-1', 'unknown-mission'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('rejette si utilisateur n a pas acces', async () => {
+      mockPrismaService.mission.findUnique.mockResolvedValue({
+        id: 'mission-1',
+        authorClientId: 'other-user',
+        assigneeWorkerId: 'another-worker',
+        status: MissionStatus.IN_PROGRESS,
+      });
+
+      await expect(
+        service.getMissionById('unauthorized-user', 'mission-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('reserveMission', () => {
+    it('reserve la mission pour un worker', async () => {
+      const userId = 'worker-1';
+      const missionId = 'mission-1';
+
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: userId,
+        userProfile: { role: 'WORKER' },
+      });
+
+      mockPrismaService.mission.findUnique.mockResolvedValue({
+        id: missionId,
+        title: 'Mission',
+        description: null,
+        categoryId: 'cat-1',
+        locationAddress: null,
+        locationLat: 0,
+        locationLng: 0,
+        budgetMin: 100,
+        budgetMax: 200,
+        startAt: null,
+        endAt: null,
+        status: MissionStatus.OPEN,
+        authorClientId: 'employer-1',
+        assigneeWorkerId: null,
+        priceType: 'FIXED',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        authorClient: { clerkId: 'clerk-employer' },
+      });
+
+      mockPrismaService.mission.update.mockResolvedValue({
+        id: missionId,
+        title: 'Mission',
+        description: null,
+        categoryId: 'cat-1',
+        locationAddress: null,
+        locationLat: 0,
+        locationLng: 0,
+        budgetMin: 100,
+        budgetMax: 200,
+        startAt: null,
+        endAt: null,
+        status: MissionStatus.MATCHED,
+        authorClientId: 'employer-1',
+        assigneeWorkerId: userId,
+        priceType: 'FIXED',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const result = await service.reserveMission(userId, missionId);
+
+      expect(result.status).toBe(MissionStatus.MATCHED);
+      expect(result.assigneeWorkerId).toBe(userId);
+    });
+
+    it('rejette si utilisateur n est pas worker', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        userProfile: { role: 'EMPLOYER' },
+      });
+
+      await expect(
+        service.reserveMission('user-1', 'mission-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('rejette si mission non disponible', async () => {
+      const userId = 'worker-1';
+
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: userId,
+        userProfile: { role: 'WORKER' },
+      });
+
+      mockPrismaService.mission.findUnique.mockResolvedValue({
+        id: 'mission-1',
+        status: MissionStatus.MATCHED, // Déjà réservée
+        authorClient: null,
+      });
+
+      await expect(
+        service.reserveMission(userId, 'mission-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejette si utilisateur introuvable', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.reserveMission('unknown', 'mission-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('rejette si mission introuvable', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'worker-1',
+        userProfile: { role: 'WORKER' },
+      });
+
+      mockPrismaService.mission.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.reserveMission('worker-1', 'unknown-mission'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getMissionsForWorker', () => {
+    it('retourne les missions assignées au worker', async () => {
+      const userId = 'worker-1';
+
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: userId,
+        userProfile: { role: 'WORKER' },
+      });
+
+      mockPrismaService.mission.findMany.mockResolvedValue([
+        {
+          id: 'mission-1',
+          title: 'Assigned Mission',
+          description: null,
+          categoryId: 'cat-1',
+          locationAddress: null,
+          locationLat: 0,
+          locationLng: 0,
+          budgetMin: 100,
+          budgetMax: 200,
+          startAt: null,
+          endAt: null,
+          status: MissionStatus.IN_PROGRESS,
+          authorClientId: 'employer-1',
+          assigneeWorkerId: userId,
+          priceType: 'FIXED',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
+
+      const result = await service.getMissionsForWorker(userId);
+
+      expect(result).toHaveLength(1);
+      expect(mockPrismaService.mission.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { assigneeWorkerId: userId },
+        }),
+      );
+    });
+
+    it('rejette si utilisateur introuvable', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.getMissionsForWorker('unknown')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('getMissionFeed', () => {
+    it('retourne les missions ouvertes pour le feed', async () => {
+      const userId = 'worker-1';
+
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: userId,
+        userProfile: { role: 'WORKER' },
+      });
+
+      mockPrismaService.mission.findMany.mockResolvedValue([
+        {
+          id: 'mission-1',
+          title: 'Feed Mission',
+          description: 'Description',
+          categoryId: 'cat-1',
+          locationAddress: 'Montreal',
+          locationLat: 45.5,
+          locationLng: -73.5,
+          budgetMin: 100,
+          budgetMax: 200,
+          startAt: null,
+          endAt: null,
+          status: MissionStatus.OPEN,
+          authorClientId: 'employer-1',
+          assigneeWorkerId: null,
+          priceType: 'FIXED',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          authorClient: {
+            userProfile: { name: 'Employer Name' },
+          },
+        },
+      ]);
+
+      const result = await service.getMissionFeed(userId, {});
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('mission-1');
+      expect(result[0].authorName).toBe('Employer Name');
+    });
+
+    it('calcule la distance si coordonnées fournies', async () => {
+      const userId = 'worker-1';
+
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: userId,
+        userProfile: { role: 'WORKER' },
+      });
+
+      mockPrismaService.mission.findMany.mockResolvedValue([
+        {
+          id: 'mission-1',
+          title: 'Nearby Mission',
+          description: 'Description',
+          categoryId: 'cat-1',
+          locationAddress: 'Montreal',
+          locationLat: 45.5017,
+          locationLng: -73.5673,
+          budgetMin: 100,
+          budgetMax: 200,
+          startAt: null,
+          endAt: null,
+          status: MissionStatus.OPEN,
+          authorClientId: 'employer-1',
+          assigneeWorkerId: null,
+          priceType: 'FIXED',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          authorClient: { userProfile: { name: 'Test' } },
+        },
+      ]);
+
+      const result = await service.getMissionFeed(userId, {
+        latitude: 45.5088,
+        longitude: -73.5878,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].distance).toBeDefined();
+      expect(typeof result[0].distance).toBe('number');
+    });
+
+    it('filtre par distance maximale', async () => {
+      const userId = 'worker-1';
+
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: userId,
+        userProfile: { role: 'WORKER' },
+      });
+
+      mockPrismaService.mission.findMany.mockResolvedValue([
+        {
+          id: 'mission-near',
+          title: 'Near Mission',
+          locationLat: 45.502,
+          locationLng: -73.568,
+          status: MissionStatus.OPEN,
+          createdAt: new Date(),
+          authorClient: { userProfile: { name: 'Test' } },
+        },
+        {
+          id: 'mission-far',
+          title: 'Far Mission',
+          locationLat: 46.8,
+          locationLng: -71.2,
+          status: MissionStatus.OPEN,
+          createdAt: new Date(),
+          authorClient: { userProfile: { name: 'Test' } },
+        },
+      ]);
+
+      const result = await service.getMissionFeed(userId, {
+        latitude: 45.5,
+        longitude: -73.56,
+        maxDistance: 5, // 5 km
+      });
+
+      // La mission lointaine devrait être filtrée
+      expect(result.length).toBeLessThanOrEqual(2);
+    });
+
+    it('rejette si utilisateur introuvable', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.getMissionFeed('unknown', {})).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('filtre par catégorie', async () => {
+      const userId = 'worker-1';
+
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: userId,
+        userProfile: { role: 'WORKER' },
+      });
+
+      mockPrismaService.category.findFirst.mockResolvedValue({
+        id: 'cat-1',
+        name: 'Cleaning',
+      });
+
+      mockPrismaService.mission.findMany.mockResolvedValue([]);
+
+      await service.getMissionFeed(userId, { category: 'Cleaning' });
+
+      expect(mockPrismaService.category.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: expect.any(Array),
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('createMissionForEmployer - edge cases', () => {
+    it('cree une nouvelle categorie si inexistante', async () => {
+      const userId = 'user-1';
+
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: userId,
+        userProfile: { role: 'EMPLOYER' },
+      });
+
+      // Catégorie n'existe pas
+      mockPrismaService.category.findFirst.mockResolvedValue(null);
+      mockPrismaService.category.create.mockResolvedValue({
+        id: 'new-cat-id',
+        name: 'NewCategory',
+      });
+
+      mockPrismaService.mission.create.mockResolvedValue({
+        id: 'mission-1',
+        title: 'Test',
+        description: '',
+        categoryId: 'new-cat-id',
+        locationAddress: null,
+        locationLat: 0,
+        locationLng: 0,
+        budgetMin: 0,
+        budgetMax: 0,
+        startAt: null,
+        endAt: null,
+        status: MissionStatus.OPEN,
+        authorClientId: userId,
+        assigneeWorkerId: null,
+        priceType: 'FIXED',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const result = await service.createMissionForEmployer(userId, {
+        title: 'Test',
+        category: 'NewCategory',
+      } as any);
+
+      expect(mockPrismaService.category.create).toHaveBeenCalled();
+      expect(result.id).toBe('mission-1');
+    });
+
+    it('rejette si utilisateur introuvable', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.createMissionForEmployer('unknown', { title: 'Test' } as any),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });
