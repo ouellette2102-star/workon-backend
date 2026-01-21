@@ -71,14 +71,46 @@ jobs:
         run: npx prisma generate
       - name: Run migrations
         run: npx prisma migrate deploy
-      - name: Run tests
-        run: npm run test
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
+      - name: Run tests with coverage
+        run: npm run test:cov
+      
+      - name: Coverage Summary
+        run: |
+          echo "========================================="
+          echo "  TEST COVERAGE REPORT"
+          echo "========================================="
+          if [ -f coverage/coverage-summary.json ]; then
+            LINES=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
+            STATEMENTS=$(cat coverage/coverage-summary.json | jq '.total.statements.pct')
+            FUNCTIONS=$(cat coverage/coverage-summary.json | jq '.total.functions.pct')
+            BRANCHES=$(cat coverage/coverage-summary.json | jq '.total.branches.pct')
+            
+            echo "📊 Lines:      $LINES%"
+            echo "📊 Statements: $STATEMENTS%"
+            echo "📊 Functions:  $FUNCTIONS%"
+            echo "📊 Branches:   $BRANCHES%"
+            echo "========================================="
+            
+            # Minimum threshold: 50% (can be increased later)
+            MIN_COVERAGE=50
+            
+            if (( $(echo "$LINES < $MIN_COVERAGE" | bc -l) )); then
+              echo "❌ Line coverage ($LINES%) is below minimum ($MIN_COVERAGE%)"
+              exit 1
+            fi
+            
+            echo "✅ Coverage meets minimum threshold ($MIN_COVERAGE%)"
+          else
+            echo "⚠️ Coverage summary not found - skipping threshold check"
+          fi
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
         if: always()
         with:
           files: ./coverage/lcov.info
           fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   # ============================================
   # QA GATE - Contract & Smoke Checks
