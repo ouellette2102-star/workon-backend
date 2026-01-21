@@ -1,13 +1,25 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { UsersService } from './users.service';
 import { UsersRepository } from './users.repository';
 import { LocalUserRole } from '@prisma/client';
 import * as fs from 'fs/promises';
+import * as bcrypt from 'bcryptjs';
 
 // Mock fs/promises
 jest.mock('fs/promises');
 const mockFs = fs as jest.Mocked<typeof fs>;
+
+// Mock bcryptjs
+jest.mock('bcryptjs', () => ({
+  hash: jest.fn().mockResolvedValue('hashed_password'),
+  compare: jest.fn(),
+}));
+const mockBcrypt = bcrypt as jest.Mocked<typeof bcrypt>;
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -252,6 +264,170 @@ describe('UsersService', () => {
       const result = await service.uploadPicture('user_123', webpFile, baseUrl);
 
       expect(result.pictureUrl).toBeDefined();
+    });
+
+    it('should handle file without extension', async () => {
+      repository.findById.mockResolvedValue(mockUser);
+      repository.updatePictureUrl.mockResolvedValue({
+        ...mockUser,
+        pictureUrl: 'http://localhost:3000/uploads/users/user_123/profile.jpg',
+      });
+
+      const fileNoExt = { ...mockFile, originalname: 'test' };
+
+      const result = await service.uploadPicture('user_123', fileNoExt, baseUrl);
+
+      expect(result.pictureUrl).toBeDefined();
+    });
+
+    it('should ignore error when deleting non-existent old picture', async () => {
+      const userWithPicture = {
+        ...mockUser,
+        pictureUrl: 'http://localhost:3000/uploads/users/user_123/old.jpg',
+      };
+      repository.findById.mockResolvedValue(userWithPicture);
+      repository.updatePictureUrl.mockResolvedValue({
+        ...userWithPicture,
+        pictureUrl: 'http://localhost:3000/uploads/users/user_123/new.jpg',
+      });
+      mockFs.unlink.mockRejectedValue(new Error('ENOENT'));
+
+      // Should not throw
+      const result = await service.uploadPicture('user_123', mockFile, baseUrl);
+
+      expect(result.pictureUrl).toBeDefined();
+    });
+  });
+
+  describe('create', () => {
+    const createUserDto = {
+      email: 'new@example.com',
+      password: 'Password123!',
+      firstName: 'New',
+      lastName: 'User',
+    };
+
+    it('should create a new user successfully', async () => {
+      repository.emailExists.mockResolvedValue(false);
+      repository.create.mockResolvedValue({
+        ...mockUser,
+        email: createUserDto.email,
+      });
+
+      const result = await service.create(createUserDto as any);
+
+      expect(result.email).toBe(createUserDto.email);
+      expect(repository.emailExists).toHaveBeenCalledWith(createUserDto.email);
+      expect(repository.create).toHaveBeenCalled();
+    });
+
+    it('should throw ConflictException if email already exists', async () => {
+      repository.emailExists.mockResolvedValue(true);
+
+      await expect(service.create(createUserDto as any)).rejects.toThrow(
+        ConflictException,
+      );
+
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+
+    it('should hash the password before storing', async () => {
+      repository.emailExists.mockResolvedValue(false);
+      repository.create.mockResolvedValue(mockUser);
+
+      await service.create(createUserDto as any);
+
+      expect(mockBcrypt.hash).toHaveBeenCalledWith(
+        createUserDto.password,
+        12, // SALT_ROUNDS
+      );
+      expect(repository.create).toHaveBeenCalledWith(
+        createUserDto,
+        'hashed_password',
+      );
+    });
+  });
+
+  describe('findByEmail', () => {
+    it('should return user by email', async () => {
+      const userWithPassword = { ...mockUser, hashedPassword: 'hashed' };
+      repository.findByEmail.mockResolvedValue(userWithPassword as any);
+
+      const result = await service.findByEmail('test@example.com');
+
+      expect(result).toBeDefined();
+      expect(repository.findByEmail).toHaveBeenCalledWith('test@example.com');
+    });
+
+    it('should return null if user not found', async () => {
+      repository.findByEmail.mockResolvedValue(null);
+
+      const result = await service.findByEmail('unknown@example.com');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('verifyPassword', () => {
+    it('should return true for matching password', async () => {
+      (mockBcrypt.compare as jest.Mock).mockResolvedValue(true);
+
+      const result = await service.verifyPassword('password', 'hashedPassword');
+
+      expect(result).toBe(true);
+      expect(mockBcrypt.compare).toHaveBeenCalledWith('password', 'hashedPassword');
+    });
+
+    it('should return false for non-matching password', async () => {
+      (mockBcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+      const result = await service.verifyPassword('wrong', 'hashedPassword');
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('updatePassword', () => {
+    it('should update password successfully', async () => {
+      repository.findById.mockResolvedValue(mockUser);
+      repository.updatePassword.mockResolvedValue({} as any);
+
+      await service.updatePassword('user_123', 'newPassword');
+
+      expect(repository.updatePassword).toHaveBeenCalledWith(
+        'user_123',
+        'hashed_password',
+      );
+    });
+
+    it('should throw NotFoundException if user not found', async () => {
+      repository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.updatePassword('unknown', 'newPassword'),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(repository.updatePassword).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deactivate', () => {
+    it('should deactivate user successfully', async () => {
+      repository.findById.mockResolvedValue(mockUser);
+      repository.deactivate.mockResolvedValue({ ...mockUser, active: false } as any);
+
+      const result = await service.deactivate('user_123');
+
+      expect(result.active).toBe(false);
+      expect(repository.deactivate).toHaveBeenCalledWith('user_123');
+    });
+
+    it('should throw NotFoundException if user not found', async () => {
+      repository.findById.mockResolvedValue(null);
+
+      await expect(service.deactivate('unknown')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });
