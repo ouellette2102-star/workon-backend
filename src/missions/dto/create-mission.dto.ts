@@ -50,6 +50,30 @@ export class CreateMissionDto {
   address?: string;
 
   @ApiPropertyOptional({
+    description: 'Latitude de la mission (coordonnées GPS)',
+    example: 45.5231,
+    minimum: -90,
+    maximum: 90,
+  })
+  @IsNumber()
+  @IsOptional()
+  @Min(-90)
+  @Max(90)
+  latitude?: number;
+
+  @ApiPropertyOptional({
+    description: 'Longitude de la mission (coordonnées GPS)',
+    example: -73.5812,
+    minimum: -180,
+    maximum: 180,
+  })
+  @IsNumber()
+  @IsOptional()
+  @Min(-180)
+  @Max(180)
+  longitude?: number;
+
+  @ApiPropertyOptional({
     description: 'Taux horaire proposé (CAD)',
     example: 25.00,
     minimum: 15,

@@ -7,7 +7,7 @@
   "deploy": {
     "numReplicas": 1,
     "startCommand": "node dist/main.js",
-    "releaseCommand": "npx prisma migrate deploy",
+    "releaseCommand": "node scripts/railway-release.js",
     "healthcheckPath": "/healthz",
     "healthcheckTimeout": 120,
     "restartPolicyType": "ON_FAILURE",

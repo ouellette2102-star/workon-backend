@@ -17,6 +17,7 @@
     "start:prod": "node dist/main",
     "start:railway": "node scripts/railway-start.js",
     "railway:migrate": "node scripts/railway-migrate.js",
+    "railway:release": "node scripts/railway-release.js",
     "worker:notifications": "node dist/workers/notification-worker.js",
     "worker:notifications:dev": "ts-node src/workers/notification-worker.ts",
     "lint": "cross-env ESLINT_USE_FLAT_CONFIG=false node ./node_modules/eslint/bin/eslint.js --config .eslintrc.js --resolve-plugins-relative-to . \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -125,9 +126,26 @@
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "**/*.(t|j)s",
+      "!**/*.module.ts",
+      "!**/main.ts",
+      "!**/index.ts"
     ],
     "coverageDirectory": "../coverage",
+    "coverageReporters": [
+      "text",
+      "text-summary",
+      "lcov",
+      "json-summary"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "lines": 36,
+        "statements": 36,
+        "functions": 37,
+        "branches": 31
+      }
+    },
     "testEnvironment": "node",
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/$1"

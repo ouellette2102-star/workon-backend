@@ -143,8 +143,8 @@ export class MissionsService {
         description: dto.description || '',
         categoryId,
         locationAddress: dto.address || dto.city || null,
-        locationLat: 0, // TODO: géolocalisation réelle
-        locationLng: 0, // TODO: géolocalisation réelle
+        locationLat: dto.latitude ?? 0,
+        locationLng: dto.longitude ?? 0,
         priceType: dto.hourlyRate ? 'HOURLY' : 'FIXED',
         budgetMin: dto.hourlyRate || 0,
         budgetMax: dto.hourlyRate || 0,
