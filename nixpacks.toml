@@ -1,5 +1,9 @@
 # Railway build configuration for NestJS backend
-# WorkOn API - Uber-grade backend
+# WorkOn API - Production-ready backend
+#
+# NOTE: This file ONLY handles BUILD phases.
+# Deployment (start, release, healthcheck) is handled by railway.json
+# DO NOT add [start] section here - it overrides Railway's releaseCommand
 
 [phases.setup]
 nixPkgs = ["nodejs_20", "python3"]
@@ -15,7 +19,8 @@ cmds = [
   "npm run build"
 ]
 
-[start]
-# Run migrations at RUNTIME (network internal available) then start app
-cmd = "npx prisma migrate deploy && node dist/main.js"
-
+# [start] section REMOVED
+# Railway lifecycle is now:
+# 1. Build (this file)
+# 2. Release Command (railway.json → node scripts/railway-release.js)
+# 3. Start Command (railway.json → npx prisma migrate deploy && node dist/main.js)
