@@ -6,7 +6,7 @@
   },
   "deploy": {
     "numReplicas": 1,
-    "startCommand": "node dist/main.js",
+    "startCommand": "npx prisma migrate deploy && node dist/main.js",
     "releaseCommand": "node scripts/railway-release.js",
     "healthcheckPath": "/healthz",
     "healthcheckTimeout": 120,
@@ -14,4 +14,3 @@
     "restartPolicyMaxRetries": 3
   }
 }
-
