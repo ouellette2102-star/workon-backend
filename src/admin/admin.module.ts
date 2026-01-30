@@ -6,6 +6,7 @@ import { AuthModule } from '../auth/auth.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { AuditModule } from '../common/audit/audit.module';
 import { AdminActionInterceptor } from '../auth/interceptors/admin-action.interceptor';
+import { CatalogModule } from '../catalog/catalog.module';
 
 /**
  * Admin Module
@@ -15,7 +16,7 @@ import { AdminActionInterceptor } from '../auth/interceptors/admin-action.interc
  * for automatic audit trail in TrustAuditLog.
  */
 @Module({
-  imports: [PrismaModule, AuthModule, PaymentsModule, AuditModule],
+  imports: [PrismaModule, AuthModule, PaymentsModule, AuditModule, CatalogModule],
   controllers: [AdminController],
   providers: [AdminService, AdminActionInterceptor],
 })
