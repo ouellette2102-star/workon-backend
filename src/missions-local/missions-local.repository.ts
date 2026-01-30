@@ -77,12 +77,24 @@ export class MissionsLocalRepository {
    * @param latitude User's latitude
    * @param longitude User's longitude
    * @param radiusKm Search radius in kilometers
+   * @param options Optional filters: sort, category, query
    */
-  async findNearby(latitude: number, longitude: number, radiusKm: number) {
+  async findNearby(
+    latitude: number,
+    longitude: number,
+    radiusKm: number,
+    options?: {
+      sort?: 'proximity' | 'date' | 'price';
+      category?: string;
+      query?: string;
+    },
+  ) {
+    const { sort = 'proximity', category, query } = options || {};
+
     // Use raw SQL for geospatial distance calculation
     // Haversine formula: calculates distance between two lat/lng points
     // Fixed: Using subquery instead of HAVING (which requires GROUP BY)
-    const missions = await this.prisma.$queryRaw<any[]>`
+    let missions = await this.prisma.$queryRaw<any[]>`
       SELECT * FROM (
         SELECT 
           id,
@@ -115,10 +127,39 @@ export class MissionsLocalRepository {
       ) AS nearby
       WHERE "distanceKm" <= ${radiusKm}
       ORDER BY "distanceKm" ASC
-      LIMIT 50
+      LIMIT 100
     `;
 
-    return missions;
+    // Apply filters in JavaScript (safe and simple)
+    if (category) {
+      missions = missions.filter(m => m.category === category);
+    }
+
+    if (query) {
+      const q = query.toLowerCase();
+      missions = missions.filter(
+        m =>
+          m.title?.toLowerCase().includes(q) ||
+          m.description?.toLowerCase().includes(q),
+      );
+    }
+
+    // Apply sorting
+    switch (sort) {
+      case 'date':
+        missions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        break;
+      case 'price':
+        missions.sort((a, b) => (a.price || 0) - (b.price || 0));
+        break;
+      case 'proximity':
+      default:
+        // Already sorted by distance in SQL
+        break;
+    }
+
+    // Limit to 50 after filtering
+    return missions.slice(0, 50);
   }
 
   /**
