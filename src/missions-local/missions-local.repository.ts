@@ -15,29 +15,44 @@ export class MissionsLocalRepository {
 
   /**
    * Create a new mission
+   * Using raw SQL to avoid potential Prisma client issues
    */
   async create(createMissionDto: CreateMissionDto, createdByUserId: string) {
     this.logger.log(`Creating mission: ${createMissionDto.title} for user: ${createdByUserId}`);
 
     const id = `lm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const now = new Date();
     
     try {
-      const mission = await this.prisma.localMission.create({
-        data: {
-          id,
-          title: createMissionDto.title,
-          description: createMissionDto.description,
-          category: createMissionDto.category,
-          price: createMissionDto.price,
-          latitude: createMissionDto.latitude,
-          longitude: createMissionDto.longitude,
-          city: createMissionDto.city,
-          address: createMissionDto.address,
-          createdByUserId,
-          status: 'open',
-          updatedAt: new Date(),
-        },
-      });
+      // Use raw SQL INSERT to avoid Prisma ORM issues
+      await this.prisma.$executeRaw`
+        INSERT INTO local_missions (
+          id, title, description, category, status, price,
+          latitude, longitude, city, address,
+          "createdByUserId", "createdAt", "updatedAt"
+        ) VALUES (
+          ${id},
+          ${createMissionDto.title},
+          ${createMissionDto.description},
+          ${createMissionDto.category},
+          'open',
+          ${createMissionDto.price},
+          ${createMissionDto.latitude},
+          ${createMissionDto.longitude},
+          ${createMissionDto.city},
+          ${createMissionDto.address || null},
+          ${createdByUserId},
+          ${now},
+          ${now}
+        )
+      `;
+
+      // Fetch and return the created mission
+      const missions = await this.prisma.$queryRaw<any[]>`
+        SELECT * FROM local_missions WHERE id = ${id}
+      `;
+      
+      const mission = missions[0];
       this.logger.log(`Mission created successfully: ${mission.id}`);
       return mission;
     } catch (error) {
@@ -126,14 +141,32 @@ export class MissionsLocalRepository {
 
   /**
    * Get missions created by a user
+   * Using raw SQL to avoid potential Prisma client issues
    */
   async findByCreator(createdByUserId: string) {
     this.logger.log(`findByCreator called for userId: ${createdByUserId}`);
     try {
-      const result = await this.prisma.localMission.findMany({
-        where: { createdByUserId },
-        orderBy: { createdAt: 'desc' },
-      });
+      // Use raw SQL like findNearby to avoid Prisma ORM issues
+      const result = await this.prisma.$queryRaw<any[]>`
+        SELECT 
+          id,
+          title,
+          description,
+          category,
+          status,
+          price,
+          latitude,
+          longitude,
+          city,
+          address,
+          "createdByUserId",
+          "assignedToUserId",
+          "createdAt",
+          "updatedAt"
+        FROM local_missions
+        WHERE "createdByUserId" = ${createdByUserId}
+        ORDER BY "createdAt" DESC
+      `;
       this.logger.log(`findByCreator returned ${result.length} missions`);
       return result;
     } catch (error) {
@@ -144,14 +177,32 @@ export class MissionsLocalRepository {
 
   /**
    * Get missions assigned to a worker
+   * Using raw SQL to avoid potential Prisma client issues
    */
   async findByWorker(assignedToUserId: string) {
     this.logger.log(`findByWorker called for userId: ${assignedToUserId}`);
     try {
-      const result = await this.prisma.localMission.findMany({
-        where: { assignedToUserId },
-        orderBy: { updatedAt: 'desc' },
-      });
+      // Use raw SQL like findNearby to avoid Prisma ORM issues
+      const result = await this.prisma.$queryRaw<any[]>`
+        SELECT 
+          id,
+          title,
+          description,
+          category,
+          status,
+          price,
+          latitude,
+          longitude,
+          city,
+          address,
+          "createdByUserId",
+          "assignedToUserId",
+          "createdAt",
+          "updatedAt"
+        FROM local_missions
+        WHERE "assignedToUserId" = ${assignedToUserId}
+        ORDER BY "updatedAt" DESC
+      `;
       this.logger.log(`findByWorker returned ${result.length} missions`);
       return result;
     } catch (error) {
