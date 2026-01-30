@@ -57,42 +57,39 @@ export class MissionsLocalRepository {
   async findNearby(latitude: number, longitude: number, radiusKm: number) {
     // Use raw SQL for geospatial distance calculation
     // Haversine formula: calculates distance between two lat/lng points
+    // Fixed: Using subquery instead of HAVING (which requires GROUP BY)
     const missions = await this.prisma.$queryRaw<any[]>`
-      SELECT 
-        id,
-        title,
-        description,
-        category,
-        status,
-        price,
-        latitude,
-        longitude,
-        city,
-        address,
-        "createdByUserId",
-        "assignedToUserId",
-        "createdAt",
-        "updatedAt",
-        (
-          6371 * acos(
-            cos(radians(${latitude})) 
-            * cos(radians(latitude)) 
-            * cos(radians(longitude) - radians(${longitude})) 
-            + sin(radians(${latitude})) 
-            * sin(radians(latitude))
-          )
-        ) AS "distanceKm"
-      FROM local_missions
-      WHERE status = 'open'
-      HAVING (
-        6371 * acos(
-          cos(radians(${latitude})) 
-          * cos(radians(latitude)) 
-          * cos(radians(longitude) - radians(${longitude})) 
-          + sin(radians(${latitude})) 
-          * sin(radians(latitude))
-        )
-      ) <= ${radiusKm}
+      SELECT * FROM (
+        SELECT 
+          id,
+          title,
+          description,
+          category,
+          status,
+          price,
+          latitude,
+          longitude,
+          city,
+          address,
+          "createdByUserId",
+          "assignedToUserId",
+          "createdAt",
+          "updatedAt",
+          (
+            6371 * acos(
+              LEAST(1.0, GREATEST(-1.0,
+                cos(radians(${latitude})) 
+                * cos(radians(latitude)) 
+                * cos(radians(longitude) - radians(${longitude})) 
+                + sin(radians(${latitude})) 
+                * sin(radians(latitude))
+              ))
+            )
+          ) AS "distanceKm"
+        FROM local_missions
+        WHERE status = 'open'
+      ) AS nearby
+      WHERE "distanceKm" <= ${radiusKm}
       ORDER BY "distanceKm" ASC
       LIMIT 50
     `;
