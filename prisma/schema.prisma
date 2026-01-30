@@ -274,6 +274,7 @@ model LocalUser {
   assignedMissions LocalMission[] @relation("local_missions_assignedToUserIdTolocal_users")
   createdMissions  LocalMission[] @relation("local_missions_createdByUserIdTolocal_users")
   offers           LocalOffer[]
+  devices          LocalDevice[] // Push notification devices
 
   @@index([active])
   @@index([city])
@@ -285,6 +286,26 @@ model LocalUser {
   @@index([idVerificationStatus])
   @@index([deletionScheduledFor])
   @@map("local_users")
+}
+
+/// Device registration for push notifications (LocalUser system)
+model LocalDevice {
+  id         String   @id @default(uuid())
+  userId     String
+  deviceId   String // Unique device identifier (vendor ID, etc.)
+  platform   String // ios, android, web
+  pushToken  String? // FCM/APNs token
+  appVersion String?
+  active     Boolean  @default(true)
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       LocalUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+  @@index([active])
+  @@map("local_devices")
 }
 
 model Mission {
