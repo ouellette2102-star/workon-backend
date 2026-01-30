@@ -17,25 +17,34 @@ export class MissionsLocalRepository {
    * Create a new mission
    */
   async create(createMissionDto: CreateMissionDto, createdByUserId: string) {
-    this.logger.log(`Creating mission: ${createMissionDto.title}`);
+    this.logger.log(`Creating mission: ${createMissionDto.title} for user: ${createdByUserId}`);
 
     const id = `lm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    return this.prisma.localMission.create({
-      data: {
-        id,
-        title: createMissionDto.title,
-        description: createMissionDto.description,
-        category: createMissionDto.category,
-        price: createMissionDto.price,
-        latitude: createMissionDto.latitude,
-        longitude: createMissionDto.longitude,
-        city: createMissionDto.city,
-        address: createMissionDto.address,
-        createdByUserId,
-        status: 'open',
-        updatedAt: new Date(),
-      },
-    });
+    
+    try {
+      const mission = await this.prisma.localMission.create({
+        data: {
+          id,
+          title: createMissionDto.title,
+          description: createMissionDto.description,
+          category: createMissionDto.category,
+          price: createMissionDto.price,
+          latitude: createMissionDto.latitude,
+          longitude: createMissionDto.longitude,
+          city: createMissionDto.city,
+          address: createMissionDto.address,
+          createdByUserId,
+          status: 'open',
+          updatedAt: new Date(),
+        },
+      });
+      this.logger.log(`Mission created successfully: ${mission.id}`);
+      return mission;
+    } catch (error) {
+      this.logger.error(`Mission creation FAILED: ${error.message}`, error.stack);
+      this.logger.error(`Failed data: userId=${createdByUserId}, title=${createMissionDto.title}`);
+      throw error;
+    }
   }
 
   /**
@@ -119,20 +128,36 @@ export class MissionsLocalRepository {
    * Get missions created by a user
    */
   async findByCreator(createdByUserId: string) {
-    return this.prisma.localMission.findMany({
-      where: { createdByUserId },
-      orderBy: { createdAt: 'desc' },
-    });
+    this.logger.log(`findByCreator called for userId: ${createdByUserId}`);
+    try {
+      const result = await this.prisma.localMission.findMany({
+        where: { createdByUserId },
+        orderBy: { createdAt: 'desc' },
+      });
+      this.logger.log(`findByCreator returned ${result.length} missions`);
+      return result;
+    } catch (error) {
+      this.logger.error(`findByCreator FAILED: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   /**
    * Get missions assigned to a worker
    */
   async findByWorker(assignedToUserId: string) {
-    return this.prisma.localMission.findMany({
-      where: { assignedToUserId },
-      orderBy: { updatedAt: 'desc' },
-    });
+    this.logger.log(`findByWorker called for userId: ${assignedToUserId}`);
+    try {
+      const result = await this.prisma.localMission.findMany({
+        where: { assignedToUserId },
+        orderBy: { updatedAt: 'desc' },
+      });
+      this.logger.log(`findByWorker returned ${result.length} missions`);
+      return result;
+    } catch (error) {
+      this.logger.error(`findByWorker FAILED: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   /**
