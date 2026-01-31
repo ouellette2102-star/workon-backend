@@ -23,7 +23,7 @@ describe('CorrelationIdMiddleware', () => {
       ip: '192.168.1.100',
     } as Partial<Request>;
 
-    const responseListeners: Record<string, Function> = {};
+    const responseListeners: Record<string, () => void> = {};
     mockResponse = {
       setHeader: jest.fn(),
       statusCode: 200,
