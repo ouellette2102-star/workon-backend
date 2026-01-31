@@ -1,33 +1,80 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JwtLocalStrategy } from './jwt-local.strategy';
+import { LocalAuthService } from '../local-auth.service';
 
-// Since jwt-local.strategy might not exist, we'll test the basic JWT local pattern
-describe('JwtLocalStrategy (pattern test)', () => {
-  const mockConfigService = {
-    get: jest.fn(),
+describe('JwtLocalStrategy', () => {
+  let strategy: JwtLocalStrategy;
+  let localAuthService: any;
+
+  const mockUser = {
+    id: 'user-1',
+    email: 'test@example.com',
+    role: 'worker',
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    const mockLocalAuthService = {
+      validateUser: jest.fn(),
+    };
+
+    const mockConfigService = {
+      get: jest.fn((key: string) => {
+        if (key === 'JWT_SECRET') return 'test-secret';
+        return undefined;
+      }),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        JwtLocalStrategy,
+        { provide: LocalAuthService, useValue: mockLocalAuthService },
+        { provide: ConfigService, useValue: mockConfigService },
+      ],
+    }).compile();
+
+    strategy = module.get<JwtLocalStrategy>(JwtLocalStrategy);
+    localAuthService = module.get(LocalAuthService);
+  });
+
+  afterEach(() => {
     jest.clearAllMocks();
   });
 
-  describe('configuration', () => {
-    it('should use JWT_SECRET from config', () => {
-      mockConfigService.get.mockReturnValue('my_secret_key');
-      
-      const secret = mockConfigService.get('JWT_SECRET');
-      
-      expect(secret).toBe('my_secret_key');
-      expect(mockConfigService.get).toHaveBeenCalledWith('JWT_SECRET');
+  describe('validate', () => {
+    it('should return user object for valid local token', async () => {
+      const payload = { sub: 'user-1', role: 'worker', provider: 'local' };
+      localAuthService.validateUser.mockResolvedValue(mockUser);
+
+      const result = await strategy.validate(payload);
+
+      expect(localAuthService.validateUser).toHaveBeenCalledWith('user-1');
+      expect(result).toEqual({
+        sub: 'user-1',
+        email: 'test@example.com',
+        role: 'worker',
+        provider: 'local',
+      });
     });
 
-    it('should throw when JWT_SECRET is not configured', () => {
-      mockConfigService.get.mockReturnValue(undefined);
-      
-      const secret = mockConfigService.get('JWT_SECRET');
-      
-      expect(secret).toBeUndefined();
+    it('should throw UnauthorizedException for non-local provider', async () => {
+      const payload = { sub: 'user-1', role: 'worker', provider: 'clerk' };
+
+      await expect(strategy.validate(payload)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should throw when localAuthService.validateUser throws', async () => {
+      const payload = { sub: 'user-1', role: 'worker', provider: 'local' };
+      localAuthService.validateUser.mockRejectedValue(
+        new UnauthorizedException('User not found'),
+      );
+
+      await expect(strategy.validate(payload)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
   });
 });
