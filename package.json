@@ -33,6 +33,7 @@
     "migrate:prod": "prisma migrate deploy",
     "seed": "ts-node prisma/seed.ts",
     "seed:dev": "ts-node prisma/seed.dev.ts",
+    "seed:review": "ts-node prisma/seed.review.ts",
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
     "prisma:db:push": "prisma db push",
