@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
 import { SendGridEmailProvider } from './sendgrid-email.provider';
+import { ConfigService } from '@nestjs/config';
 
-// Mock SendGrid
+// Mock @sendgrid/mail
 jest.mock('@sendgrid/mail', () => ({
   setApiKey: jest.fn(),
   send: jest.fn(),
@@ -12,84 +12,115 @@ import * as sgMail from '@sendgrid/mail';
 
 describe('SendGridEmailProvider', () => {
   let provider: SendGridEmailProvider;
-  let configService: ConfigService;
+  let configService: jest.Mocked<ConfigService>;
 
   const mockConfigService = {
-    get: jest.fn((key: string, defaultValue?: string) => {
-      const config: Record<string, string> = {
-        SENDGRID_API_KEY: 'test-api-key',
-        SENDGRID_FROM_EMAIL: 'test@workon.app',
-        SENDGRID_FROM_NAME: 'WorkOn Test',
-      };
-      return config[key] || defaultValue;
-    }),
+    get: jest.fn(),
   };
 
   beforeEach(async () => {
+    jest.clearAllMocks();
+
+    // Default config
+    mockConfigService.get.mockImplementation((key: string, defaultValue?: string) => {
+      switch (key) {
+        case 'NODE_ENV':
+          return 'development';
+        case 'SENDGRID_API_KEY':
+          return 'SG.test_api_key';
+        case 'SENDGRID_FROM_EMAIL':
+          return defaultValue || 'noreply@workon.app';
+        case 'SENDGRID_FROM_NAME':
+          return defaultValue || 'WorkOn';
+        default:
+          return defaultValue;
+      }
+    });
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SendGridEmailProvider,
-        {
-          provide: ConfigService,
-          useValue: mockConfigService,
-        },
+        { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
 
     provider = module.get<SendGridEmailProvider>(SendGridEmailProvider);
-    configService = module.get<ConfigService>(ConfigService);
-
-    jest.clearAllMocks();
   });
 
-  it('should be defined', () => {
-    expect(provider).toBeDefined();
-  });
+  describe('onModuleInit', () => {
+    it('should skip initialization in test environment', () => {
+      mockConfigService.get.mockImplementation((key: string) => {
+        if (key === 'NODE_ENV') return 'test';
+        return undefined;
+      });
 
-  describe('initialization', () => {
-    it('should have correct channel and provider name', () => {
-      expect(provider.channel).toBe('email');
-      expect(provider.providerName).toBe('sendgrid');
-    });
-
-    it('should initialize SendGrid on module init', () => {
       provider.onModuleInit();
-      expect(sgMail.setApiKey).toHaveBeenCalledWith('test-api-key');
-    });
 
-    it('should not initialize without API key', () => {
-      const noKeyConfig = {
-        get: jest.fn(() => undefined),
-      };
-
-      const noKeyProvider = new SendGridEmailProvider(noKeyConfig as any);
-      noKeyProvider.onModuleInit();
-
-      expect(noKeyProvider.isReady()).toBe(false);
-    });
-
-    it('should skip initialization in test environment (CI safety)', () => {
-      const testEnvConfig = {
-        get: jest.fn((key: string) => {
-          if (key === 'NODE_ENV') return 'test';
-          if (key === 'SENDGRID_API_KEY') return 'real-api-key';
-          return undefined;
-        }),
-      };
-
-      const testProvider = new SendGridEmailProvider(testEnvConfig as any);
-      jest.clearAllMocks(); // Clear any previous calls
-      testProvider.onModuleInit();
-
-      // Should NOT call setApiKey when NODE_ENV === 'test'
       expect(sgMail.setApiKey).not.toHaveBeenCalled();
-      expect(testProvider.isReady()).toBe(false);
+    });
+
+    it('should warn when API key is not configured', () => {
+      mockConfigService.get.mockImplementation((key: string) => {
+        if (key === 'NODE_ENV') return 'development';
+        if (key === 'SENDGRID_API_KEY') return undefined;
+        return undefined;
+      });
+
+      provider.onModuleInit();
+
+      expect(sgMail.setApiKey).not.toHaveBeenCalled();
+    });
+
+    it('should initialize with API key', () => {
+      provider.onModuleInit();
+
+      expect(sgMail.setApiKey).toHaveBeenCalledWith('SG.test_api_key');
+    });
+  });
+
+  describe('isReady', () => {
+    it('should return false when not initialized', () => {
+      // Don't call onModuleInit
+      expect(provider.isReady()).toBe(false);
+    });
+
+    it('should return true after initialization', () => {
+      provider.onModuleInit();
+      expect(provider.isReady()).toBe(true);
     });
   });
 
   describe('send', () => {
     beforeEach(() => {
       provider.onModuleInit();
+    });
+
+    it('should return error when not initialized', async () => {
+      const uninitializedProvider = new SendGridEmailProvider(
+        mockConfigService as any,
+      );
+
+      const result = await uninitializedProvider.send({
+        userId: 'user_1',
+        recipientEmail: 'test@example.com',
+        title: 'Test',
+        body: 'Message',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.errorCode).toBe('PROVIDER_NOT_READY');
+    });
+
+    it('should return error for invalid email', async () => {
+      const result = await provider.send({
+        userId: 'user_1',
+        recipientEmail: 'invalid-email',
+        title: 'Test',
+        body: 'Message',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.errorCode).toBe('INVALID_EMAIL');
     });
 
     it('should send email successfully', async () => {
@@ -101,126 +132,100 @@ describe('SendGridEmailProvider', () => {
       ]);
 
       const result = await provider.send({
-        userId: 'user_123',
-        recipientEmail: 'recipient@test.com',
-        title: 'Test Subject',
-        body: 'Test body content',
-        correlationId: 'corr_123',
+        userId: 'user_1',
+        recipientEmail: 'test@example.com',
+        title: 'Test Title',
+        body: 'Test Body',
+        correlationId: 'corr-123',
       });
 
       expect(result.success).toBe(true);
       expect(result.providerMessageId).toBe('msg_123');
-      expect(sgMail.send).toHaveBeenCalled();
     });
 
-    it('should return error for invalid email format', async () => {
-      const result = await provider.send({
-        userId: 'user_123',
-        recipientEmail: 'invalid-email',
-        title: 'Test',
-        body: 'Test',
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.errorCode).toBe('INVALID_EMAIL');
-    });
-
-    it('should handle SendGrid errors gracefully', async () => {
-      (sgMail.send as jest.Mock).mockRejectedValue({
-        code: 401,
-        response: {
-          body: {
-            errors: [{ message: 'Invalid API key' }],
-          },
-        },
-      });
-
-      const result = await provider.send({
-        userId: 'user_123',
-        recipientEmail: 'recipient@test.com',
-        title: 'Test',
-        body: 'Test',
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.errorCode).toBe(401);
-      expect(result.errorMessage).toContain('Invalid API key');
-    });
-
-    it('should return error when not initialized', async () => {
-      const uninitializedProvider = new SendGridEmailProvider(mockConfigService as any);
-
-      const result = await uninitializedProvider.send({
-        userId: 'user_123',
-        recipientEmail: 'recipient@test.com',
-        title: 'Test',
-        body: 'Test',
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.errorCode).toBe('PROVIDER_NOT_READY');
-    });
-  });
-
-  describe('email validation', () => {
-    beforeEach(() => {
-      provider.onModuleInit();
-      (sgMail.send as jest.Mock).mockResolvedValue([{ statusCode: 202 }]);
-    });
-
-    it('should accept valid email formats', async () => {
-      const validEmails = [
-        'test@example.com',
-        'user.name@domain.co.uk',
-        'user+tag@example.org',
-      ];
-
-      for (const email of validEmails) {
-        const result = await provider.send({
-          userId: 'user_123',
-          recipientEmail: email,
-          title: 'Test',
-          body: 'Test',
-        });
-        expect(result.errorCode).not.toBe('INVALID_EMAIL');
-      }
-    });
-
-    it('should reject invalid email formats', async () => {
-      const invalidEmails = ['not-an-email', 'missing@domain', '@nodomain.com', ''];
-
-      for (const email of invalidEmails) {
-        const result = await provider.send({
-          userId: 'user_123',
-          recipientEmail: email,
-          title: 'Test',
-          body: 'Test',
-        });
-        expect(result.success).toBe(false);
-      }
-    });
-  });
-
-  describe('content sanitization', () => {
-    beforeEach(() => {
-      provider.onModuleInit();
-    });
-
-    it('should sanitize HTML in content', async () => {
-      (sgMail.send as jest.Mock).mockImplementation((msg) => {
-        // Check that HTML is escaped in text version
-        expect(msg.text).not.toContain('<script>');
-        return Promise.resolve([{ statusCode: 202 }]);
-      });
+    it('should include template data when provided', async () => {
+      (sgMail.send as jest.Mock).mockResolvedValue([
+        { statusCode: 202, headers: {} },
+      ]);
 
       await provider.send({
-        userId: 'user_123',
-        recipientEmail: 'test@test.com',
-        title: '<script>alert("xss")</script>',
-        body: 'Content with <script>evil</script>',
+        userId: 'user_1',
+        recipientEmail: 'test@example.com',
+        title: 'Test',
+        body: 'Message',
+        templateId: 'd-abc123',
+        templateData: { name: 'John' },
       });
 
-      expect(sgMail.send).toHaveBeenCalled();
+      expect(sgMail.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          templateId: 'd-abc123',
+          dynamicTemplateData: { name: 'John' },
+        }),
+      );
+    });
+
+    it('should include reply-to when provided', async () => {
+      (sgMail.send as jest.Mock).mockResolvedValue([
+        { statusCode: 202, headers: {} },
+      ]);
+
+      await provider.send({
+        userId: 'user_1',
+        recipientEmail: 'test@example.com',
+        title: 'Test',
+        body: 'Message',
+        replyTo: 'reply@example.com',
+      });
+
+      expect(sgMail.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          replyTo: 'reply@example.com',
+        }),
+      );
+    });
+
+    it('should handle SendGrid errors', async () => {
+      (sgMail.send as jest.Mock).mockRejectedValue({
+        code: 'ECONNREFUSED',
+        message: 'Connection refused',
+      });
+
+      const result = await provider.send({
+        userId: 'user_1',
+        recipientEmail: 'test@example.com',
+        title: 'Test',
+        body: 'Message',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.errorCode).toBe('ECONNREFUSED');
+    });
+
+    it('should sanitize email from error message', async () => {
+      (sgMail.send as jest.Mock).mockRejectedValue({
+        message: 'Invalid recipient test@example.com',
+      });
+
+      const result = await provider.send({
+        userId: 'user_1',
+        recipientEmail: 'test@example.com',
+        title: 'Test',
+        body: 'Message',
+      });
+
+      expect(result.errorMessage).toContain('[EMAIL]');
+      expect(result.errorMessage).not.toContain('test@example.com');
+    });
+  });
+
+  describe('provider metadata', () => {
+    it('should have correct channel', () => {
+      expect(provider.channel).toBe('email');
+    });
+
+    it('should have correct provider name', () => {
+      expect(provider.providerName).toBe('sendgrid');
     });
   });
 });

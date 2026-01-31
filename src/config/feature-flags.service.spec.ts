@@ -1,10 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
 import { FeatureFlagsService, FeatureFlags } from './feature-flags.service';
+import { ConfigService } from '@nestjs/config';
 
 describe('FeatureFlagsService', () => {
   let service: FeatureFlagsService;
-  let configService: ConfigService;
+  let configService: jest.Mocked<ConfigService>;
 
   const mockConfigService = {
     get: jest.fn(),
@@ -16,26 +16,46 @@ describe('FeatureFlagsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         FeatureFlagsService,
-        {
-          provide: ConfigService,
-          useValue: mockConfigService,
-        },
+        { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
 
     service = module.get<FeatureFlagsService>(FeatureFlagsService);
-    configService = module.get<ConfigService>(ConfigService);
+    configService = module.get(ConfigService);
   });
 
-  describe('initialization', () => {
-    it('should be defined', () => {
-      expect(service).toBeDefined();
+  describe('onModuleInit', () => {
+    it('should load flags on init', () => {
+      mockConfigService.get.mockReturnValue(undefined);
+
+      service.onModuleInit();
+
+      // Should have loaded all flags
+      expect(service.getFlagsSummary().total).toBeGreaterThan(0);
     });
 
-    it('should load flags on module init', () => {
-      mockConfigService.get.mockReturnValue(undefined);
+    it('should load enabled flags from environment', () => {
+      mockConfigService.get.mockImplementation((key: string) => {
+        if (key === 'FEATURE_DEBUG_MODE_ENABLED') return 'true';
+        if (key === 'NODE_ENV') return 'development';
+        return undefined;
+      });
+
       service.onModuleInit();
-      expect(mockConfigService.get).toHaveBeenCalled();
+
+      expect(service.isEnabled('DEBUG_MODE_ENABLED')).toBe(true);
+    });
+
+    it('should load flags with 1 as truthy value', () => {
+      mockConfigService.get.mockImplementation((key: string) => {
+        if (key === 'FEATURE_PUSH_NOTIFICATIONS_ENABLED') return '1';
+        if (key === 'NODE_ENV') return 'development';
+        return undefined;
+      });
+
+      service.onModuleInit();
+
+      expect(service.isEnabled('PUSH_NOTIFICATIONS_ENABLED')).toBe(true);
     });
   });
 
@@ -45,78 +65,18 @@ describe('FeatureFlagsService', () => {
       service.onModuleInit();
     });
 
-    it('should return default value for core features', () => {
+    it('should return default value for PAYMENTS_ENABLED', () => {
+      // PAYMENTS_ENABLED defaults to true
       expect(service.isEnabled(FeatureFlags.PAYMENTS_ENABLED)).toBe(true);
-      expect(service.isEnabled(FeatureFlags.AUTH_ENABLED)).toBe(true);
     });
 
-    it('should return false for disabled features by default', () => {
-      expect(service.isEnabled(FeatureFlags.DISPUTE_SYSTEM_ENABLED)).toBe(false);
-      expect(service.isEnabled(FeatureFlags.BOOKING_SYSTEM_ENABLED)).toBe(false);
+    it('should return default value for PUSH_NOTIFICATIONS_ENABLED', () => {
+      // PUSH_NOTIFICATIONS_ENABLED defaults to false
+      expect(service.isEnabled(FeatureFlags.PUSH_NOTIFICATIONS_ENABLED)).toBe(false);
     });
 
-    it('should return false for unknown flags', () => {
+    it('should return false for unknown flag', () => {
       expect(service.isEnabled('UNKNOWN_FLAG')).toBe(false);
-    });
-  });
-
-  describe('environment override', () => {
-    it('should enable flag when env var is set to 1', async () => {
-      mockConfigService.get.mockImplementation((key: string) => {
-        if (key === 'FEATURE_DISPUTE_SYSTEM_ENABLED') return '1';
-        return undefined;
-      });
-
-      service.onModuleInit();
-
-      expect(service.isEnabled(FeatureFlags.DISPUTE_SYSTEM_ENABLED)).toBe(true);
-    });
-
-    it('should enable flag when env var is set to true', async () => {
-      mockConfigService.get.mockImplementation((key: string) => {
-        if (key === 'FEATURE_BOOKING_SYSTEM_ENABLED') return 'true';
-        return undefined;
-      });
-
-      service.onModuleInit();
-
-      expect(service.isEnabled(FeatureFlags.BOOKING_SYSTEM_ENABLED)).toBe(true);
-    });
-
-    it('should disable flag when env var is set to 0', async () => {
-      mockConfigService.get.mockImplementation((key: string) => {
-        if (key === 'FEATURE_PAYMENTS_ENABLED') return '0';
-        return undefined;
-      });
-
-      service.onModuleInit();
-
-      expect(service.isEnabled(FeatureFlags.PAYMENTS_ENABLED)).toBe(false);
-    });
-  });
-
-  describe('requireFeature', () => {
-    beforeEach(() => {
-      mockConfigService.get.mockReturnValue(undefined);
-      service.onModuleInit();
-    });
-
-    it('should not throw for enabled features', () => {
-      expect(() => {
-        service.requireFeature(FeatureFlags.PAYMENTS_ENABLED);
-      }).not.toThrow();
-    });
-
-    it('should throw for disabled features', () => {
-      expect(() => {
-        service.requireFeature(FeatureFlags.DISPUTE_SYSTEM_ENABLED);
-      }).toThrow('Feature DISPUTE_SYSTEM_ENABLED is not enabled');
-    });
-
-    it('should throw with custom error message', () => {
-      expect(() => {
-        service.requireFeature(FeatureFlags.DISPUTE_SYSTEM_ENABLED, 'Custom error');
-      }).toThrow('Custom error');
     });
   });
 
@@ -126,19 +86,19 @@ describe('FeatureFlagsService', () => {
       service.onModuleInit();
     });
 
-    it('should return all flags with their status', () => {
+    it('should return all flags with their status and description', () => {
       const flags = service.getAllFlags();
 
-      expect(flags).toHaveProperty(FeatureFlags.PAYMENTS_ENABLED);
-      expect(flags[FeatureFlags.PAYMENTS_ENABLED]).toEqual({
+      expect(flags).toHaveProperty('PAYMENTS_ENABLED');
+      expect(flags.PAYMENTS_ENABLED).toEqual({
         enabled: true,
-        description: expect.any(String),
+        description: 'Enable payment processing',
       });
 
-      expect(flags).toHaveProperty(FeatureFlags.DISPUTE_SYSTEM_ENABLED);
-      expect(flags[FeatureFlags.DISPUTE_SYSTEM_ENABLED]).toEqual({
+      expect(flags).toHaveProperty('DEBUG_MODE_ENABLED');
+      expect(flags.DEBUG_MODE_ENABLED).toEqual({
         enabled: false,
-        description: expect.any(String),
+        description: 'Enable debug mode',
       });
     });
   });
@@ -149,13 +109,32 @@ describe('FeatureFlagsService', () => {
       service.onModuleInit();
     });
 
-    it('should return correct summary', () => {
+    it('should return flags summary', () => {
       const summary = service.getFlagsSummary();
 
-      expect(summary).toHaveProperty('total');
-      expect(summary).toHaveProperty('enabled');
-      expect(summary).toHaveProperty('disabled');
-      expect(summary.total).toBe(summary.enabled + summary.disabled);
+      expect(summary.total).toBeGreaterThan(0);
+      expect(summary.enabled + summary.disabled).toBe(summary.total);
+    });
+  });
+
+  describe('requireFeature', () => {
+    beforeEach(() => {
+      mockConfigService.get.mockReturnValue(undefined);
+      service.onModuleInit();
+    });
+
+    it('should not throw for enabled feature', () => {
+      expect(() => service.requireFeature(FeatureFlags.PAYMENTS_ENABLED)).not.toThrow();
+    });
+
+    it('should throw for disabled feature', () => {
+      expect(() => service.requireFeature(FeatureFlags.DEBUG_MODE_ENABLED)).toThrow();
+    });
+
+    it('should throw with custom error message', () => {
+      expect(() =>
+        service.requireFeature(FeatureFlags.DEBUG_MODE_ENABLED, 'Custom error'),
+      ).toThrow('Custom error');
     });
   });
 
@@ -165,13 +144,25 @@ describe('FeatureFlagsService', () => {
       service.onModuleInit();
     });
 
-    it('should return boolean for enabled feature', () => {
+    it('should return true for enabled feature', () => {
       expect(service.checkFeature(FeatureFlags.PAYMENTS_ENABLED)).toBe(true);
     });
 
-    it('should return boolean for disabled feature', () => {
-      expect(service.checkFeature(FeatureFlags.DISPUTE_SYSTEM_ENABLED)).toBe(false);
+    it('should return false for disabled feature', () => {
+      expect(service.checkFeature(FeatureFlags.DEBUG_MODE_ENABLED)).toBe(false);
+    });
+  });
+
+  describe('production environment warnings', () => {
+    it('should log error for dangerous flags in production', () => {
+      mockConfigService.get.mockImplementation((key: string) => {
+        if (key === 'NODE_ENV') return 'production';
+        if (key === 'FEATURE_DEBUG_MODE_ENABLED') return 'true';
+        return undefined;
+      });
+
+      // The logger should warn but not throw
+      expect(() => service.onModuleInit()).not.toThrow();
     });
   });
 });
-

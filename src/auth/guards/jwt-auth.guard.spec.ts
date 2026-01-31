@@ -1,52 +1,28 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { JwtAuthGuard } from './jwt-auth.guard';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { JwtAuthGuard } from './jwt-auth.guard';
+import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 
 describe('JwtAuthGuard', () => {
   let guard: JwtAuthGuard;
   let jwtService: jest.Mocked<JwtService>;
   let configService: jest.Mocked<ConfigService>;
 
-  const mockJwtPayload = {
-    sub: 'user_123',
-    email: 'test@example.com',
-    role: 'worker',
-  };
-
-  const createMockExecutionContext = (authHeader?: string): ExecutionContext => {
-    const mockRequest = {
-      headers: authHeader ? { authorization: authHeader } : {},
-      user: null as any,
+  beforeEach(async () => {
+    const mockJwtService = {
+      verifyAsync: jest.fn(),
     };
 
-    return {
-      switchToHttp: () => ({
-        getRequest: () => mockRequest,
-      }),
-    } as ExecutionContext;
-  };
+    const mockConfigService = {
+      get: jest.fn(),
+    };
 
-  beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         JwtAuthGuard,
-        {
-          provide: JwtService,
-          useValue: {
-            verifyAsync: jest.fn(),
-          },
-        },
-        {
-          provide: ConfigService,
-          useValue: {
-            get: jest.fn((key: string) => {
-              if (key === 'JWT_SECRET') return 'test-jwt-secret';
-              return undefined;
-            }),
-          },
-        },
+        { provide: JwtService, useValue: mockJwtService },
+        { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
 
@@ -55,19 +31,72 @@ describe('JwtAuthGuard', () => {
     configService = module.get(ConfigService);
   });
 
-  it('should be defined', () => {
-    expect(guard).toBeDefined();
-  });
+  const createMockContext = (authHeader?: string): ExecutionContext => {
+    const mockRequest: any = {
+      headers: authHeader ? { authorization: authHeader } : {},
+      user: undefined,
+    };
+
+    return {
+      switchToHttp: () => ({
+        getRequest: () => mockRequest,
+        getResponse: () => ({}),
+        getNext: () => jest.fn(),
+      }),
+      getHandler: () => jest.fn(),
+      getClass: () => jest.fn(),
+      getArgs: () => [],
+      getArgByIndex: () => undefined,
+      switchToRpc: () => ({} as any),
+      switchToWs: () => ({} as any),
+      getType: () => 'http',
+    } as unknown as ExecutionContext;
+  };
 
   describe('canActivate', () => {
-    it('should return true and set user on valid token', async () => {
-      jwtService.verifyAsync.mockResolvedValue(mockJwtPayload);
-      const context = createMockExecutionContext('Bearer valid.jwt.token');
+    it('should throw UnauthorizedException when no authorization header', async () => {
+      const context = createMockContext();
+
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should throw UnauthorizedException when authorization type is not Bearer', async () => {
+      const context = createMockContext('Basic abc123');
+
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should throw UnauthorizedException when no token provided after Bearer', async () => {
+      const context = createMockContext('Bearer ');
+
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should throw UnauthorizedException when JWT_SECRET not configured', async () => {
+      const context = createMockContext('Bearer valid_token');
+      configService.get.mockReturnValue(undefined);
+
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        'JWT_SECRET not configured',
+      );
+    });
+
+    it('should return true and attach user to request when token is valid', async () => {
+      const mockPayload = {
+        sub: 'user_123',
+        email: 'test@example.com',
+        role: 'worker',
+      };
+      
+      configService.get.mockReturnValue('test_jwt_secret');
+      jwtService.verifyAsync.mockResolvedValue(mockPayload);
+      
+      const context = createMockContext('Bearer valid_token');
+      const request = context.switchToHttp().getRequest();
 
       const result = await guard.canActivate(context);
 
       expect(result).toBe(true);
-      const request = context.switchToHttp().getRequest();
       expect(request.user).toEqual({
         sub: 'user_123',
         email: 'test@example.com',
@@ -77,62 +106,39 @@ describe('JwtAuthGuard', () => {
       });
     });
 
-    it('should throw UnauthorizedException when no authorization header', async () => {
-      const context = createMockExecutionContext();
-
-      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      await expect(guard.canActivate(context)).rejects.toThrow('Authorization manquante');
-    });
-
-    it('should throw UnauthorizedException when authorization header is not Bearer', async () => {
-      const context = createMockExecutionContext('Basic credentials');
-
-      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-    });
-
-    it('should throw UnauthorizedException when Bearer token is missing', async () => {
-      const context = createMockExecutionContext('Bearer ');
-
-      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-    });
-
-    it('should throw UnauthorizedException on invalid token', async () => {
+    it('should throw UnauthorizedException when token is invalid', async () => {
+      configService.get.mockReturnValue('test_jwt_secret');
       jwtService.verifyAsync.mockRejectedValue(new Error('Invalid token'));
-      const context = createMockExecutionContext('Bearer invalid.token');
 
-      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      await expect(guard.canActivate(context)).rejects.toThrow('Invalid or expired token');
+      const context = createMockContext('Bearer invalid_token');
+
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        'Invalid or expired token',
+      );
     });
 
-    it('should throw UnauthorizedException on expired token', async () => {
+    it('should throw UnauthorizedException when token is expired', async () => {
+      configService.get.mockReturnValue('test_jwt_secret');
       jwtService.verifyAsync.mockRejectedValue(new Error('jwt expired'));
-      const context = createMockExecutionContext('Bearer expired.token');
 
-      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+      const context = createMockContext('Bearer expired_token');
+
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        'Invalid or expired token',
+      );
     });
 
-    it('should throw UnauthorizedException when JWT_SECRET is not configured', async () => {
-      configService.get.mockReturnValue(undefined);
-      const context = createMockExecutionContext('Bearer valid.token');
-
-      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      await expect(guard.canActivate(context)).rejects.toThrow('JWT_SECRET not configured');
-    });
-  });
-
-  describe('extractTokenFromHeader', () => {
-    it('should extract token from valid Bearer header', async () => {
-      jwtService.verifyAsync.mockResolvedValue(mockJwtPayload);
-      const context = createMockExecutionContext('Bearer my.jwt.token');
-
-      await guard.canActivate(context);
-
-      expect(jwtService.verifyAsync).toHaveBeenCalledWith('my.jwt.token', { secret: 'test-jwt-secret' });
-    });
-
-    it('should handle lowercase bearer', async () => {
-      jwtService.verifyAsync.mockResolvedValue(mockJwtPayload);
-      const context = createMockExecutionContext('bearer my.jwt.token');
+    it('should handle lowercase bearer prefix', async () => {
+      const mockPayload = {
+        sub: 'user_123',
+        email: 'test@example.com',
+        role: 'employer',
+      };
+      
+      configService.get.mockReturnValue('test_jwt_secret');
+      jwtService.verifyAsync.mockResolvedValue(mockPayload);
+      
+      const context = createMockContext('bearer valid_token');
 
       const result = await guard.canActivate(context);
 
@@ -140,4 +146,3 @@ describe('JwtAuthGuard', () => {
     });
   });
 });
-

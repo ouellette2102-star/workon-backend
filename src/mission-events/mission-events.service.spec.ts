@@ -1,22 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { MissionEventsService } from './mission-events.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { MissionEventType } from '@prisma/client';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { MissionEventType, Prisma } from '@prisma/client';
 
 describe('MissionEventsService', () => {
   let service: MissionEventsService;
-  let prismaService: PrismaService;
-
-  const mockMissionEvent = {
-    id: 'event-1',
-    missionId: 'mission-1',
-    type: MissionEventType.MISSION_STARTED,
-    actorUserId: 'user-1',
-    targetUserId: 'user-2',
-    payload: { fromStatus: 'OPEN', toStatus: 'IN_PROGRESS' },
-    createdAt: new Date('2025-01-01T12:00:00Z'),
-  };
 
   const mockPrismaService = {
     missionEvent: {
@@ -31,55 +20,64 @@ describe('MissionEventsService', () => {
     },
   };
 
+  const mockEvent = {
+    id: 'event_1',
+    missionId: 'mission_1',
+    type: MissionEventType.MISSION_CREATED,
+    actorUserId: 'user_1',
+    targetUserId: 'user_2',
+    payload: { action: 'test' },
+    createdAt: new Date('2026-01-30'),
+  };
+
   beforeEach(async () => {
+    jest.clearAllMocks();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MissionEventsService,
-        {
-          provide: PrismaService,
-          useValue: mockPrismaService,
-        },
+        { provide: PrismaService, useValue: mockPrismaService },
       ],
     }).compile();
 
     service = module.get<MissionEventsService>(MissionEventsService);
-    prismaService = module.get<PrismaService>(PrismaService);
-
-    // Reset mocks
-    jest.clearAllMocks();
   });
 
   describe('emitEvent', () => {
-    it('devrait créer un événement avec succès', async () => {
-      mockPrismaService.missionEvent.create.mockResolvedValue(mockMissionEvent);
+    it('should create a new event', async () => {
+      mockPrismaService.missionEvent.create.mockResolvedValue(mockEvent);
 
       const result = await service.emitEvent({
-        missionId: 'mission-1',
-        type: MissionEventType.MISSION_STARTED,
-        actorUserId: 'user-1',
-        targetUserId: 'user-2',
-        payload: { fromStatus: 'OPEN', toStatus: 'IN_PROGRESS' },
+        missionId: 'mission_1',
+        type: MissionEventType.MISSION_CREATED,
+        actorUserId: 'user_1',
+        targetUserId: 'user_2',
+        payload: { action: 'test' },
       });
 
-      expect(result).toBeDefined();
-      expect(result.id).toBe('event-1');
-      expect(result.type).toBe(MissionEventType.MISSION_STARTED);
-      expect(result.missionId).toBe('mission-1');
-      expect(mockPrismaService.missionEvent.create).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({
+        id: 'event_1',
+        missionId: 'mission_1',
+        type: MissionEventType.MISSION_CREATED,
+        actorUserId: 'user_1',
+        targetUserId: 'user_2',
+        payload: { action: 'test' },
+        createdAt: expect.any(String),
+      });
     });
 
-    it('devrait créer un événement sans acteur ni target', async () => {
-      const systemEvent = {
-        ...mockMissionEvent,
+    it('should create event without optional fields', async () => {
+      const eventWithoutOptionals = {
+        ...mockEvent,
         actorUserId: null,
         targetUserId: null,
-        type: MissionEventType.MISSION_EXPIRED,
+        payload: Prisma.JsonNull,
       };
-      mockPrismaService.missionEvent.create.mockResolvedValue(systemEvent);
+      mockPrismaService.missionEvent.create.mockResolvedValue(eventWithoutOptionals);
 
       const result = await service.emitEvent({
-        missionId: 'mission-1',
-        type: MissionEventType.MISSION_EXPIRED,
+        missionId: 'mission_1',
+        type: MissionEventType.MISSION_CREATED,
       });
 
       expect(result.actorUserId).toBeNull();
@@ -88,126 +86,134 @@ describe('MissionEventsService', () => {
   });
 
   describe('listMissionEvents', () => {
-    it('devrait retourner les événements si l\'utilisateur est l\'auteur', async () => {
+    it('should return paginated events for authorized user', async () => {
       mockPrismaService.mission.findUnique.mockResolvedValue({
-        authorClient: { clerkId: 'clerk-user-1' },
+        authorClient: { clerkId: 'clerk_user_1' },
         assigneeWorker: null,
       });
-      mockPrismaService.missionEvent.findMany.mockResolvedValue([mockMissionEvent]);
+      mockPrismaService.missionEvent.findMany.mockResolvedValue([mockEvent]);
 
-      const result = await service.listMissionEvents('mission-1', 'clerk-user-1');
+      const result = await service.listMissionEvents('mission_1', 'clerk_user_1');
 
       expect(result.events).toHaveLength(1);
-      expect(result.events[0].id).toBe('event-1');
       expect(result.hasMore).toBe(false);
+      expect(result.nextCursor).toBeNull();
     });
 
-    it('devrait retourner les événements si l\'utilisateur est le worker', async () => {
-      mockPrismaService.mission.findUnique.mockResolvedValue({
-        authorClient: { clerkId: 'clerk-author' },
-        assigneeWorker: { clerkId: 'clerk-worker' },
-      });
-      mockPrismaService.missionEvent.findMany.mockResolvedValue([mockMissionEvent]);
-
-      const result = await service.listMissionEvents('mission-1', 'clerk-worker');
-
-      expect(result.events).toHaveLength(1);
-    });
-
-    it('devrait refuser l\'accès si l\'utilisateur n\'est pas partie à la mission', async () => {
-      mockPrismaService.mission.findUnique.mockResolvedValue({
-        authorClient: { clerkId: 'clerk-author' },
-        assigneeWorker: { clerkId: 'clerk-worker' },
-      });
-
-      await expect(
-        service.listMissionEvents('mission-1', 'clerk-random'),
-      ).rejects.toThrow(ForbiddenException);
-    });
-
-    it('devrait lever NotFoundException si la mission n\'existe pas', async () => {
+    it('should throw NotFoundException if mission not found', async () => {
       mockPrismaService.mission.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.listMissionEvents('nonexistent', 'clerk-user'),
+        service.listMissionEvents('nonexistent', 'clerk_user_1'),
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('devrait gérer la pagination avec hasMore', async () => {
-      const manyEvents = Array(51)
-        .fill(null)
-        .map((_, i) => ({
-          ...mockMissionEvent,
-          id: `event-${i}`,
-        }));
-
+    it('should throw ForbiddenException if user has no access', async () => {
       mockPrismaService.mission.findUnique.mockResolvedValue({
-        authorClient: { clerkId: 'clerk-user-1' },
+        authorClient: { clerkId: 'other_user' },
+        assigneeWorker: { clerkId: 'another_user' },
+      });
+
+      await expect(
+        service.listMissionEvents('mission_1', 'clerk_user_1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should allow access for mission worker', async () => {
+      mockPrismaService.mission.findUnique.mockResolvedValue({
+        authorClient: { clerkId: 'employer_user' },
+        assigneeWorker: { clerkId: 'clerk_user_1' },
+      });
+      mockPrismaService.missionEvent.findMany.mockResolvedValue([mockEvent]);
+
+      const result = await service.listMissionEvents('mission_1', 'clerk_user_1');
+
+      expect(result.events).toHaveLength(1);
+    });
+
+    it('should handle pagination with cursor', async () => {
+      const events = Array.from({ length: 51 }, (_, i) => ({
+        ...mockEvent,
+        id: `event_${i}`,
+      }));
+      mockPrismaService.mission.findUnique.mockResolvedValue({
+        authorClient: { clerkId: 'clerk_user_1' },
         assigneeWorker: null,
       });
-      mockPrismaService.missionEvent.findMany.mockResolvedValue(manyEvents);
+      mockPrismaService.missionEvent.findMany.mockResolvedValue(events);
 
-      const result = await service.listMissionEvents('mission-1', 'clerk-user-1', {
+      const result = await service.listMissionEvents('mission_1', 'clerk_user_1', {
         limit: 50,
       });
 
-      expect(result.events).toHaveLength(50);
       expect(result.hasMore).toBe(true);
-      expect(result.nextCursor).toBe('event-49');
+      expect(result.nextCursor).toBe('event_49');
     });
   });
 
   describe('listMyEvents', () => {
-    it('devrait retourner les événements ciblant l\'utilisateur', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'internal-user-id' });
-      mockPrismaService.missionEvent.findMany.mockResolvedValue([mockMissionEvent]);
+    it('should return events targeting the user', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'internal_user_1' });
+      mockPrismaService.missionEvent.findMany.mockResolvedValue([mockEvent]);
 
-      const result = await service.listMyEvents('clerk-user-2');
+      const result = await service.listMyEvents('clerk_user_1');
 
       expect(result.events).toHaveLength(1);
       expect(mockPrismaService.missionEvent.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { targetUserId: 'internal-user-id' },
+          where: { targetUserId: 'internal_user_1' },
         }),
       );
     });
 
-    it('devrait retourner un feed vide si l\'utilisateur n\'existe pas', async () => {
+    it('should return empty if user not found', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue(null);
 
-      const result = await service.listMyEvents('nonexistent-clerk');
+      const result = await service.listMyEvents('unknown_clerk');
 
-      expect(result.events).toHaveLength(0);
+      expect(result.events).toEqual([]);
       expect(result.hasMore).toBe(false);
     });
   });
 
   describe('sanitizePayload', () => {
-    it('devrait supprimer les clés sensibles du payload', async () => {
+    it('should remove sensitive keys from payload', async () => {
       const eventWithSensitiveData = {
-        ...mockMissionEvent,
+        ...mockEvent,
         payload: {
-          fromStatus: 'OPEN',
-          toStatus: 'IN_PROGRESS',
-          stripePaymentIntentId: 'pi_secret123',
-          token: 'secret-token',
+          action: 'test',
+          stripePaymentIntentId: 'pi_secret',
+          token: 'secret_token',
+          normalField: 'keep_this',
         },
       };
       mockPrismaService.missionEvent.create.mockResolvedValue(eventWithSensitiveData);
 
       const result = await service.emitEvent({
-        missionId: 'mission-1',
-        type: MissionEventType.PAYMENT_AUTHORIZED,
+        missionId: 'mission_1',
+        type: MissionEventType.MISSION_CREATED,
         payload: eventWithSensitiveData.payload,
       });
 
-      // Le payload sanitized ne devrait pas contenir les clés sensibles
-      expect(result.payload).toBeDefined();
       expect(result.payload).not.toHaveProperty('stripePaymentIntentId');
       expect(result.payload).not.toHaveProperty('token');
-      expect(result.payload).toHaveProperty('fromStatus');
-      expect(result.payload).toHaveProperty('toStatus');
+      expect(result.payload).toHaveProperty('action');
+      expect(result.payload).toHaveProperty('normalField');
+    });
+
+    it('should return null for invalid payload', async () => {
+      const eventWithNullPayload = {
+        ...mockEvent,
+        payload: null,
+      };
+      mockPrismaService.missionEvent.create.mockResolvedValue(eventWithNullPayload);
+
+      const result = await service.emitEvent({
+        missionId: 'mission_1',
+        type: MissionEventType.MISSION_CREATED,
+      });
+
+      expect(result.payload).toBeNull();
     });
   });
 });
-

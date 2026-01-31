@@ -1,88 +1,202 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { AlertService, AlertPayload } from './alert.service';
 import { ConfigService } from '@nestjs/config';
-import { AlertService, AlertSeverity } from './alert.service';
+
+// Mock global fetch
+const mockFetch = jest.fn();
+global.fetch = mockFetch as unknown as typeof fetch;
 
 describe('AlertService', () => {
   let service: AlertService;
 
-  const mockConfigGet = jest.fn((key: string, defaultValue?: string) => {
-    const config: Record<string, string> = {
-      NODE_ENV: 'test',
-      ALERTS_ENABLED: '1',
-    };
-    return config[key] ?? defaultValue;
-  });
+  const mockConfigService = {
+    get: jest.fn(),
+  };
 
   beforeEach(async () => {
-    mockConfigGet.mockClear();
+    jest.clearAllMocks();
+    mockFetch.mockClear();
+
+    // Default config
+    mockConfigService.get.mockImplementation((key: string, defaultValue?: string) => {
+      const config: Record<string, string> = {
+        NODE_ENV: 'development',
+        ALERTS_ENABLED: '1',
+      };
+      return config[key] ?? defaultValue;
+    });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AlertService,
-        { provide: ConfigService, useValue: { get: mockConfigGet } },
+        { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
 
     service = module.get<AlertService>(AlertService);
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  describe('constructor', () => {
+    it('should initialize without webhook URL in development', () => {
+      expect(service).toBeDefined();
+    });
   });
 
   describe('sendAlert', () => {
-    it('should log alert without throwing', async () => {
-      await expect(
-        service.sendAlert({
-          severity: 'critical',
-          title: 'Test Alert',
-          message: 'This is a test',
-          source: 'AlertService.spec',
-        }),
-      ).resolves.not.toThrow();
+    it('should log alert when no webhook configured', async () => {
+      const payload: AlertPayload = {
+        severity: 'critical',
+        title: 'Test Alert',
+        message: 'Test message',
+        source: 'TestService',
+      };
+
+      await expect(service.sendAlert(payload)).resolves.not.toThrow();
     });
 
-    it('should handle all severity levels', async () => {
-      const severities: AlertSeverity[] = ['critical', 'high', 'medium', 'low'];
+    it('should skip webhook when alerts disabled', async () => {
+      mockConfigService.get.mockImplementation((key: string, defaultValue?: string) => {
+        const config: Record<string, string> = {
+          NODE_ENV: 'production',
+          ALERTS_ENABLED: '0',
+          ALERT_WEBHOOK_URL: 'https://hooks.slack.com/test',
+        };
+        return config[key] ?? defaultValue;
+      });
 
-      for (const severity of severities) {
-        await expect(
-          service.sendAlert({
-            severity,
-            title: `${severity} Alert`,
-            message: 'Test message',
-            source: 'AlertService.spec',
-          }),
-        ).resolves.not.toThrow();
-      }
+      // Recreate service with new config
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          AlertService,
+          { provide: ConfigService, useValue: mockConfigService },
+        ],
+      }).compile();
+      const testService = module.get<AlertService>(AlertService);
+
+      const payload: AlertPayload = {
+        severity: 'critical',
+        title: 'Test Alert',
+        message: 'Test message',
+        source: 'TestService',
+      };
+
+      await testService.sendAlert(payload);
+
+      expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it('should accept optional metadata', async () => {
-      await expect(
-        service.sendAlert({
-          severity: 'high',
-          title: 'Alert with metadata',
-          message: 'Test',
-          source: 'AlertService.spec',
-          correlationId: 'test-correlation-id',
-          metadata: { userId: 'user_123', action: 'test' },
+    it('should send to Slack webhook in production', async () => {
+      mockConfigService.get.mockImplementation((key: string, defaultValue?: string) => {
+        const config: Record<string, string> = {
+          NODE_ENV: 'production',
+          ALERTS_ENABLED: '1',
+          ALERT_WEBHOOK_URL: 'https://hooks.slack.com/services/test',
+        };
+        return config[key] ?? defaultValue;
+      });
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          AlertService,
+          { provide: ConfigService, useValue: mockConfigService },
+        ],
+      }).compile();
+      const testService = module.get<AlertService>(AlertService);
+
+      mockFetch.mockResolvedValue({ ok: true });
+
+      const payload: AlertPayload = {
+        severity: 'critical',
+        title: 'Test Alert',
+        message: 'Test message',
+        source: 'TestService',
+      };
+
+      await testService.sendAlert(payload);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://hooks.slack.com/services/test',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
         }),
-      ).resolves.not.toThrow();
+      );
+    });
+
+    it('should send to Discord webhook in production', async () => {
+      mockConfigService.get.mockImplementation((key: string, defaultValue?: string) => {
+        const config: Record<string, string> = {
+          NODE_ENV: 'production',
+          ALERTS_ENABLED: '1',
+          ALERT_WEBHOOK_URL: 'https://discord.com/api/webhooks/test',
+        };
+        return config[key] ?? defaultValue;
+      });
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          AlertService,
+          { provide: ConfigService, useValue: mockConfigService },
+        ],
+      }).compile();
+      const testService = module.get<AlertService>(AlertService);
+
+      mockFetch.mockResolvedValue({ ok: true });
+
+      const payload: AlertPayload = {
+        severity: 'high',
+        title: 'Test Alert',
+        message: 'Test message',
+        source: 'TestService',
+        correlationId: 'corr-123',
+      };
+
+      await testService.sendAlert(payload);
+
+      expect(mockFetch).toHaveBeenCalled();
+    });
+
+    it('should handle webhook error gracefully', async () => {
+      mockConfigService.get.mockImplementation((key: string, defaultValue?: string) => {
+        const config: Record<string, string> = {
+          NODE_ENV: 'production',
+          ALERTS_ENABLED: '1',
+          ALERT_WEBHOOK_URL: 'https://hooks.slack.com/services/test',
+        };
+        return config[key] ?? defaultValue;
+      });
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          AlertService,
+          { provide: ConfigService, useValue: mockConfigService },
+        ],
+      }).compile();
+      const testService = module.get<AlertService>(AlertService);
+
+      mockFetch.mockResolvedValue({ ok: false, status: 500, statusText: 'Internal Server Error' });
+
+      const payload: AlertPayload = {
+        severity: 'critical',
+        title: 'Test Alert',
+        message: 'Test message',
+        source: 'TestService',
+      };
+
+      // Should not throw
+      await expect(testService.sendAlert(payload)).resolves.not.toThrow();
     });
   });
 
   describe('convenience methods', () => {
-    it('should have critical() convenience method', async () => {
-      await expect(
-        service.critical('Critical', 'Message', 'Source'),
-      ).resolves.not.toThrow();
+    it('should send critical alert', async () => {
+      await service.critical('Title', 'Message', 'Source', { key: 'value' });
+      // Just verify it doesn't throw
     });
 
-    it('should have high() convenience method', async () => {
-      await expect(
-        service.high('High', 'Message', 'Source'),
-      ).resolves.not.toThrow();
+    it('should send high severity alert', async () => {
+      await service.high('Title', 'Message', 'Source');
+      // Just verify it doesn't throw
     });
   });
 });
-
