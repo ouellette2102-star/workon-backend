@@ -10,11 +10,14 @@ describe('PrismaService', () => {
     }).compile();
 
     service = module.get<PrismaService>(PrismaService);
+    
+    // Mock connection methods to avoid real DB connection
+    jest.spyOn(service, '$connect').mockResolvedValue();
+    jest.spyOn(service, '$disconnect').mockResolvedValue();
   });
 
   afterEach(async () => {
-    // Clean up connection
-    await service.onModuleDestroy();
+    jest.restoreAllMocks();
   });
 
   describe('initialization', () => {
@@ -30,30 +33,30 @@ describe('PrismaService', () => {
   });
 
   describe('onModuleInit', () => {
-    it('should not throw during initialization', async () => {
-      await expect(service.onModuleInit()).resolves.not.toThrow();
+    it('should call $connect during initialization', async () => {
+      await service.onModuleInit();
+      expect(service.$connect).toHaveBeenCalled();
     });
   });
 
   describe('onModuleDestroy', () => {
-    it('should disconnect without throwing', async () => {
-      await expect(service.onModuleDestroy()).resolves.not.toThrow();
+    it('should call $disconnect during cleanup', async () => {
+      await service.onModuleDestroy();
+      expect(service.$disconnect).toHaveBeenCalled();
     });
   });
 
   describe('transaction', () => {
     it('should execute transaction callback', async () => {
       const mockFn = jest.fn().mockResolvedValue('result');
+      jest.spyOn(service, '$transaction').mockImplementation(async (fn) => {
+        return await fn(service);
+      });
       
-      // Note: This test may fail in CI without a real database
-      // In real scenarios, we'd mock $transaction
-      try {
-        const result = await service.transaction(mockFn);
-        expect(result).toBe('result');
-      } catch (error) {
-        // Expected in test environment without DB
-        expect(mockFn).not.toHaveBeenCalled();
-      }
+      const result = await service.transaction(mockFn);
+      
+      expect(result).toBe('result');
+      expect(mockFn).toHaveBeenCalled();
     });
   });
 });
