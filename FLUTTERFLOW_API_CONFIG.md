@@ -35,12 +35,16 @@ https://workon-backend-production-8908.up.railway.app
 }
 ```
 
+⚠️ **Note:** `firstName` et `lastName` sont **optionnels** (peuvent être vides)
+```
+
 #### Valeurs `role` valides
 
-- `"WORKER"` - Travailleur
-- `"EMPLOYER"` - Employeur
-- `"CLIENT_RESIDENTIAL"` - Client résidentiel
-- `"ADMIN"` - Administrateur
+⚠️ **IMPORTANT:** Les rôles sont en **minuscules**!
+
+- `"worker"` - Travailleur
+- `"employer"` - Employeur
+- `"residential_client"` - Client résidentiel
 
 #### Réponse 201 (Succès)
 
@@ -135,7 +139,7 @@ https://workon-backend-production-8908.up.railway.app
 #### Headers
 
 ```
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Authorization: Bearer {{authToken}}
 ```
 
 #### Réponse 200 (Succès)
@@ -184,7 +188,7 @@ Content-Type: application/json
   "password": "WorkOn2025!",
   "firstName": "Flutter",
   "lastName": "Flow",
-  "role": "WORKER"
+  "role": "worker"
 }
 ```
 
@@ -204,7 +208,7 @@ Content-Type: application/json
 
 ```bash
 GET https://workon-backend-production-8908.up.railway.app/api/v1/auth/me
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Authorization: Bearer {{authToken}}
 ```
 
 ---
@@ -243,7 +247,7 @@ CORS_ORIGIN=*
 **Solution:**
 1. Récupérer le `accessToken` après login/register
 2. Stocker dans FlutterFlow App State
-3. Ajouter header `Authorization: Bearer {{accessToken}}`
+3. Ajouter header `Authorization: Bearer {{authToken}}`
 
 ---
 

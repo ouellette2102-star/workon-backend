@@ -31,13 +31,13 @@ test.describe('Missions Flow', () => {
   test.beforeAll(async ({ request }) => {
     // Créer un employer
     const employerEmail = `employer-${Date.now()}@test.com`;
-    const employerSignup = await request.post(`${API_BASE_URL}/auth/signup`, {
+    const employerSignup = await request.post(`${API_BASE_URL}/auth/register`, {
       data: {
         email: employerEmail,
         password: 'password123',
-        name: 'Test Employer',
-        role: 'EMPLOYER',
-        companyName: 'Test Company',
+        firstName: 'Test',
+        lastName: 'Employer',
+        role: 'employer',
       },
     });
     const employerData = await employerSignup.json();
@@ -49,12 +49,13 @@ test.describe('Missions Flow', () => {
 
     // Créer un worker
     const workerEmail = `worker-${Date.now()}@test.com`;
-    const workerSignup = await request.post(`${API_BASE_URL}/auth/signup`, {
+    const workerSignup = await request.post(`${API_BASE_URL}/auth/register`, {
       data: {
         email: workerEmail,
         password: 'password123',
-        name: 'Test Worker',
-        role: 'WORKER',
+        firstName: 'Test',
+        lastName: 'Worker',
+        role: 'worker',
       },
     });
     const workerData = await workerSignup.json();
@@ -66,18 +67,18 @@ test.describe('Missions Flow', () => {
   });
 
   test('devrait créer une mission (employer)', async ({ request }) => {
-    const createResponse = await request.post(`${API_BASE_URL}/missions`, {
+    const createResponse = await request.post(`${API_BASE_URL}/missions-local`, {
       headers: {
         Authorization: `Bearer ${employerToken}`,
       },
       data: {
         title: 'Test Mission',
-        location: {
-          lat: 45.5017,
-          lng: -73.5673,
-        },
-        priceCents: 15000,
-        currency: 'CAD',
+        description: 'Description de la mission de test',
+        category: 'cleaning',
+        price: 150.0,
+        latitude: 45.5017,
+        longitude: -73.5673,
+        city: 'Montréal',
       },
     });
 
@@ -88,79 +89,42 @@ test.describe('Missions Flow', () => {
     missionId = mission.id;
   });
 
-  test('devrait lister les missions', async ({ request }) => {
-    const listResponse = await request.get(`${API_BASE_URL}/missions?page=1&limit=10`);
-
-    expect(listResponse.ok()).toBeTruthy();
-    const data = await listResponse.json();
-    expect(data).toHaveProperty('data');
-    expect(data).toHaveProperty('pagination');
-    expect(Array.isArray(data.data)).toBeTruthy();
-  });
-
-  test('devrait réserver une mission (worker)', async ({ request }) => {
-    // Créer une mission d'abord
-    const createResponse = await request.post(`${API_BASE_URL}/missions`, {
-      headers: {
-        Authorization: `Bearer ${employerToken}`,
-      },
-      data: {
-        title: 'Mission à réserver',
-        location: {
-          lat: 45.5017,
-          lng: -73.5673,
-        },
-        priceCents: 20000,
-      },
-    });
-    const mission = await createResponse.json();
-
-    // Réserver la mission
-    const reserveResponse = await request.post(
-      `${API_BASE_URL}/missions/${mission.id}/reserve`,
+  test('devrait lister les missions nearby', async ({ request }) => {
+    const listResponse = await request.get(
+      `${API_BASE_URL}/missions-local/nearby?latitude=45.5017&longitude=-73.5673&radiusKm=50`,
       {
         headers: {
           Authorization: `Bearer ${workerToken}`,
         },
-        data: {
-          reservationMinutes: 15,
-        },
-      },
+      }
     );
 
-    expect(reserveResponse.ok()).toBeTruthy();
-    const reservedMission = await reserveResponse.json();
-    expect(reservedMission.status).toBe('RESERVED');
-    expect(reservedMission.workerId).toBeTruthy();
+    expect(listResponse.ok()).toBeTruthy();
+    const data = await listResponse.json();
+    expect(Array.isArray(data)).toBeTruthy();
   });
 
-  test('devrait accepter une mission réservée (worker)', async ({ request }) => {
-    // Créer et réserver une mission
-    const createResponse = await request.post(`${API_BASE_URL}/missions`, {
+  test('devrait accepter une mission (worker)', async ({ request }) => {
+    // Créer une mission d'abord
+    const createResponse = await request.post(`${API_BASE_URL}/missions-local`, {
       headers: {
         Authorization: `Bearer ${employerToken}`,
       },
       data: {
         title: 'Mission à accepter',
-        location: {
-          lat: 45.5017,
-          lng: -73.5673,
-        },
-        priceCents: 25000,
+        description: 'Description de test',
+        category: 'cleaning',
+        price: 200.0,
+        latitude: 45.5017,
+        longitude: -73.5673,
+        city: 'Montréal',
       },
     });
     const mission = await createResponse.json();
 
-    await request.post(`${API_BASE_URL}/missions/${mission.id}/reserve`, {
-      headers: {
-        Authorization: `Bearer ${workerToken}`,
-      },
-      data: {},
-    });
-
     // Accepter la mission
     const acceptResponse = await request.post(
-      `${API_BASE_URL}/missions/${mission.id}/accept`,
+      `${API_BASE_URL}/missions-local/${mission.id}/accept`,
       {
         headers: {
           Authorization: `Bearer ${workerToken}`,
@@ -170,7 +134,48 @@ test.describe('Missions Flow', () => {
 
     expect(acceptResponse.ok()).toBeTruthy();
     const acceptedMission = await acceptResponse.json();
-    expect(acceptedMission.status).toBe('IN_PROGRESS');
+    expect(acceptedMission.status).toBe('assigned');
+    expect(acceptedMission.assignedToUserId).toBeTruthy();
+  });
+
+  test('devrait démarrer une mission assignée (worker)', async ({ request }) => {
+    // Créer une mission
+    const createResponse = await request.post(`${API_BASE_URL}/missions-local`, {
+      headers: {
+        Authorization: `Bearer ${employerToken}`,
+      },
+      data: {
+        title: 'Mission à démarrer',
+        description: 'Description de test',
+        category: 'cleaning',
+        price: 250.0,
+        latitude: 45.5017,
+        longitude: -73.5673,
+        city: 'Montréal',
+      },
+    });
+    const mission = await createResponse.json();
+
+    // Accepter la mission (open → assigned)
+    await request.post(`${API_BASE_URL}/missions-local/${mission.id}/accept`, {
+      headers: {
+        Authorization: `Bearer ${workerToken}`,
+      },
+    });
+
+    // Démarrer la mission (assigned → in_progress)
+    const startResponse = await request.post(
+      `${API_BASE_URL}/missions-local/${mission.id}/start`,
+      {
+        headers: {
+          Authorization: `Bearer ${workerToken}`,
+        },
+      },
+    );
+
+    expect(startResponse.ok()).toBeTruthy();
+    const startedMission = await startResponse.json();
+    expect(startedMission.status).toBe('in_progress');
   });
 });
 

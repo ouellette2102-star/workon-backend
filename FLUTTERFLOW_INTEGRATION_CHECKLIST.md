@@ -43,7 +43,7 @@ Le backend est **100% fonctionnel**. Le problème est dans la **configuration de
 - [ ] `refreshToken` (String, Persisted: ✅) - Refresh token
 - [ ] `currentUserId` (String, Persisted: ✅) - ID utilisateur
 - [ ] `currentUserEmail` (String, Persisted: ✅) - Email
-- [ ] `currentUserRole` (String, Persisted: ✅) - `worker`, `employer`, `residential_client`
+- [ ] `currentUserRole` (String, Persisted: ✅) - **minuscules!** `worker`, `employer`, `residential_client`
 - [ ] `currentUserFirstName` (String, Persisted: ✅) - Prénom
 - [ ] `currentUserLastName` (String, Persisted: ✅) - Nom
 - [ ] `currentUserPictureUrl` (String, Persisted: ✅) - Photo profil
@@ -81,6 +81,11 @@ NO Auth Header (public)
   "lastName": "{{lastName}}",
   "role": "{{role}}"
 }
+```
+
+⚠️ **IMPORTANT:**
+- `role` doit être en **minuscules**: `worker`, `employer`, ou `residential_client`
+- `firstName` et `lastName` sont **optionnels** (peuvent être vides ou omis)
 ```
 
 **Mapping réponse → App State:**

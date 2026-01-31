@@ -77,10 +77,10 @@ export class ReviewsController {
   @ApiResponse({ status: 201, type: ReviewResponseDto })
   @ApiResponse({ status: 409, description: 'Review already exists' })
   async create(
-    @Request() req: { user: { userId: string } },
+    @Request() req: { user: { sub: string } },
     @Body() dto: CreateReviewDto,
   ): Promise<ReviewResponseDto> {
-    return this.reviewsService.create(req.user.userId, dto);
+    return this.reviewsService.create(req.user.sub, dto);
   }
 
   /**
