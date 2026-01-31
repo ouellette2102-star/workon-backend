@@ -144,21 +144,40 @@ describe('StripeService', () => {
   });
 
   describe('createConnectOnboardingLink', () => {
-    it('should throw BadRequestException (not implemented)', async () => {
+    it('should throw BadRequestException when Stripe not configured', async () => {
       await expect(service.createConnectOnboardingLink('user-1')).rejects.toThrow(
         BadRequestException,
+      );
+      await expect(service.createConnectOnboardingLink('user-1')).rejects.toThrow(
+        'Stripe is not configured',
       );
     });
   });
 
   describe('checkOnboardingStatus', () => {
-    it('should return not onboarded status (stub)', async () => {
-      const result = await service.checkOnboardingStatus('user-1');
+    it('should throw BadRequestException when Stripe not configured', async () => {
+      await expect(service.checkOnboardingStatus('user-1')).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.checkOnboardingStatus('user-1')).rejects.toThrow(
+        'Stripe is not configured',
+      );
+    });
+  });
 
-      expect(result.onboarded).toBe(false);
-      expect(result.chargesEnabled).toBe(false);
-      expect(result.payoutsEnabled).toBe(false);
-      expect(result.requirementsNeeded).toContain('stripe_connect_not_implemented');
+  describe('refreshConnectOnboardingLink', () => {
+    it('should throw BadRequestException when Stripe not configured', async () => {
+      await expect(service.refreshConnectOnboardingLink('user-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('createConnectPaymentIntent', () => {
+    it('should throw BadRequestException when Stripe not configured', async () => {
+      await expect(
+        service.createConnectPaymentIntent('employer-1', 'mission-1', 100),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });
