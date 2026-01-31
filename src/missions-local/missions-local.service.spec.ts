@@ -185,7 +185,11 @@ describe('MissionsLocalService', () => {
       const result = await service.findNearby(nearbyQuery, 'worker');
 
       expect(result).toHaveLength(1);
-      expect(repository.findNearby).toHaveBeenCalledWith(45.5, -73.6, 10);
+      expect(repository.findNearby).toHaveBeenCalledWith(45.5, -73.6, 10, {
+        sort: undefined,
+        category: undefined,
+        query: undefined,
+      });
     });
 
     it('should use default radius when not provided', async () => {
@@ -196,7 +200,33 @@ describe('MissionsLocalService', () => {
         'worker',
       );
 
-      expect(repository.findNearby).toHaveBeenCalledWith(45.5, -73.6, 10);
+      expect(repository.findNearby).toHaveBeenCalledWith(45.5, -73.6, 10, {
+        sort: undefined,
+        category: undefined,
+        query: undefined,
+      });
+    });
+
+    it('should pass sort/filter options to repository', async () => {
+      repository.findNearby.mockResolvedValue([]);
+
+      await service.findNearby(
+        {
+          latitude: 45.5,
+          longitude: -73.6,
+          radiusKm: 20,
+          sort: 'date',
+          category: 'Entretien',
+          query: 'plomberie',
+        },
+        'worker',
+      );
+
+      expect(repository.findNearby).toHaveBeenCalledWith(45.5, -73.6, 20, {
+        sort: 'date',
+        category: 'Entretien',
+        query: 'plomberie',
+      });
     });
 
     it('should throw ForbiddenException for employer', async () => {
