@@ -5,6 +5,9 @@ import { CatalogService } from '../catalog/catalog.service';
 import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { AdminActionInterceptor } from '../auth/interceptors/admin-action.interceptor';
 
 describe('AdminController', () => {
   let controller: AdminController;
@@ -24,6 +27,12 @@ describe('AdminController', () => {
     get: jest.fn(),
   };
 
+  // Mock guard that always allows access
+  const mockGuard = { canActivate: () => true };
+
+  // Mock interceptor that does nothing
+  const mockInterceptor = { intercept: (_context: unknown, next: { handle: () => unknown }) => next.handle() };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -34,7 +43,14 @@ describe('AdminController', () => {
         { provide: CatalogService, useValue: mockCatalogService },
         { provide: ConfigService, useValue: mockConfigService },
       ],
-    }).compile();
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue(mockGuard)
+      .overrideGuard(RolesGuard)
+      .useValue(mockGuard)
+      .overrideInterceptor(AdminActionInterceptor)
+      .useValue(mockInterceptor)
+      .compile();
 
     controller = module.get<AdminController>(AdminController);
     adminService = module.get(AdminService);
