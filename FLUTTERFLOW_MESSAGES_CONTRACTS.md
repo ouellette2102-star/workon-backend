@@ -15,10 +15,12 @@ Authorization: Bearer <JWT_TOKEN>
 
 # 📨 MODULE MESSAGES
 
+⚠️ **NOTE:** Les endpoints messages utilisent le préfixe `/messages-local` (pas `/messages`)
+
 ## Endpoints
 
 ### 1. Envoyer un message
-**POST** `/messages`
+**POST** `/messages-local`
 
 #### Body (JSON)
 ```json
@@ -45,14 +47,14 @@ Authorization: Bearer <JWT_TOKEN>
 |-----------|--------|
 | API Call Name | `sendMessage` |
 | Method | POST |
-| URL | `{{baseUrl}}/messages` |
+| URL | `{{baseUrl}}/messages-local` |
 | Headers | `Authorization: Bearer {{authToken}}`, `Content-Type: application/json` |
 | Body | JSON with `missionId` (String), `content` (String) |
 
 ---
 
 ### 2. Récupérer les messages d'une mission
-**GET** `/messages/thread/{missionId}`
+**GET** `/messages-local/thread/{missionId}`
 
 #### Response (200 OK)
 ```json
@@ -81,14 +83,14 @@ Authorization: Bearer <JWT_TOKEN>
 |-----------|--------|
 | API Call Name | `getMessagesForMission` |
 | Method | GET |
-| URL | `{{baseUrl}}/messages/thread/{{missionId}}` |
+| URL | `{{baseUrl}}/messages-local/thread/{{missionId}}` |
 | Headers | `Authorization: Bearer {{authToken}}` |
 | Path Params | `missionId` (String) |
 
 ---
 
 ### 3. Marquer les messages comme lus
-**PATCH** `/messages/read/{missionId}`
+**PATCH** `/messages-local/read/{missionId}`
 
 #### Response (200 OK)
 ```json
@@ -102,14 +104,14 @@ Authorization: Bearer <JWT_TOKEN>
 |-----------|--------|
 | API Call Name | `markMessagesAsRead` |
 | Method | PATCH |
-| URL | `{{baseUrl}}/messages/read/{{missionId}}` |
+| URL | `{{baseUrl}}/messages-local/read/{{missionId}}` |
 | Headers | `Authorization: Bearer {{authToken}}` |
 | Path Params | `missionId` (String) |
 
 ---
 
 ### 4. Compter les messages non lus
-**GET** `/messages/unread-count`
+**GET** `/messages-local/unread-count`
 
 #### Response (200 OK)
 ```json
@@ -123,7 +125,7 @@ Authorization: Bearer <JWT_TOKEN>
 |-----------|--------|
 | API Call Name | `getUnreadMessagesCount` |
 | Method | GET |
-| URL | `{{baseUrl}}/messages/unread-count` |
+| URL | `{{baseUrl}}/messages-local/unread-count` |
 | Headers | `Authorization: Bearer {{authToken}}` |
 
 ---
