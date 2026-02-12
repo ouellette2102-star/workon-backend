@@ -8,13 +8,14 @@ test.describe('Auth Flow', () => {
     const password = 'password123';
     const name = 'Test User';
 
-    // Test signup
-    const signupResponse = await request.post(`${API_BASE_URL}/auth/signup`, {
+    // Test register
+    const signupResponse = await request.post(`${API_BASE_URL}/auth/register`, {
       data: {
         email,
         password,
-        name,
-        role: 'WORKER',
+        firstName: 'Test',
+        lastName: 'User',
+        role: 'worker',
       },
     });
 
@@ -55,12 +56,13 @@ test.describe('Auth Flow', () => {
     const email = `test-${Date.now()}@example.com`;
     const password = 'password123';
 
-    await request.post(`${API_BASE_URL}/auth/signup`, {
+    await request.post(`${API_BASE_URL}/auth/register`, {
       data: {
         email,
         password,
-        name: 'Test User',
-        role: 'WORKER',
+        firstName: 'Test',
+        lastName: 'User',
+        role: 'worker',
       },
     });
 

@@ -26,64 +26,82 @@ test.describe('Payments Flow', () => {
   let missionId: string;
 
   test.beforeAll(async ({ request }) => {
-    // Créer un employer et une mission
+    // Créer employer et worker
     const employerEmail = `employer-${Date.now()}@test.com`;
-    const signup = await request.post(`${API_BASE_URL}/auth/signup`, {
+    const employerSignup = await request.post(`${API_BASE_URL}/auth/register`, {
       data: {
         email: employerEmail,
         password: 'password123',
-        name: 'Test Employer',
-        role: 'EMPLOYER',
-        companyName: 'Test Company',
+        firstName: 'Test',
+        lastName: 'Employer',
+        role: 'employer',
       },
     });
-    const employerData = await signup.json();
+    const employerData = await employerSignup.json();
     employerToken = employerData.accessToken;
-
-    // Accepter le consentement pour employer (requis par ConsentGuard)
     await acceptAllConsent(request, employerToken);
 
-    const createMission = await request.post(`${API_BASE_URL}/missions`, {
-      headers: {
-        Authorization: `Bearer ${employerToken}`,
+    const workerEmail = `worker-${Date.now()}@test.com`;
+    const workerSignup = await request.post(`${API_BASE_URL}/auth/register`, {
+      data: {
+        email: workerEmail,
+        password: 'password123',
+        firstName: 'Test',
+        lastName: 'Worker',
+        role: 'worker',
       },
+    });
+    const workerData = await workerSignup.json();
+    const workerToken = workerData.accessToken;
+    await acceptAllConsent(request, workerToken);
+
+    // Créer mission, accepter, démarrer, terminer (prérequis pour paiement)
+    const createMission = await request.post(`${API_BASE_URL}/missions-local`, {
+      headers: { Authorization: `Bearer ${employerToken}` },
       data: {
         title: 'Mission avec paiement',
-        location: {
-          lat: 45.5017,
-          lng: -73.5673,
-        },
-        priceCents: 30000,
+        description: 'Mission de test pour paiement',
+        category: 'cleaning',
+        city: 'Montréal',
+        address: '123 Rue Test',
+        latitude: 45.5017,
+        longitude: -73.5673,
+        price: 300,
       },
     });
     const mission = await createMission.json();
     missionId = mission.id;
+
+    await request.post(`${API_BASE_URL}/missions-local/${missionId}/accept`, {
+      headers: { Authorization: `Bearer ${workerToken}` },
+    });
+    await request.post(`${API_BASE_URL}/missions-local/${missionId}/start`, {
+      headers: { Authorization: `Bearer ${workerToken}` },
+    });
+    await request.post(`${API_BASE_URL}/missions-local/${missionId}/complete`, {
+      headers: { Authorization: `Bearer ${workerToken}` },
+    });
   });
 
   test('devrait créer un PaymentIntent (employer)', async ({ request }) => {
-    // Mock: En production, cela nécessiterait une vraie clé Stripe
-    // Pour les tests, on peut mocker Stripe ou utiliser Stripe Test Mode
     const createIntentResponse = await request.post(
-      `${API_BASE_URL}/payments/create-intent`,
+      `${API_BASE_URL}/payments-local/intent`,
       {
-        headers: {
-          Authorization: `Bearer ${employerToken}`,
-        },
-        data: {
-          missionId,
-        },
+        headers: { Authorization: `Bearer ${employerToken}` },
+        data: { missionId },
       },
     );
 
-    // Si Stripe n'est pas configuré, on s'attend à une erreur
-    if (createIntentResponse.status() === 400) {
+    // 503 = Stripe non configuré, 201 = succès
+    if (createIntentResponse.status() === 503) {
       const error = await createIntentResponse.json();
-      expect(error.message).toContain('Stripe');
-    } else {
-      expect(createIntentResponse.ok()).toBeTruthy();
+      expect(error.message?.toLowerCase()).toMatch(/stripe|payment|configur/);
+    } else if (createIntentResponse.status() === 201) {
       const data = await createIntentResponse.json();
       expect(data).toHaveProperty('clientSecret');
       expect(data).toHaveProperty('paymentIntentId');
+    } else {
+      expect(createIntentResponse.ok(), `Unexpected status ${createIntentResponse.status()}`).toBeTruthy();
     }
   });
 });

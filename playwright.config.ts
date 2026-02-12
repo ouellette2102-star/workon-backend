@@ -17,11 +17,13 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: 'npm run start:dev',
-    url: 'http://localhost:3000/healthz',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000,
-  },
+  webServer: process.env.TEST_REMOTE === '1'
+    ? undefined
+    : {
+        command: 'npm run start:dev',
+        url: 'http://localhost:3000/healthz',
+        reuseExistingServer: !process.env.CI,
+        timeout: 120000,
+      },
 });
 
