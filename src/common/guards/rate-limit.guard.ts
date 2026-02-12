@@ -99,11 +99,23 @@ export class RateLimitGuard implements CanActivate {
     entry.count++;
     rateLimitStore.set(key, entry);
 
-    // Ajouter les headers de rate limit à la réponse
+    // Ajouter les headers de rate limit à la réponse (RFC 6585 + draft-ietf-httpapi-ratelimit-headers)
     const response = context.switchToHttp().getResponse();
+    const remaining = Math.max(0, limit - entry.count);
+    const resetSeconds = Math.ceil((entry.resetAt - now) / 1000);
+    
+    // Standard headers
     response.setHeader('X-RateLimit-Limit', limit.toString());
-    response.setHeader('X-RateLimit-Remaining', Math.max(0, limit - entry.count).toString());
+    response.setHeader('X-RateLimit-Remaining', remaining.toString());
     response.setHeader('X-RateLimit-Reset', Math.ceil(entry.resetAt / 1000).toString());
+    
+    // RFC draft headers (newer standard)
+    response.setHeader('RateLimit-Limit', limit.toString());
+    response.setHeader('RateLimit-Remaining', remaining.toString());
+    response.setHeader('RateLimit-Reset', resetSeconds.toString());
+    
+    // Policy header for documentation
+    response.setHeader('RateLimit-Policy', `${limit};w=${windowSec}`);
 
     // Vérifier si limite dépassée
     if (entry.count > limit) {
@@ -111,11 +123,16 @@ export class RateLimitGuard implements CanActivate {
         `Rate limit exceeded: ${key} (${entry.count}/${limit} in ${windowSec}s)`,
       );
 
+      // Retry-After header (RFC 6585)
+      response.setHeader('Retry-After', resetSeconds.toString());
+
       throw new HttpException(
         {
           statusCode: HttpStatus.TOO_MANY_REQUESTS,
           message: 'Too many requests. Please try again later.',
-          retryAfter: Math.ceil((entry.resetAt - now) / 1000),
+          retryAfter: resetSeconds,
+          limit,
+          windowSeconds: windowSec,
         },
         HttpStatus.TOO_MANY_REQUESTS,
       );

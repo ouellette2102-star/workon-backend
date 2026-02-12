@@ -23,6 +23,7 @@ import { validate } from './config/env.validation';
 import { UsersModule } from './users/users.module';
 import { HealthModule } from './health/health.module';
 import { MissionsLocalModule } from './missions-local/missions-local.module';
+import { MessagesLocalModule } from './messages-local/messages-local.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { PaymentsLocalModule } from './payments-local/payments-local.module';
 import { CatalogModule } from './catalog/catalog.module';
@@ -117,15 +118,29 @@ import { ProductionConfigModule } from './config/production-config.module';
             environment: nodeEnv,
           },
           transports: [
+            // Console transport (always enabled)
             new winston.transports.Console({
               format: winston.format.combine(
                 winston.format.colorize(),
                 winston.format.simple(),
               ),
             }),
-            // Placeholder pour fichier de logs en production
-            // new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-            // new winston.transports.File({ filename: 'logs/combined.log' }),
+            // File transports (production/staging only, not on Railway which captures stdout)
+            ...(nodeEnv !== 'development' && !process.env.RAILWAY_ENVIRONMENT ? [
+              new winston.transports.File({ 
+                filename: 'logs/error.log', 
+                level: 'error',
+                maxsize: 10 * 1024 * 1024, // 10MB
+                maxFiles: 5,
+                tailable: true,
+              }),
+              new winston.transports.File({ 
+                filename: 'logs/combined.log',
+                maxsize: 10 * 1024 * 1024, // 10MB
+                maxFiles: 5,
+                tailable: true,
+              }),
+            ] : []),
           ],
         };
       },
@@ -165,6 +180,7 @@ import { ProductionConfigModule } from './config/production-config.module';
     // NATIVE (LocalUser/LocalMission) MODULES - ACTIVE IN PRODUCTION
     // ============================================================
     MissionsLocalModule,
+    MessagesLocalModule, // PR-B2: Local chat system
     MetricsModule,
     PaymentsLocalModule,
     // Public read-only catalog API (categories + skills)

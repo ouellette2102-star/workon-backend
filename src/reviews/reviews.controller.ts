@@ -23,8 +23,8 @@ import {
   RatingSummaryDto,
 } from './dto/review-response.dto';
 
-@ApiTags('reviews')
-@Controller('reviews')
+@ApiTags('Reviews')
+@Controller('api/v1/reviews')
 export class ReviewsController {
   constructor(private readonly reviewsService: ReviewsService) {}
 

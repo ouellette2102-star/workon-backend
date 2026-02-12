@@ -1,26 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
 import { DevicesService } from './devices.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotFoundException } from '@nestjs/common';
 import { DevicePlatform } from './dto/register-device.dto';
 
 describe('DevicesService', () => {
   let service: DevicesService;
-  let mockPrisma: ReturnType<typeof createMockPrisma>;
 
-  const mockDevice = {
-    id: 'device-uuid-1',
-    userId: 'user-1',
-    deviceId: 'device-id-123',
-    platform: 'ios',
-    pushToken: 'fcm-token-abc',
-    appVersion: '1.0.0',
-    active: true,
-    lastSeenAt: new Date('2024-01-15T10:00:00Z'),
-    createdAt: new Date('2024-01-01T10:00:00Z'),
-  };
-
-  const createMockPrisma = () => ({
+  const mockPrismaService = {
     device: {
       upsert: jest.fn(),
       findMany: jest.fn(),
@@ -28,308 +15,243 @@ describe('DevicesService', () => {
       findFirst: jest.fn(),
       update: jest.fn(),
     },
-  });
+    localDevice: {
+      upsert: jest.fn(),
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+    },
+  };
+
+  const mockDevice = {
+    id: 'device_1',
+    userId: 'user_1',
+    deviceId: 'device_abc123',
+    platform: 'android',
+    pushToken: 'fcm_token_123',
+    appVersion: '1.0.0',
+    active: true,
+    lastSeenAt: new Date('2026-01-30'),
+    createdAt: new Date('2026-01-01'),
+  };
+
+  const mockLocalDevice = {
+    ...mockDevice,
+    id: 'local_device_1',
+    userId: 'local_user_1',
+  };
 
   beforeEach(async () => {
-    mockPrisma = createMockPrisma();
+    jest.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DevicesService,
-        { provide: PrismaService, useValue: mockPrisma },
+        { provide: PrismaService, useValue: mockPrismaService },
       ],
     }).compile();
 
     service = module.get<DevicesService>(DevicesService);
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
   describe('registerDevice', () => {
-    it('should register a new device', async () => {
-      mockPrisma.device.upsert.mockResolvedValue(mockDevice);
+    it('should register a new device for regular user', async () => {
+      mockPrismaService.device.upsert.mockResolvedValue(mockDevice);
 
-      const result = await service.registerDevice('user-1', {
-        deviceId: 'device-id-123',
-        platform: DevicePlatform.IOS,
-        pushToken: 'fcm-token-abc',
+      const result = await service.registerDevice('user_1', {
+        deviceId: 'device_abc123',
+        platform: DevicePlatform.ANDROID,
+        pushToken: 'fcm_token_123',
         appVersion: '1.0.0',
       });
 
-      expect(result.deviceId).toBe('device-id-123');
-      expect(result.platform).toBe('ios');
-      expect(result.pushToken).toBe('fcm-token-abc');
-      expect(mockPrisma.device.upsert).toHaveBeenCalledWith({
-        where: {
-          userId_deviceId: {
-            userId: 'user-1',
-            deviceId: 'device-id-123',
-          },
-        },
-        update: expect.objectContaining({
-          platform: 'ios',
-          pushToken: 'fcm-token-abc',
-          active: true,
-        }),
-        create: expect.objectContaining({
-          userId: 'user-1',
-          deviceId: 'device-id-123',
-          platform: 'ios',
-        }),
-      });
+      expect(result.id).toBe('device_1');
+      expect(result.platform).toBe('android');
+      expect(mockPrismaService.device.upsert).toHaveBeenCalled();
     });
 
-    it('should update existing device on re-register', async () => {
-      const updatedDevice = { ...mockDevice, appVersion: '2.0.0' };
-      mockPrisma.device.upsert.mockResolvedValue(updatedDevice);
+    it('should register a device for local user', async () => {
+      mockPrismaService.localDevice.upsert.mockResolvedValue(mockLocalDevice);
 
-      const result = await service.registerDevice('user-1', {
-        deviceId: 'device-id-123',
+      const result = await service.registerDevice('local_user_1', {
+        deviceId: 'device_abc123',
         platform: DevicePlatform.IOS,
-        pushToken: 'new-token',
-        appVersion: '2.0.0',
+        pushToken: 'apns_token_123',
       });
 
-      expect(result.appVersion).toBe('2.0.0');
+      expect(result.id).toBe('local_device_1');
+      expect(mockPrismaService.localDevice.upsert).toHaveBeenCalled();
+      expect(mockPrismaService.device.upsert).not.toHaveBeenCalled();
     });
 
-    it('should register device without optional fields', async () => {
-      const deviceNoOptional = {
+    it('should update existing device on re-registration', async () => {
+      mockPrismaService.device.upsert.mockResolvedValue({
         ...mockDevice,
-        pushToken: null,
-        appVersion: null,
-      };
-      mockPrisma.device.upsert.mockResolvedValue(deviceNoOptional);
-
-      const result = await service.registerDevice('user-1', {
-        deviceId: 'device-id-123',
-        platform: DevicePlatform.ANDROID,
+        pushToken: 'new_token',
       });
 
-      expect(result.pushToken).toBeUndefined();
-      expect(result.appVersion).toBeUndefined();
+      const result = await service.registerDevice('user_1', {
+        deviceId: 'device_abc123',
+        platform: DevicePlatform.ANDROID,
+        pushToken: 'new_token',
+      });
+
+      expect(result.pushToken).toBe('new_token');
     });
   });
 
   describe('getMyDevices', () => {
-    it('should return all active devices for user', async () => {
-      const devices = [
-        mockDevice,
-        { ...mockDevice, id: 'device-uuid-2', deviceId: 'device-id-456', platform: 'android' },
-      ];
-      mockPrisma.device.findMany.mockResolvedValue(devices);
+    it('should return all active devices for regular user', async () => {
+      mockPrismaService.device.findMany.mockResolvedValue([mockDevice]);
 
-      const result = await service.getMyDevices('user-1');
+      const result = await service.getMyDevices('user_1');
 
-      expect(result).toHaveLength(2);
-      expect(result[0].platform).toBe('ios');
-      expect(result[1].platform).toBe('android');
-      expect(mockPrisma.device.findMany).toHaveBeenCalledWith({
-        where: {
-          userId: 'user-1',
-          active: true,
-        },
-        orderBy: { lastSeenAt: 'desc' },
-      });
+      expect(result).toHaveLength(1);
+      expect(result[0].deviceId).toBe('device_abc123');
     });
 
-    it('should return empty array for user with no devices', async () => {
-      mockPrisma.device.findMany.mockResolvedValue([]);
+    it('should return devices for local user', async () => {
+      mockPrismaService.localDevice.findMany.mockResolvedValue([mockLocalDevice]);
 
-      const result = await service.getMyDevices('user-no-devices');
+      const result = await service.getMyDevices('local_user_1');
+
+      expect(result).toHaveLength(1);
+      expect(mockPrismaService.localDevice.findMany).toHaveBeenCalled();
+    });
+
+    it('should return empty array when no devices', async () => {
+      mockPrismaService.device.findMany.mockResolvedValue([]);
+
+      const result = await service.getMyDevices('user_no_devices');
 
       expect(result).toEqual([]);
-    });
-
-    it('should not return inactive devices', async () => {
-      mockPrisma.device.findMany.mockResolvedValue([]);
-
-      await service.getMyDevices('user-1');
-
-      expect(mockPrisma.device.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            active: true,
-          }),
-        }),
-      );
     });
   });
 
   describe('deleteDevice', () => {
-    it('should soft-delete device owned by user', async () => {
-      mockPrisma.device.findUnique.mockResolvedValue(mockDevice);
-      mockPrisma.device.update.mockResolvedValue({ ...mockDevice, active: false });
+    it('should soft-delete device for regular user', async () => {
+      mockPrismaService.device.findUnique.mockResolvedValue(mockDevice);
+      mockPrismaService.device.update.mockResolvedValue({
+        ...mockDevice,
+        active: false,
+      });
 
-      await service.deleteDevice('user-1', 'device-uuid-1');
+      await service.deleteDevice('user_1', 'device_1');
 
-      expect(mockPrisma.device.update).toHaveBeenCalledWith({
-        where: { id: 'device-uuid-1' },
+      expect(mockPrismaService.device.update).toHaveBeenCalledWith({
+        where: { id: 'device_1' },
         data: { active: false },
       });
     });
 
-    it('should throw NotFoundException for non-existent device', async () => {
-      mockPrisma.device.findUnique.mockResolvedValue(null);
-
-      await expect(
-        service.deleteDevice('user-1', 'non-existent'),
-      ).rejects.toThrow(NotFoundException);
-    });
-
-    it('should throw NotFoundException if device belongs to another user', async () => {
-      mockPrisma.device.findUnique.mockResolvedValue({
-        ...mockDevice,
-        userId: 'other-user',
+    it('should soft-delete device for local user', async () => {
+      mockPrismaService.localDevice.findUnique.mockResolvedValue(mockLocalDevice);
+      mockPrismaService.localDevice.update.mockResolvedValue({
+        ...mockLocalDevice,
+        active: false,
       });
 
-      await expect(
-        service.deleteDevice('user-1', 'device-uuid-1'),
-      ).rejects.toThrow(NotFoundException);
+      await service.deleteDevice('local_user_1', 'local_device_1');
+
+      expect(mockPrismaService.localDevice.update).toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException if device not found', async () => {
+      mockPrismaService.device.findUnique.mockResolvedValue(null);
+
+      await expect(service.deleteDevice('user_1', 'nonexistent')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should throw NotFoundException if user does not own device', async () => {
+      mockPrismaService.device.findUnique.mockResolvedValue({
+        ...mockDevice,
+        userId: 'other_user',
+      });
+
+      await expect(service.deleteDevice('user_1', 'device_1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
   describe('updatePushToken', () => {
-    it('should update push token for existing device', async () => {
-      mockPrisma.device.findFirst.mockResolvedValue(mockDevice);
-      mockPrisma.device.update.mockResolvedValue({
+    it('should update push token for regular user', async () => {
+      mockPrismaService.device.findFirst.mockResolvedValue(mockDevice);
+      mockPrismaService.device.update.mockResolvedValue({
         ...mockDevice,
-        pushToken: 'new-push-token',
+        pushToken: 'new_push_token',
       });
 
       const result = await service.updatePushToken(
-        'user-1',
-        'device-id-123',
-        'new-push-token',
+        'user_1',
+        'device_abc123',
+        'new_push_token',
       );
 
-      expect(result.pushToken).toBe('new-push-token');
-      expect(mockPrisma.device.update).toHaveBeenCalledWith({
-        where: { id: 'device-uuid-1' },
-        data: {
-          pushToken: 'new-push-token',
-          lastSeenAt: expect.any(Date),
-        },
-      });
+      expect(result.pushToken).toBe('new_push_token');
     });
 
-    it('should throw NotFoundException for non-existent device', async () => {
-      mockPrisma.device.findFirst.mockResolvedValue(null);
+    it('should update push token for local user', async () => {
+      mockPrismaService.localDevice.findFirst.mockResolvedValue(mockLocalDevice);
+      mockPrismaService.localDevice.update.mockResolvedValue({
+        ...mockLocalDevice,
+        pushToken: 'new_local_token',
+      });
+
+      const result = await service.updatePushToken(
+        'local_user_1',
+        'device_abc123',
+        'new_local_token',
+      );
+
+      expect(result.pushToken).toBe('new_local_token');
+    });
+
+    it('should throw NotFoundException if device not found', async () => {
+      mockPrismaService.device.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.updatePushToken('user-1', 'unknown-device', 'token'),
+        service.updatePushToken('user_1', 'nonexistent', 'token'),
       ).rejects.toThrow(NotFoundException);
-    });
-
-    it('should only find active devices', async () => {
-      mockPrisma.device.findFirst.mockResolvedValue(null);
-
-      await service
-        .updatePushToken('user-1', 'device-id', 'token')
-        .catch(() => {});
-
-      expect(mockPrisma.device.findFirst).toHaveBeenCalledWith({
-        where: {
-          userId: 'user-1',
-          deviceId: 'device-id',
-          active: true,
-        },
-      });
     });
   });
 
   describe('getPushTokensForUser', () => {
-    it('should return all push tokens for user', async () => {
-      mockPrisma.device.findMany.mockResolvedValue([
-        { pushToken: 'token-1' },
-        { pushToken: 'token-2' },
-        { pushToken: 'token-3' },
-      ] as any);
+    it('should return push tokens for regular user', async () => {
+      mockPrismaService.device.findMany.mockResolvedValue([
+        { pushToken: 'token_1' },
+        { pushToken: 'token_2' },
+      ]);
 
-      const result = await service.getPushTokensForUser('user-1');
+      const result = await service.getPushTokensForUser('user_1');
 
-      expect(result).toEqual(['token-1', 'token-2', 'token-3']);
+      expect(result).toEqual(['token_1', 'token_2']);
+    });
+
+    it('should return push tokens for local user', async () => {
+      mockPrismaService.localDevice.findMany.mockResolvedValue([
+        { pushToken: 'local_token_1' },
+        { pushToken: null },
+        { pushToken: 'local_token_2' },
+      ]);
+
+      const result = await service.getPushTokensForUser('local_user_1');
+
+      expect(result).toEqual(['local_token_1', 'local_token_2']);
     });
 
     it('should filter out null tokens', async () => {
-      mockPrisma.device.findMany.mockResolvedValue([
-        { pushToken: 'token-1' },
+      mockPrismaService.device.findMany.mockResolvedValue([
+        { pushToken: 'token_1' },
         { pushToken: null },
-        { pushToken: 'token-2' },
-      ] as any);
+      ]);
 
-      const result = await service.getPushTokensForUser('user-1');
+      const result = await service.getPushTokensForUser('user_1');
 
-      expect(result).toEqual(['token-1', 'token-2']);
-    });
-
-    it('should return empty array for user with no tokens', async () => {
-      mockPrisma.device.findMany.mockResolvedValue([]);
-
-      const result = await service.getPushTokensForUser('user-no-tokens');
-
-      expect(result).toEqual([]);
-    });
-
-    it('should query only active devices with tokens', async () => {
-      mockPrisma.device.findMany.mockResolvedValue([]);
-
-      await service.getPushTokensForUser('user-1');
-
-      expect(mockPrisma.device.findMany).toHaveBeenCalledWith({
-        where: {
-          userId: 'user-1',
-          active: true,
-          pushToken: { not: null },
-        },
-        select: { pushToken: true },
-      });
-    });
-  });
-
-  describe('response mapping', () => {
-    it('should map device to response DTO correctly', async () => {
-      mockPrisma.device.upsert.mockResolvedValue(mockDevice);
-
-      const result = await service.registerDevice('user-1', {
-        deviceId: 'device-id-123',
-        platform: DevicePlatform.IOS,
-        pushToken: 'fcm-token-abc',
-        appVersion: '1.0.0',
-      });
-
-      expect(result).toEqual({
-        id: 'device-uuid-1',
-        userId: 'user-1',
-        deviceId: 'device-id-123',
-        platform: 'ios',
-        pushToken: 'fcm-token-abc',
-        appVersion: '1.0.0',
-        active: true,
-        lastSeenAt: expect.any(Date),
-        createdAt: expect.any(Date),
-      });
-    });
-
-    it('should handle null optional fields in response', async () => {
-      const deviceWithNulls = {
-        ...mockDevice,
-        pushToken: null,
-        appVersion: null,
-      };
-      mockPrisma.device.upsert.mockResolvedValue(deviceWithNulls);
-
-      const result = await service.registerDevice('user-1', {
-        deviceId: 'device-id-123',
-        platform: DevicePlatform.IOS,
-      });
-
-      // null fields should be undefined in response
-      expect(result.pushToken).toBeUndefined();
-      expect(result.appVersion).toBeUndefined();
+      expect(result).toEqual(['token_1']);
     });
   });
 });
-

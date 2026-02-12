@@ -162,6 +162,7 @@ model LocalMission {
   assignedToUser        LocalUser?         @relation("local_missions_assignedToUserIdTolocal_users", fields: [assignedToUserId], references: [id])
   createdByUser         LocalUser          @relation("local_missions_createdByUserIdTolocal_users", fields: [createdByUserId], references: [id], onDelete: Cascade)
   offers                LocalOffer[]
+  messages              LocalMessage[]
 
   @@index([assignedToUserId])
   @@index([category])
@@ -275,6 +276,7 @@ model LocalUser {
   createdMissions  LocalMission[] @relation("local_missions_createdByUserIdTolocal_users")
   offers           LocalOffer[]
   devices          LocalDevice[] // Push notification devices
+  messages         LocalMessage[] // Chat messages sent by this user
 
   @@index([active])
   @@index([city])
@@ -306,6 +308,40 @@ model LocalDevice {
   @@index([userId])
   @@index([active])
   @@map("local_devices")
+}
+
+// ============================================
+// LOCAL MESSAGES - Chat for LocalUser system
+// ============================================
+/// Chat messages for local missions (LocalUser system)
+model LocalMessage {
+  id         String              @id
+  missionId  String
+  senderId   String
+  senderRole LocalMessageRole
+  content    String
+  status     LocalMessageStatus  @default(SENT)
+  createdAt  DateTime            @default(now())
+
+  // Relations
+  mission LocalMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  sender  LocalUser    @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([missionId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@map("local_messages")
+}
+
+enum LocalMessageRole {
+  WORKER
+  EMPLOYER
+}
+
+enum LocalMessageStatus {
+  SENT
+  DELIVERED
+  READ
 }
 
 model Mission {

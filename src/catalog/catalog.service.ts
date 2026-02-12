@@ -5,6 +5,8 @@ import { GetSkillsQueryDto } from './dto/get-skills.query.dto';
 import {
   CatalogHealthResponseDto,
 } from './dto/catalog.responses';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class CatalogService {
@@ -153,6 +155,147 @@ export class CatalogService {
     return {
       categoriesCount,
       skillsCount,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Seed catalog from JSON files (admin only)
+   * Idempotent: safe to run multiple times
+   */
+  async seedCatalog(): Promise<{
+    categories: { created: number; updated: number };
+    skills: { created: number; updated: number; skipped: number };
+    timestamp: string;
+  }> {
+    this.logger.log('Starting catalog seed...');
+
+    // Find data directory (handle both dev and production paths)
+    const possiblePaths = [
+      path.join(process.cwd(), 'prisma', 'data'),
+      path.join(__dirname, '..', '..', 'prisma', 'data'),
+      path.join(__dirname, '..', '..', '..', 'prisma', 'data'),
+    ];
+
+    let dataDir: string | null = null;
+    for (const p of possiblePaths) {
+      if (fs.existsSync(path.join(p, 'categories.json'))) {
+        dataDir = p;
+        break;
+      }
+    }
+
+    if (!dataDir) {
+      throw new Error('Catalog data files not found');
+    }
+
+    this.logger.log(`Using data directory: ${dataDir}`);
+
+    // Seed categories
+    const categoriesPath = path.join(dataDir, 'categories.json');
+    const categoriesData = JSON.parse(fs.readFileSync(categoriesPath, 'utf-8'));
+    
+    const categoryMap = new Map<string, string>();
+    let catCreated = 0;
+    let catUpdated = 0;
+
+    for (const cat of categoriesData) {
+      const existing = await this.prisma.category.findUnique({
+        where: { name: cat.name },
+      });
+
+      if (existing) {
+        await this.prisma.category.update({
+          where: { name: cat.name },
+          data: {
+            nameEn: cat.nameEn,
+            icon: cat.icon,
+            residentialAllowed: cat.residentialAllowed,
+            legalNotes: cat.legalNotes,
+          },
+        });
+        categoryMap.set(cat.name, existing.id);
+        catUpdated++;
+      } else {
+        const created = await this.prisma.category.create({
+          data: {
+            id: `cat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            name: cat.name,
+            nameEn: cat.nameEn,
+            icon: cat.icon,
+            residentialAllowed: cat.residentialAllowed,
+            legalNotes: cat.legalNotes,
+          },
+        });
+        categoryMap.set(cat.name, created.id);
+        catCreated++;
+      }
+    }
+
+    this.logger.log(`Categories: ${catCreated} created, ${catUpdated} updated`);
+
+    // Seed skills
+    const skillsPath = path.join(dataDir, 'skills.json');
+    const skillsData = JSON.parse(fs.readFileSync(skillsPath, 'utf-8'));
+
+    let skillCreated = 0;
+    let skillUpdated = 0;
+    let skillSkipped = 0;
+
+    for (const skill of skillsData) {
+      const categoryId = categoryMap.get(skill.categoryName);
+
+      if (!categoryId) {
+        this.logger.warn(`Skipping skill "${skill.name}" - category "${skill.categoryName}" not found`);
+        skillSkipped++;
+        continue;
+      }
+
+      const existing = await this.prisma.skill.findFirst({
+        where: {
+          name: skill.name,
+          categoryId: categoryId,
+        },
+      });
+
+      if (existing) {
+        await this.prisma.skill.update({
+          where: { id: existing.id },
+          data: {
+            nameEn: skill.nameEn,
+            requiresPermit: skill.requiresPermit,
+            proofType: skill.proofType,
+          },
+        });
+        skillUpdated++;
+      } else {
+        await this.prisma.skill.create({
+          data: {
+            id: `skill_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            name: skill.name,
+            nameEn: skill.nameEn,
+            categoryId: categoryId,
+            requiresPermit: skill.requiresPermit,
+            proofType: skill.proofType,
+          },
+        });
+        skillCreated++;
+      }
+    }
+
+    this.logger.log(`Skills: ${skillCreated} created, ${skillUpdated} updated, ${skillSkipped} skipped`);
+
+    // Verify
+    const [categoriesCount, skillsCount] = await Promise.all([
+      this.prisma.category.count(),
+      this.prisma.skill.count(),
+    ]);
+
+    this.logger.log(`Seed complete. Total: ${categoriesCount} categories, ${skillsCount} skills`);
+
+    return {
+      categories: { created: catCreated, updated: catUpdated },
+      skills: { created: skillCreated, updated: skillUpdated, skipped: skillSkipped },
       timestamp: new Date().toISOString(),
     };
   }
