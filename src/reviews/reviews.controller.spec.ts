@@ -22,7 +22,7 @@ describe('ReviewsController', () => {
     createdAt: new Date(),
   };
 
-  const mockReq = { user: { userId: 'user-1' } };
+  const mockReq = { user: { sub: 'user-1' } };
 
   beforeEach(async () => {
     const mockService = {
