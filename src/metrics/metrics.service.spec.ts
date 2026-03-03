@@ -11,6 +11,9 @@ describe('MetricsService', () => {
       count: jest.fn(),
       findMany: jest.fn(),
     },
+    localMission: {
+      count: jest.fn(),
+    },
   };
 
   beforeEach(async () => {
@@ -92,6 +95,32 @@ describe('MetricsService', () => {
       const result = await service.calculateRatio();
 
       expect(result.workerToEmployerRatio).toBe(3.03); // 100/33 ≈ 3.03
+    });
+  });
+
+  describe('getHomeStats', () => {
+    it('should return home stats (completedContracts, activeWorkers, openServiceCalls)', async () => {
+      mockPrismaService.localMission.count
+        .mockResolvedValueOnce(182) // completedContracts
+        .mockResolvedValueOnce(24); // openServiceCalls
+      mockPrismaService.localUser.count.mockResolvedValueOnce(2453); // activeWorkers
+
+      const result = await service.getHomeStats();
+
+      expect(result).toEqual({
+        completedContracts: 182,
+        activeWorkers: 2453,
+        openServiceCalls: 24,
+      });
+      expect(mockPrismaService.localMission.count).toHaveBeenCalledWith({
+        where: { status: 'completed' },
+      });
+      expect(mockPrismaService.localMission.count).toHaveBeenCalledWith({
+        where: { status: 'open' },
+      });
+      expect(mockPrismaService.localUser.count).toHaveBeenCalledWith({
+        where: { role: 'worker', active: true },
+      });
     });
   });
 
