@@ -9,6 +9,7 @@ import {
 import { Response } from 'express';
 import { MetricsService } from './metrics.service';
 import { RatioResponseDto } from './dto/ratio-response.dto';
+import { HomeStatsResponseDto } from './dto/home-stats-response.dto';
 
 @ApiTags('Metrics')
 @Controller('api/v1/metrics')
@@ -32,6 +33,21 @@ export class MetricsController {
   async getPrometheusMetrics(@Res() res: Response): Promise<void> {
     const metrics = await this.metricsService.getPrometheusMetrics(this.startTime);
     res.send(metrics);
+  }
+
+  @Get('home-stats')
+  @ApiOperation({
+    summary: 'Get home page stats',
+    description:
+      'Returns aggregated metrics for the Home landing page: completed contracts, active workers, open service calls. Public endpoint.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Home stats',
+    type: HomeStatsResponseDto,
+  })
+  async getHomeStats(): Promise<HomeStatsResponseDto> {
+    return this.metricsService.getHomeStats();
   }
 
   @Get('ratio')
