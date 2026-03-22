@@ -51,6 +51,39 @@ export class MetricsService {
   }
 
   /**
+   * Get home page stats - aggregated metrics for landing display
+   * Public endpoint - no authentication required
+   *
+   * @returns completedContracts, activeWorkers, openServiceCalls
+   */
+  async getHomeStats(): Promise<{
+    completedContracts: number;
+    activeWorkers: number;
+    openServiceCalls: number;
+  }> {
+    this.logger.log('Fetching home stats');
+
+    const [completedContracts, activeWorkers, openServiceCalls] =
+      await Promise.all([
+        this.prisma.localMission.count({
+          where: { status: 'completed' },
+        }),
+        this.prisma.localUser.count({
+          where: { role: 'worker', active: true },
+        }),
+        this.prisma.localMission.count({
+          where: { status: 'open' },
+        }),
+      ]);
+
+    return {
+      completedContracts,
+      activeWorkers,
+      openServiceCalls,
+    };
+  }
+
+  /**
    * Get available regions (cities with users)
    */
   async getAvailableRegions(): Promise<string[]> {

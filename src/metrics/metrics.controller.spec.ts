@@ -9,6 +9,7 @@ describe('MetricsController', () => {
   beforeEach(async () => {
     const mockService = {
       getPrometheusMetrics: jest.fn(),
+      getHomeStats: jest.fn(),
       calculateRatio: jest.fn(),
       getAvailableRegions: jest.fn(),
     };
@@ -36,6 +37,22 @@ describe('MetricsController', () => {
 
       expect(service.getPrometheusMetrics).toHaveBeenCalled();
       expect(mockRes.send).toHaveBeenCalledWith(mockMetrics);
+    });
+  });
+
+  describe('getHomeStats', () => {
+    it('should return home stats', async () => {
+      const homeStats = {
+        completedContracts: 182,
+        activeWorkers: 2453,
+        openServiceCalls: 24,
+      };
+      service.getHomeStats.mockResolvedValue(homeStats);
+
+      const result = await controller.getHomeStats();
+
+      expect(service.getHomeStats).toHaveBeenCalled();
+      expect(result).toEqual(homeStats);
     });
   });
 
