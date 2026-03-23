@@ -23,6 +23,7 @@ import { validate } from './config/env.validation';
 import { UsersModule } from './users/users.module';
 import { HealthModule } from './health/health.module';
 import { MissionsLocalModule } from './missions-local/missions-local.module';
+import { MissionsMapModule } from './missions-map/missions-map.module';
 import { MessagesLocalModule } from './messages-local/messages-local.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { PaymentsLocalModule } from './payments-local/payments-local.module';
@@ -180,6 +181,7 @@ import { ProductionConfigModule } from './config/production-config.module';
     // NATIVE (LocalUser/LocalMission) MODULES - ACTIVE IN PRODUCTION
     // ============================================================
     MissionsLocalModule,
+    MissionsMapModule,
     MessagesLocalModule, // PR-B2: Local chat system
     MetricsModule,
     PaymentsLocalModule,
