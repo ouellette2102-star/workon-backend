@@ -45,6 +45,7 @@ import { IdentityModule } from './identity/identity.module';
 import { SecurityModule } from './common/security/security.module';
 import { SchedulingModule } from './scheduling/scheduling.module';
 import { ProductionConfigModule } from './config/production-config.module';
+import { ProsModule } from './pros/pros.module';
 
 @Module({
   imports: [
@@ -216,6 +217,8 @@ import { ProductionConfigModule } from './config/production-config.module';
     SchedulingModule,
     // Production configuration - Feature flags, secrets validation, safe defaults (PR-11)
     ProductionConfigModule,
+    // GHL hors-app webhooks - Pro registration + Mission creation
+    ProsModule,
   ],
   controllers: [AppController],
   providers: [
