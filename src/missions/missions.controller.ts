@@ -8,8 +8,8 @@ import {
   Query,
   Request,
   UseGuards,
-  SkipThrottle,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { ApiTags } from '@nestjs/swagger';
 import { MissionsService } from './missions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
