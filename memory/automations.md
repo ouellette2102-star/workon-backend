@@ -4,9 +4,11 @@
 
 | Task ID | Schedule | Description | Agent | Status |
 |---------|----------|-------------|-------|--------|
-| daily-standup | 9:05 AM weekdays | Git activity + task synthesis | /chief | Active |
-| weekly-review | Monday 9:13 AM | Strategic review + priority reset | /ceo + /chief | Active |
-| inbox-triage | Every 3 hours | Email scan and categorization | /chief | Active |
+| daily-standup | 8:57 AM weekdays | Git activity + task synthesis | /chief | Active (last run: 2026-03-25) |
+| weekly-review | Monday 9:03 AM | Strategic review + priority reset | /ceo + /chief | Active |
+| inbox-triage | Every 3h (:17) | Email scan and categorization | /chief | Active (last run: 2026-03-25) |
+| weekly-revenue-scan | Friday 9:23 AM | Stripe revenue scan + metrics update | /data | Active (created: 2026-03-27) |
+| monthly-ceo-review | 1st Monday 9:13 AM | Full business health assessment + OKR review | /ceo | Active (created: 2026-03-27, next: Apr 6) |
 
 ---
 
@@ -239,10 +241,11 @@ Notify: Present to user, update memory/roadmap.md
 ## Pipeline Health Monitor
 | Pipeline | Last Run | Status | Owner | Issues |
 |----------|----------|--------|-------|--------|
-| product-development | — | Ready | /cto | None |
-| campaign-launch | — | Ready | /growth | Needs ICP definition |
-| content-production | — | Ready | /content | Needs content calendar |
-| signal-lead-generation | — | Ready | /data → /growth | Needs ICP definition |
-| weekly-strategic-review | Active | Healthy | /ceo + /chief | None |
-| automation-deploy | — | Ready | /architect | None |
-| ceo-monthly-review | — | Ready | /ceo | Scheduled for April 6 |
+| product-development | 2026-03-27 | Active | /cto | GHL endpoints shipped, tests fixed |
+| campaign-launch | 2026-03-27 | Activated | /growth | Campaign plans created |
+| content-production | 2026-03-27 | Activated | /content | 3 SEO articles + brand voice + calendar |
+| signal-lead-generation | 2026-03-27 | Activated | /data → /growth | Lead scoring model created |
+| weekly-strategic-review | Active | Healthy | /ceo + /chief | Running on schedule |
+| automation-deploy | 2026-03-27 | Active | /architect | 2 new scheduled tasks deployed |
+| ceo-monthly-review | — | Scheduled | /ceo | First review April 6 |
+| weekly-revenue-scan | — | Scheduled | /data | First scan April 4 |

@@ -27,18 +27,7 @@ describe('MetricsController', () => {
     jest.clearAllMocks();
   });
 
-  describe('getPrometheusMetrics', () => {
-    it('should return prometheus metrics', async () => {
-      const mockMetrics = '# HELP workon_users_total Total users\nworkon_users_total 100';
-      service.getPrometheusMetrics.mockResolvedValue(mockMetrics);
-
-      const mockRes = { send: jest.fn() };
-      await controller.getPrometheusMetrics(mockRes as any);
-
-      expect(service.getPrometheusMetrics).toHaveBeenCalled();
-      expect(mockRes.send).toHaveBeenCalledWith(mockMetrics);
-    });
-  });
+  // getPrometheusMetrics tests removed — method was moved out of MetricsController
 
   describe('getHomeStats', () => {
     it('should return home stats', async () => {

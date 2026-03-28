@@ -218,7 +218,7 @@ describe('MissionsLocalService', () => {
           sort: 'date',
           category: 'Entretien',
           query: 'plomberie',
-        },
+        } as any,
         'worker',
       );
 
