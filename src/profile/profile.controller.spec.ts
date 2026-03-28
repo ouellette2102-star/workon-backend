@@ -43,16 +43,7 @@ describe('ProfileController', () => {
     jest.clearAllMocks();
   });
 
-  describe('getProfile', () => {
-    it('should return current user profile', async () => {
-      service.getProfile.mockResolvedValue(mockProfile);
-
-      const result = await controller.getProfile(mockReq);
-
-      expect(service.getProfile).toHaveBeenCalledWith('user-1');
-      expect(result).toBeDefined();
-    });
-  });
+  // getProfile tests removed — method renamed to getMe
 
   describe('getMe', () => {
     it('should return current user profile', async () => {

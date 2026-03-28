@@ -23,8 +23,6 @@ import { validate } from './config/env.validation';
 import { UsersModule } from './users/users.module';
 import { HealthModule } from './health/health.module';
 import { MissionsLocalModule } from './missions-local/missions-local.module';
-import { MissionsMapModule } from './missions-map/missions-map.module';
-import { MessagesLocalModule } from './messages-local/messages-local.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { PaymentsLocalModule } from './payments-local/payments-local.module';
 import { CatalogModule } from './catalog/catalog.module';
@@ -45,6 +43,7 @@ import { IdentityModule } from './identity/identity.module';
 import { SecurityModule } from './common/security/security.module';
 import { SchedulingModule } from './scheduling/scheduling.module';
 import { ProductionConfigModule } from './config/production-config.module';
+import { GhlModule } from './ghl/ghl.module';
 
 @Module({
   imports: [
@@ -119,29 +118,15 @@ import { ProductionConfigModule } from './config/production-config.module';
             environment: nodeEnv,
           },
           transports: [
-            // Console transport (always enabled)
             new winston.transports.Console({
               format: winston.format.combine(
                 winston.format.colorize(),
                 winston.format.simple(),
               ),
             }),
-            // File transports (production/staging only, not on Railway which captures stdout)
-            ...(nodeEnv !== 'development' && !process.env.RAILWAY_ENVIRONMENT ? [
-              new winston.transports.File({ 
-                filename: 'logs/error.log', 
-                level: 'error',
-                maxsize: 10 * 1024 * 1024, // 10MB
-                maxFiles: 5,
-                tailable: true,
-              }),
-              new winston.transports.File({ 
-                filename: 'logs/combined.log',
-                maxsize: 10 * 1024 * 1024, // 10MB
-                maxFiles: 5,
-                tailable: true,
-              }),
-            ] : []),
+            // Placeholder pour fichier de logs en production
+            // new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
+            // new winston.transports.File({ filename: 'logs/combined.log' }),
           ],
         };
       },
@@ -181,8 +166,6 @@ import { ProductionConfigModule } from './config/production-config.module';
     // NATIVE (LocalUser/LocalMission) MODULES - ACTIVE IN PRODUCTION
     // ============================================================
     MissionsLocalModule,
-    MissionsMapModule,
-    MessagesLocalModule, // PR-B2: Local chat system
     MetricsModule,
     PaymentsLocalModule,
     // Public read-only catalog API (categories + skills)
@@ -216,6 +199,8 @@ import { ProductionConfigModule } from './config/production-config.module';
     SchedulingModule,
     // Production configuration - Feature flags, secrets validation, safe defaults (PR-11)
     ProductionConfigModule,
+    // GHL Integration - GoHighLevel webhooks via N8N (missions + worker signup)
+    GhlModule,
   ],
   controllers: [AppController],
   providers: [

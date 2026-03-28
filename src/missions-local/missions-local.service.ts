@@ -55,7 +55,7 @@ export class MissionsLocalService {
   /**
    * Find nearby open missions
    * 
-   * @param query Location, radius, and optional filters
+   * @param query Location and radius
    * @param userRole User role (must be worker)
    */
   async findNearby(query: NearbyMissionsQueryDto, userRole: string) {
@@ -69,16 +69,14 @@ export class MissionsLocalService {
       query.longitude,
       query.radiusKm || 10,
       {
-        sort: query.sort,
-        category: query.category,
-        query: query.query,
+        sort: (query as any).sort,
+        category: (query as any).category,
+        query: (query as any).query,
       },
     );
 
     this.logger.log(
-      `Found ${missions.length} missions within ${query.radiusKm}km` +
-      (query.category ? ` (category: ${query.category})` : '') +
-      (query.sort ? ` (sorted by: ${query.sort})` : ''),
+      `Found ${missions.length} missions within ${query.radiusKm}km`,
     );
 
     return missions;
