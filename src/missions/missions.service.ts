@@ -589,6 +589,84 @@ export class MissionsService {
     return filtered;
   }
 
+  /**
+   * Create a mission from a GHL webhook form submission.
+   * Upserts a LocalUser (employer) then creates a LocalMission.
+   */
+  async createFromGhl(data: {
+    clientName: string;
+    clientEmail: string;
+    clientPhone?: string;
+    serviceType?: string;
+    description?: string;
+    city?: string;
+    budget?: number;
+    source: string;
+  }): Promise<{ id: string; clientEmail: string }> {
+    const now = new Date();
+    const [firstName, ...rest] = (data.clientName || 'Client GHL').split(' ');
+    const lastName = rest.join(' ') || 'GHL';
+    const email = data.clientEmail.toLowerCase().trim();
+
+    // Upsert LocalUser as employer (use ORM — updatedAt required explicitly)
+    let localUser = await this.prisma.localUser.findUnique({ where: { email } });
+
+    if (!localUser) {
+      const { LocalUserRole } = await import('@prisma/client');
+      const bcrypt = await import('bcryptjs');
+      const tempPassword = await bcrypt.hash(
+        `ghl_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        10,
+      );
+      localUser = await this.prisma.localUser.create({
+        data: {
+          id: `client_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          email,
+          hashedPassword: tempPassword,
+          firstName,
+          lastName,
+          phone: data.clientPhone ?? '',
+          city: data.city ?? '',
+          role: LocalUserRole.employer,
+          updatedAt: now,
+        },
+      });
+      this.logger.log(`New GHL client created: ${localUser.id} (${email})`);
+    }
+
+    // Create LocalMission via raw SQL (updatedAt has no @default in schema)
+    const missionId = `lm_ghl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    await this.prisma.$executeRaw`
+      INSERT INTO local_missions (
+        id, title, description, category, status, price,
+        latitude, longitude, city, "createdByUserId", "createdAt", "updatedAt"
+      ) VALUES (
+        ${missionId},
+        ${data.serviceType ?? 'Service GHL'},
+        ${data.description ?? ''},
+        ${data.serviceType ?? 'general'},
+        'open',
+        ${data.budget ?? 0},
+        0, 0,
+        ${data.city ?? ''},
+        ${localUser.id},
+        ${now}, ${now}
+      )
+    `;
+
+    // Notify N8N (fire and forget)
+    const n8nBase = process.env.N8N_WEBHOOK_BASE;
+    if (n8nBase) {
+      fetch(`${n8nBase}/webhook/mission-created`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ missionId, ...data }),
+      }).catch((e: Error) => this.logger.warn(`N8N notification failed: ${e.message}`));
+    }
+
+    return { id: missionId, clientEmail: email };
+  }
+
   private calculateDistance(
     lat1: number,
     lon1: number,

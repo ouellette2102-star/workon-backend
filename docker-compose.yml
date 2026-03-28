@@ -1,6 +1,21 @@
 version: '3.8'
 
+# ============================================================
+# WorkOn — Docker Compose (Local Development)
+# ============================================================
+# Mode recommandé (PostgreSQL only) :
+#   docker compose up -d postgres
+#   npm run start:dev
+#
+# Mode full (PostgreSQL + Backend containerisé) :
+#   docker compose up -d
+# ============================================================
+
 services:
+
+  # ─────────────────────────────────────────────────────────
+  # PostgreSQL 16 — Base de données locale
+  # ─────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: workon-postgres
@@ -13,27 +28,30 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U workon"]
+      test: ["CMD-SHELL", "pg_isready -U workon -d workon"]
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
+  # ─────────────────────────────────────────────────────────
+  # Backend NestJS — Mode containerisé (optionnel)
+  # Charge les variables depuis .env.local
+  # Note: DATABASE_URL est surchargée pour pointer vers
+  #       le service postgres dans le réseau Docker.
+  # ─────────────────────────────────────────────────────────
   backend:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: workon-backend
+    env_file:
+      - .env.local
     environment:
-      DATABASE_URL: postgresql://workon:workon_password@postgres:5432/workon?schema=public
-      NODE_ENV: development
+      # Surcharge DATABASE_URL pour pointer vers le container postgres
+      DATABASE_URL: "postgresql://workon:workon_password@postgres:5432/workon?schema=public"
       PORT: 3000
-      JWT_SECRET: dev-jwt-secret-change-in-production-min-32-chars
-      JWT_REFRESH_SECRET: dev-refresh-secret-change-in-production-min-32-chars
-      JWT_EXPIRATION: 15m
-      JWT_REFRESH_EXPIRATION: 7d
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
-      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
-      LOG_LEVEL: debug
+      NODE_ENV: development
     ports:
       - "3000:3000"
     depends_on:
@@ -42,9 +60,16 @@ services:
     volumes:
       - ./src:/app/src
       - ./prisma:/app/prisma
+      - /app/node_modules
     command: sh -c "npx prisma migrate deploy && npm run start:dev"
     restart: unless-stopped
+    profiles:
+      - full
 
 volumes:
   postgres_data:
+    driver: local
 
+networks:
+  default:
+    name: workon-dev-network

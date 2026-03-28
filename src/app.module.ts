@@ -44,6 +44,7 @@ import { SecurityModule } from './common/security/security.module';
 import { SchedulingModule } from './scheduling/scheduling.module';
 import { ProductionConfigModule } from './config/production-config.module';
 import { GhlModule } from './ghl/ghl.module';
+import { ProsModule } from './pros/pros.module';
 
 @Module({
   imports: [
@@ -201,6 +202,8 @@ import { GhlModule } from './ghl/ghl.module';
     ProductionConfigModule,
     // GHL Integration - GoHighLevel webhooks via N8N (missions + worker signup)
     GhlModule,
+    // GHL hors-app webhooks - Pro registration + Mission creation
+    ProsModule,
   ],
   controllers: [AppController],
   providers: [
