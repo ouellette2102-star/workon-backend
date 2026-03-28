@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { GhlMissionWebhookDto } from './dto/ghl-mission-webhook.dto';
 import { GhlProSignupDto } from './dto/ghl-pro-signup.dto';
 import * as crypto from 'crypto';
+import { generateUniqueReferralCode } from '../users/referral-code.util';
 
 /**
  * GHL Integration Service
@@ -46,11 +47,24 @@ export class GhlService {
       };
     }
 
-    // Find or reference the client — GHL contacts may not have a backend account yet
-    // The mission is created with a synthetic createdByUserId
-    const createdByUserId = dto.ghlContactId
-      ? `ghl_${dto.ghlContactId}`
-      : `ghl_anon_${Date.now()}`;
+    // Find or create a system user for GHL-originated missions
+    // GHL contacts may not have a backend account yet
+    const ghlSystemUserId = 'system_ghl_bot';
+    const systemUser = await this.prisma.localUser.upsert({
+      where: { id: ghlSystemUserId },
+      create: {
+        id: ghlSystemUserId,
+        firstName: 'GHL',
+        lastName: 'Bot',
+        email: 'ghl-bot@workon.ca',
+        hashedPassword: 'SYSTEM_ACCOUNT_NO_LOGIN',
+        role: 'employer',
+        active: true,
+        updatedAt: new Date(),
+      },
+      update: {},
+    });
+    const createdByUserId = systemUser.id;
 
     const id = `lm_ghl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -109,6 +123,7 @@ export class GhlService {
     const tempPassword = crypto.randomBytes(32).toString('hex');
     const bcrypt = await import('bcryptjs');
     const hashedPassword = await bcrypt.hash(tempPassword, 12);
+    const referralCode = await generateUniqueReferralCode(this.prisma);
 
     const user = await this.prisma.localUser.create({
       data: {
@@ -120,6 +135,7 @@ export class GhlService {
         phone: dto.phone || null,
         city: dto.city || null,
         role: 'worker',
+        referralCode,
         active: true,
         updatedAt: new Date(),
       },
