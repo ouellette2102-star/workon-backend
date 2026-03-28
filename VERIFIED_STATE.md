@@ -1,7 +1,7 @@
 # VERIFIED STATE — WorkOn Production Systems
 
 > Single source of truth. Only facts verified against live systems belong here.
-> Last verified: 2026-03-28T20:03Z (Public API verification of all 7 workflows — all body refs = 0)
+> Last verified: 2026-03-28T20:46Z (Full audit: workflows, env vars, backend URLs, Stripe)
 
 ---
 
@@ -31,10 +31,28 @@
 **Status**: RUNNING, authenticated via browser session
 **API Keys**: 8 keys exist (claude, claude-auto-2, claude-fix-3, diagnostics-2026, WorkOn API, WorkOn Automation, WorkOn Final, WorkOn Workflows)
 
-### Workflows — ALL FIXED (verified 2026-03-28T20:03Z)
+### Workflows — ALL FIXED (verified 2026-03-28T20:46Z)
 
-All `$json.body.` references have been replaced with `$json.` across all 7 workflows.
+All `$json.body.` and `.json.body.` references replaced with `$json.` / `.json.` across all 7 workflows.
+Stale backend URLs (`production-31db` staging) replaced with `production-8908` (production) in W2 and W3.
 Fix applied via N8N Public API (PUT /api/v1/workflows/{id}) using programmatically created API key.
+
+### Environment Variables (37 total, verified 2026-03-28T20:46Z)
+
+All required env vars are configured in Railway N8N service:
+
+| Variable | Service | Status |
+|---|---|---|
+| `WORKON_API_KEY` | WorkOn Backend | Set |
+| `GHL_API_KEY` | GoHighLevel | Set |
+| `GHL_PIPELINE_ID`, `GHL_STAGE_*` (x3), `GHL_MATHIEU_CONTACT_ID` | GHL Pipeline | Set |
+| `ONESIGNAL_REST_API_KEY`, `ONESIGNAL_APP_ID` | OneSignal Push | Set |
+| `NOTION_API_KEY`, `NOTION_MISSIONS_DB_ID` | Notion KPI | Set |
+| `PDFMONKEY_API_KEY`, `PDFMONKEY_CONTRACT_TEMPLATE_ID` | PDFMonkey Contracts | Set |
+| `ANTHROPIC_API_KEY` | Claude API (W4 social) | Set |
+| `FACEBOOK_PAGE_ID`, `FACEBOOK_PAGE_ACCESS_TOKEN` | Meta/Facebook | Set |
+| `INSTAGRAM_BUSINESS_ACCOUNT_ID` | Instagram | Set |
+| `STRIPE_WEBHOOK_SECRET` | Stripe | Set |
 
 | ID | Name | body refs | Active | Status |
 |---|---|---|---|---|
@@ -91,16 +109,18 @@ Fix applied via N8N Public API (PUT /api/v1/workflows/{id}) using programmatical
 
 **Repo**: ouellette2102-star/workon-backend
 **Branch protection**: main requires PRs, no direct push
-**Latest on main**: PR #143 merged (VERIFIED_STATE.md + agent sync protocol)
-**PR #144**: N8N body mapping fix — pending merge
+**Latest on main**: PR #144 merged (N8N body mapping fix + VERIFIED_STATE update)
+**PR #145**: Closed (duplicate of #144)
 
 ---
 
 ## Known Issues / Next Actions (Priority Order)
 
-1. ~~**N8N: Fix W3, W4, Pro Signup body mapping**~~ — **DONE** (2026-03-28T20:03Z). All 14 refs fixed via Public API.
-2. ~~**N8N: Publish W1**~~ — **DONE** (2026-03-28T20:03Z). PUT via API published the fix.
-3. ~~**N8N API key**~~ — **DONE**. Created `claude-fix-3` key programmatically (never expires, workflow scopes).
-4. **W1-W4 credential verification** — Test with real data (GHL API, OneSignal, PDFMonkey, Notion). Body mapping is fixed, but 3rd-party credentials in N8N nodes need verification.
-5. **Stripe Connect Express** — Manual activation on dashboard.stripe.com
-6. **GHL purchase** — User purchasing subscription ~2026-03-29
+1. ~~**N8N: Fix all body mapping**~~ — **DONE** (2026-03-28T20:46Z). Fixed `$json.body.` AND `item.json.body.` patterns in W1-W4 + Pro Signup.
+2. ~~**N8N: Fix stale backend URLs**~~ — **DONE** (2026-03-28T20:46Z). W2 and W3 pointed to staging (`31db`), now point to production (`8908`).
+3. ~~**N8N: Publish all workflows**~~ — **DONE**. All 7 active=true, 0 body refs.
+4. ~~**N8N API key**~~ — **DONE**. Created `claude-fix-3` key programmatically.
+5. ~~**N8N env vars audit**~~ — **DONE** (2026-03-28T20:46Z). All 37 vars configured in Railway.
+6. **Stripe Connect Express** — Requires manual activation on dashboard.stripe.com (business verification + bank account setup). Cannot be automated.
+7. **GHL purchase** — User purchasing subscription ~2026-03-29. Requires payment.
+8. **E2E workflow test** — Trigger a real GHL form → verify full chain (N8N → Backend → 3rd party APIs). Blocked by GHL trial expiry.
