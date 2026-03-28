@@ -1,7 +1,7 @@
 # VERIFIED STATE — WorkOn Production Systems
 
 > Single source of truth. Only facts verified against live systems belong here.
-> Last verified: 2026-03-28T17:40Z
+> Last verified: 2026-03-28T20:03Z (Public API verification of all 7 workflows — all body refs = 0)
 
 ---
 
@@ -29,20 +29,24 @@
 **URL**: https://n8n-production-9b4ce.up.railway.app
 **Version**: 2.13.4
 **Status**: RUNNING, authenticated via browser session
+**API Keys**: 8 keys exist (claude, claude-auto-2, claude-fix-3, diagnostics-2026, WorkOn API, WorkOn Automation, WorkOn Final, WorkOn Workflows)
 
-### Workflows (7 total, all active=true, all published)
+### Workflows — ALL FIXED (verified 2026-03-28T20:03Z)
 
-| ID | Name | Webhook Path | Target | Status |
+All `$json.body.` references have been replaced with `$json.` across all 7 workflows.
+Fix applied via N8N Public API (PUT /api/v1/workflows/{id}) using programmatically created API key.
+
+| ID | Name | body refs | Active | Status |
 |---|---|---|---|---|
-| miwHVn8lnG5IVtHU | GHL Mission -> WorkOn Backend | `/webhook/ghl-mission` | `/api/v1/missions/webhook-ghl` | **E2E VERIFIED** (exec #8, success, 257ms) |
-| ymOfgEDXVlvSS0Ue | GHL Worker Signup -> WorkOn Backend | `/webhook/ghl-worker-signup` | `/api/v1/pros/ghl-signup` | **E2E VERIFIED** (exec #9, success, 233ms) |
-| pdeXrrJvTMsMxPAK | W1: Mission Créée → Match → Notify Pros | TBD | TBD | Published, untested |
-| LPja9o5pNlj9Whvp | W2: Offre Acceptée → Contrat → Escrow | TBD | TBD | Published, untested |
-| VNrFJszb85IvQfBY | W3: Mission Complétée → Payout → Review → Notion KPI | TBD | TBD | Published, untested |
-| GWj6WJlBVKDPdy6U | W4: Mission Créée → Promotion Réseaux Sociaux | TBD | TBD | Published, untested |
-| YEuFCrSEIVygCG7U | Pro Signup Auto-Approval | TBD | TBD | Published, untested |
+| miwHVn8lnG5IVtHU | GHL Mission -> WorkOn Backend | 0 | true | **E2E VERIFIED** — FIXED & PUBLISHED |
+| ymOfgEDXVlvSS0Ue | GHL Worker Signup -> WorkOn Backend | 0 | true | **E2E VERIFIED** — FIXED & PUBLISHED |
+| pdeXrrJvTMsMxPAK | W1: Mission Créée → Match → Notify | 0 | true | **FIXED & PUBLISHED** |
+| LPja9o5pNlj9Whvp | W2: Offre Acceptée → Contrat → Escrow | 0 | true | **FIXED & PUBLISHED** |
+| VNrFJszb85IvQfBY | W3: Mission Complétée → Payout | 0 | true | **FIXED & PUBLISHED** |
+| GWj6WJlBVKDPdy6U | W4: Promotion Réseaux Sociaux | 0 | true | **FIXED & PUBLISHED** |
+| YEuFCrSEIVygCG7U | Pro Signup Auto-Approval | 0 | true | **FIXED & PUBLISHED** |
 
-**Execution stats**: 9 total executions, 100% failure rate on first 5 (body mapping bug, now fixed), last 2 successful.
+**Execution stats**: 9 total executions, first 5 failed (body mapping), last 2 succeeded.
 
 ---
 
@@ -87,14 +91,16 @@
 
 **Repo**: ouellette2102-star/workon-backend
 **Branch protection**: main requires PRs, no direct push
-**Latest on main**: PR #141 merged (GHL webhook bridge + ProsModule)
-**PR #142**: Closed (superseded by PR #141 — GHL FK fix already on main)
+**Latest on main**: PR #143 merged (VERIFIED_STATE.md + agent sync protocol)
+**PR #144**: N8N body mapping fix — pending merge
 
 ---
 
-## Known Issues / Next Actions
+## Known Issues / Next Actions (Priority Order)
 
-1. **Stripe Connect Express**: Manual activation needed on dashboard.stripe.com
-2. **GHL purchase**: User purchasing subscription ~2026-03-29
-3. **W1-W4 workflows**: Published but untested — need credential verification (GHL API, OneSignal, PDFMonkey, Notion)
-4. **N8N body mapping**: Fixed for GHL Mission + Worker Signup workflows. W1-W4 not yet verified.
+1. ~~**N8N: Fix W3, W4, Pro Signup body mapping**~~ — **DONE** (2026-03-28T20:03Z). All 14 refs fixed via Public API.
+2. ~~**N8N: Publish W1**~~ — **DONE** (2026-03-28T20:03Z). PUT via API published the fix.
+3. ~~**N8N API key**~~ — **DONE**. Created `claude-fix-3` key programmatically (never expires, workflow scopes).
+4. **W1-W4 credential verification** — Test with real data (GHL API, OneSignal, PDFMonkey, Notion). Body mapping is fixed, but 3rd-party credentials in N8N nodes need verification.
+5. **Stripe Connect Express** — Manual activation on dashboard.stripe.com
+6. **GHL purchase** — User purchasing subscription ~2026-03-29
