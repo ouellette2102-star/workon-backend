@@ -14,24 +14,50 @@ export interface StorageFile {
   size: number;
 }
 
+export type StorageBackend = 'local' | 's3';
+
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
   private readonly uploadsDir: string;
   private readonly signedUrlSecret: string;
   private readonly signedUrlTtl: number;
+  private readonly backend: StorageBackend;
+  private s3Client: any = null;
+  private readonly s3Bucket: string;
 
   constructor(private readonly configService: ConfigService) {
     this.uploadsDir = path.join(process.cwd(), 'uploads', 'missions');
-    
-    // Secret pour signer les URLs
+
     this.signedUrlSecret = this.configService.get<string>('SIGNED_URL_SECRET') || 'dev-signed-url-secret-change-in-production';
-    
-    // TTL par défaut: 5 minutes
+
     this.signedUrlTtl = parseInt(
       this.configService.get<string>('SIGNED_URL_TTL_SECONDS') || '300',
       10,
     );
+
+    // S3 configuration (optional — falls back to local storage)
+    this.s3Bucket = this.configService.get<string>('S3_BUCKET') || '';
+    const s3Region = this.configService.get<string>('S3_REGION');
+    const s3Endpoint = this.configService.get<string>('S3_ENDPOINT'); // For R2, MinIO, etc.
+
+    if (this.s3Bucket && s3Region) {
+      try {
+        const { S3Client } = require('@aws-sdk/client-s3');
+        this.s3Client = new S3Client({
+          region: s3Region,
+          ...(s3Endpoint ? { endpoint: s3Endpoint, forcePathStyle: true } : {}),
+        });
+        this.backend = 's3';
+        this.logger.log(`Storage backend: S3 (bucket: ${this.s3Bucket})`);
+      } catch {
+        this.logger.warn('S3 configured but @aws-sdk/client-s3 not installed — using local storage');
+        this.backend = 'local';
+      }
+    } else {
+      this.backend = 'local';
+      this.logger.log('Storage backend: local disk');
+    }
   }
 
   /**
@@ -102,6 +128,68 @@ export class StorageService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Upload a file (auto-routes to local or S3 based on config)
+   */
+  async uploadFile(key: string, buffer: Buffer, mimeType: string): Promise<string> {
+    if (this.backend === 's3' && this.s3Client) {
+      return this.uploadToS3(key, buffer, mimeType);
+    }
+    return this.uploadToLocal(key, buffer);
+  }
+
+  /**
+   * Upload to local filesystem
+   */
+  private async uploadToLocal(key: string, buffer: Buffer): Promise<string> {
+    const fullPath = path.join(this.uploadsDir, key);
+    const dir = path.dirname(fullPath);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(fullPath, buffer);
+    return `/uploads/missions/${key}`;
+  }
+
+  /**
+   * Upload to S3/R2
+   */
+  private async uploadToS3(key: string, buffer: Buffer, mimeType: string): Promise<string> {
+    const { PutObjectCommand } = require('@aws-sdk/client-s3');
+
+    await this.s3Client.send(new PutObjectCommand({
+      Bucket: this.s3Bucket,
+      Key: `missions/${key}`,
+      Body: buffer,
+      ContentType: mimeType,
+    }));
+
+    const cdnUrl = this.configService.get<string>('CDN_URL');
+    if (cdnUrl) {
+      return `${cdnUrl}/missions/${key}`;
+    }
+
+    return `s3://${this.s3Bucket}/missions/${key}`;
+  }
+
+  /**
+   * Delete a file from storage
+   */
+  async deleteFile(key: string): Promise<void> {
+    if (this.backend === 's3' && this.s3Client) {
+      const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
+      await this.s3Client.send(new DeleteObjectCommand({
+        Bucket: this.s3Bucket,
+        Key: `missions/${key}`,
+      }));
+    } else {
+      const fullPath = path.join(this.uploadsDir, key);
+      await fs.unlink(fullPath).catch(() => {});
+    }
+  }
+
+  getBackend(): StorageBackend {
+    return this.backend;
   }
 }
 

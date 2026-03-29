@@ -96,4 +96,24 @@ export class ContractsController {
   ) {
     return this.contractsService.updateContractStatus(req.user.sub, id, dto);
   }
+
+  @Post(':id/sign')
+  @ApiOperation({
+    summary: 'Electronically sign a contract',
+    description: 'Signs the contract for the authenticated user (employer or worker). ' +
+      'When both parties have signed, the contract auto-transitions to ACCEPTED.',
+  })
+  @ApiParam({ name: 'id', description: 'Contract ID' })
+  @ApiResponse({ status: 200, description: 'Contract signed' })
+  @ApiResponse({ status: 400, description: 'Already signed or invalid state' })
+  signContract(
+    @Param('id') id: string,
+    @Request() req: any,
+  ) {
+    return this.contractsService.signContract(
+      req.user.sub,
+      id,
+      req.ip,
+    );
+  }
 }

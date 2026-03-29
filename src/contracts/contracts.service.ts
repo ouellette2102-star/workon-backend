@@ -268,6 +268,84 @@ export class ContractsService {
   }
 
   /**
+   * Sign a contract electronically
+   * Generates a unique nonce and records the signature timestamp
+   */
+  async signContract(
+    clerkUserId: string,
+    contractId: string,
+    ipAddress?: string,
+  ): Promise<{ signed: boolean; role: string; signatureNonce: string }> {
+    const contract = await this.prisma.contract.findFirst({
+      where: { id: contractId, deletedAt: null },
+      include: {
+        employer: { select: { id: true, clerkId: true } },
+        worker: { select: { id: true, clerkId: true } },
+      },
+    });
+
+    if (!contract) {
+      throw new NotFoundException('Contrat non trouvé');
+    }
+
+    const isEmployer = contract.employer?.clerkId === clerkUserId;
+    const isWorker = contract.worker?.clerkId === clerkUserId;
+
+    if (!isEmployer && !isWorker) {
+      throw new ForbiddenException('Seules les parties du contrat peuvent signer');
+    }
+
+    if (contract.status === ContractStatus.CANCELLED || contract.status === ContractStatus.REJECTED) {
+      throw new BadRequestException('Impossible de signer un contrat annulé ou refusé');
+    }
+
+    const role = isEmployer ? 'employer' : 'worker';
+    const alreadySigned = isEmployer ? contract.signedByEmployer : contract.signedByWorker;
+
+    if (alreadySigned) {
+      throw new BadRequestException(`Ce contrat est déjà signé par le ${role}`);
+    }
+
+    // Generate signature nonce (unique proof of signing)
+    const nonce = `sig_${Date.now()}_${Math.random().toString(36).substr(2, 12)}`;
+    const signatureRecord = {
+      nonce,
+      role,
+      userId: clerkUserId,
+      signedAt: new Date().toISOString(),
+      ip: ipAddress || 'unknown',
+    };
+
+    const updateData: Record<string, unknown> = {};
+    if (isEmployer) {
+      updateData.signedByEmployer = true;
+    } else {
+      updateData.signedByWorker = true;
+    }
+
+    // Append nonce (combine if both parties signed)
+    const existingNonce = contract.signatureNonce;
+    updateData.signatureNonce = existingNonce
+      ? `${existingNonce}|${JSON.stringify(signatureRecord)}`
+      : JSON.stringify(signatureRecord);
+
+    // Auto-transition: if both parties signed and status is PENDING → ACCEPTED
+    const otherPartySigned = isEmployer ? contract.signedByWorker : contract.signedByEmployer;
+    if (otherPartySigned) {
+      updateData.status = ContractStatus.ACCEPTED;
+    }
+
+    await this.prisma.contract.update({
+      where: { id: contractId },
+      data: updateData,
+    });
+
+    this.logger.log(`Contract ${contractId} signed by ${role} (${clerkUserId})`);
+
+    return { signed: true, role, signatureNonce: nonce };
+  }
+
+  /**
    * Mapper vers la réponse
    */
   private mapToResponse(contract: any): ContractResponse {

@@ -290,5 +290,74 @@ export class IdentityVerificationService {
 
     return missing;
   }
+
+  /**
+   * Create a Stripe Identity verification session
+   * Returns the URL for the user to complete ID verification
+   */
+  async createStripeIdentitySession(userId: string): Promise<{ url: string; sessionId: string }> {
+    const Stripe = require('stripe');
+    const secretKey = process.env.STRIPE_SECRET_KEY;
+
+    if (!secretKey) {
+      throw new BadRequestException('Stripe is not configured');
+    }
+
+    const stripe = new Stripe(secretKey);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+    const user = await this.prisma.localUser.findUnique({
+      where: { id: userId },
+      select: { email: true, firstName: true, lastName: true },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    const session = await stripe.identity.verificationSessions.create({
+      type: 'document',
+      metadata: {
+        workon_user_id: userId,
+      },
+      options: {
+        document: {
+          require_matching_selfie: true,
+        },
+      },
+      return_url: `${frontendUrl}/verification/complete`,
+    });
+
+    // Update status to PENDING
+    await this.updateIdVerificationStatus(userId, IdVerificationStatus.PENDING, 'stripe_identity', session.id);
+
+    this.logger.log(`Stripe Identity session created for user ${userId}: ${session.id}`);
+
+    return { url: session.url, sessionId: session.id };
+  }
+
+  /**
+   * Handle Stripe Identity webhook (verification_session.verified / requires_input)
+   */
+  async handleStripeIdentityWebhook(sessionId: string, status: 'verified' | 'requires_input' | 'canceled'): Promise<void> {
+    // Find user by verification ref
+    const user = await this.prisma.localUser.findFirst({
+      where: { idVerificationRef: sessionId },
+      select: { id: true },
+    });
+
+    if (!user) {
+      this.logger.warn(`No user found for identity session: ${sessionId}`);
+      return;
+    }
+
+    const statusMap: Record<string, IdVerificationStatus> = {
+      verified: IdVerificationStatus.VERIFIED,
+      requires_input: IdVerificationStatus.FAILED,
+      canceled: IdVerificationStatus.NOT_STARTED,
+    };
+
+    await this.updateIdVerificationStatus(user.id, statusMap[status] || IdVerificationStatus.FAILED, 'stripe_identity');
+  }
 }
 

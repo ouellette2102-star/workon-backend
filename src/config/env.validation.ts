@@ -322,6 +322,34 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   N8N_WEBHOOK_BASE?: string; // Base URL for N8N webhook callbacks
+
+  // ========================================
+  // REDIS / CACHE
+  // ========================================
+
+  @IsString()
+  @IsOptional()
+  REDIS_URL?: string; // Redis connection URL (e.g. redis://localhost:6379)
+
+  // ========================================
+  // S3 / CLOUD STORAGE
+  // ========================================
+
+  @IsString()
+  @IsOptional()
+  S3_BUCKET?: string; // S3 bucket name
+
+  @IsString()
+  @IsOptional()
+  S3_REGION?: string; // AWS region (e.g. ca-central-1)
+
+  @IsString()
+  @IsOptional()
+  S3_ENDPOINT?: string; // Custom endpoint for R2/MinIO
+
+  @IsString()
+  @IsOptional()
+  CDN_URL?: string; // CDN base URL for serving files
 }
 
 /**

@@ -46,6 +46,8 @@ import { ProductionConfigModule } from './config/production-config.module';
 import { GhlModule } from './ghl/ghl.module';
 import { ProsModule } from './pros/pros.module';
 import { I18nModule } from './i18n/i18n.module';
+import { ChatModule } from './chat/chat.module';
+import { CacheConfigModule } from './cache/cache.module';
 
 @Module({
   imports: [
@@ -206,6 +208,8 @@ import { I18nModule } from './i18n/i18n.module';
     // GHL hors-app webhooks - Pro registration + Mission creation
     ProsModule,
     I18nModule,
+    ChatModule,
+    CacheConfigModule,
   ],
   controllers: [AppController],
   providers: [
