@@ -46,11 +46,11 @@ export class MissionPinDto {
   city: string;
 
   @ApiProperty({
-    description: 'Mission price in CAD',
-    example: 75.0,
+    description: 'Mission price in cents (CAD)',
+    example: 7500,
     minimum: 0,
   })
-  price: number;
+  priceCents: number;
 
   @ApiProperty({
     description: 'Current mission status',

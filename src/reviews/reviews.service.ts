@@ -56,6 +56,7 @@ export class ReviewsService {
           authorId,
           targetUserId: dto.toUserId,
           missionId: dto.missionId,
+          deletedAt: null,
         },
       });
 
@@ -88,6 +89,9 @@ export class ReviewsService {
       },
     });
 
+    // Denormalize: update WorkerProfile averageRating + reviewCount
+    await this.updateWorkerRating(dto.toUserId);
+
     return this.mapToResponse(review);
   }
 
@@ -103,6 +107,7 @@ export class ReviewsService {
       where: {
         targetUserId: userId,
         moderation: 'OK',
+        deletedAt: null,
       },
       orderBy: { createdAt: 'desc' },
       take: limit ?? 50,
@@ -130,6 +135,7 @@ export class ReviewsService {
       where: {
         targetUserId: userId,
         moderation: 'OK',
+        deletedAt: null,
       },
       select: { rating: true },
     });
@@ -167,8 +173,8 @@ export class ReviewsService {
    * Gets a single review by ID.
    */
   async findOne(id: string): Promise<ReviewResponseDto> {
-    const review = await this.prisma.review.findUnique({
-      where: { id },
+    const review = await this.prisma.review.findFirst({
+      where: { id, deletedAt: null },
       include: {
         author: {
           select: {
@@ -186,6 +192,36 @@ export class ReviewsService {
     }
 
     return this.mapToResponse(review);
+  }
+
+  /**
+   * Recalculate and denormalize averageRating + reviewCount on WorkerProfile
+   */
+  private async updateWorkerRating(userId: string): Promise<void> {
+    const workerProfile = await this.prisma.workerProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!workerProfile) return; // Not a worker, skip
+
+    const aggregate = await this.prisma.review.aggregate({
+      where: {
+        targetUserId: userId,
+        moderation: 'OK',
+        deletedAt: null,
+      },
+      _avg: { rating: true },
+      _count: { rating: true },
+    });
+
+    await this.prisma.workerProfile.update({
+      where: { userId },
+      data: {
+        averageRating: Math.round((aggregate._avg.rating ?? 0) * 10) / 10,
+        reviewCount: aggregate._count.rating,
+        updatedAt: new Date(),
+      },
+    });
   }
 
   private mapToResponse(review: {

@@ -45,13 +45,13 @@ export class CreateMissionDto {
   category: string;
 
   @ApiProperty({
-    example: 75.0,
-    description: 'Mission price in CAD',
+    example: 7500,
+    description: 'Mission price in cents (e.g. 7500 = $75.00 CAD)',
     minimum: 0,
   })
   @IsNumber()
   @Min(0)
-  price: number;
+  priceCents: number;
 
   @ApiProperty({
     example: 45.5017,

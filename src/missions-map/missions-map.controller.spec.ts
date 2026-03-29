@@ -12,7 +12,7 @@ describe('MissionsMapController', () => {
     category: 'cleaning',
     latitude: 45.5,
     longitude: -73.6,
-    price: 100,
+    priceCents: 10000,
     status: 'open',
     city: 'Montreal',
   };

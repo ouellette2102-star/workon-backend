@@ -42,8 +42,8 @@ describe('ContractsService', () => {
     employerId: 'employer-1',
     workerId: 'worker-1',
     status: ContractStatus.DRAFT,
-    amount: 500,
-    hourlyRate: null,
+    amountCents: 50000,
+    hourlyRateCents: null,
     startAt: null,
     endAt: null,
     signedByWorker: false,
@@ -71,7 +71,7 @@ describe('ContractsService', () => {
   describe('createContract', () => {
     const createDto = {
       missionId: 'mission-1',
-      amount: 500,
+      amountCents: 50000,
     };
 
     it('should create a contract successfully', async () => {
@@ -127,7 +127,7 @@ describe('ContractsService', () => {
     it('should include hourlyRate and dates when provided', async () => {
       const dtoWithDetails = {
         ...createDto,
-        hourlyRate: 25,
+        hourlyRateCents: 2500,
         startAt: '2026-02-01T00:00:00Z',
         endAt: '2026-02-28T00:00:00Z',
       };
@@ -135,14 +135,14 @@ describe('ContractsService', () => {
       mockPrismaService.mission.findUnique.mockResolvedValue(mockMission);
       mockPrismaService.contract.create.mockResolvedValue({
         ...mockContract,
-        hourlyRate: 25,
+        hourlyRateCents: 2500,
         startAt: new Date('2026-02-01'),
         endAt: new Date('2026-02-28'),
       });
 
       const result = await service.createContract('clerk-employer', dtoWithDetails);
 
-      expect(result.hourlyRate).toBe(25);
+      expect(result.hourlyRateCents).toBe(2500);
       expect(result.startAt).toBeDefined();
       expect(result.endAt).toBeDefined();
     });

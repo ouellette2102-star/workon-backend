@@ -51,48 +51,50 @@ export class ProsService {
     const filledFields = [firstName, lastName, phone, city].filter(Boolean).length;
     const completionScore = Math.round((filledFields / 4) * 100);
 
-    // Upsert LocalUser (ne pas écraser le mot de passe si déjà existant)
-    let pro = await this.prisma.localUser.findUnique({ where: { email } });
+    // Atomic: find-or-create pro in a single transaction
+    const pro = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.localUser.findUnique({ where: { email } });
 
-    if (!pro) {
-      // Créer un compte temporaire (le Pro définira son mot de passe via onboarding)
-      const tempPassword = await bcrypt.hash(
-        `ghl_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-        10,
-      );
+      if (!existing) {
+        const tempPassword = await bcrypt.hash(
+          `ghl_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+          10,
+        );
 
-      pro = await this.prisma.localUser.create({
-        data: {
-          id: `pro_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-          email,
-          hashedPassword: tempPassword,
-          firstName,
-          lastName,
-          phone,
-          city,
-          role: LocalUserRole.worker,
-          updatedAt: new Date(),
-        },
-      });
+        const created = await tx.localUser.create({
+          data: {
+            id: `pro_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            email,
+            hashedPassword: tempPassword,
+            firstName,
+            lastName,
+            phone,
+            city,
+            role: LocalUserRole.worker,
+            updatedAt: new Date(),
+          },
+        });
 
-      this.logger.log(`New Pro created from GHL: ${pro.id} (${email})`);
-    } else {
-      // Mettre à jour les champs si manquants
-      pro = await this.prisma.localUser.update({
+        this.logger.log(`New Pro created from GHL: ${created.id} (${email})`);
+        return created;
+      }
+
+      const updated = await tx.localUser.update({
         where: { email },
         data: {
-          firstName: pro.firstName || firstName,
-          lastName: pro.lastName || lastName,
-          phone: pro.phone || phone,
-          city: pro.city || city,
+          firstName: existing.firstName || firstName,
+          lastName: existing.lastName || lastName,
+          phone: existing.phone || phone,
+          city: existing.city || city,
           updatedAt: new Date(),
         },
       });
 
-      this.logger.log(`Existing Pro updated from GHL: ${pro.id} (${email})`);
-    }
+      this.logger.log(`Existing Pro updated from GHL: ${updated.id} (${email})`);
+      return updated;
+    });
 
-    // Trigger N8N pro-signup workflow (non-bloquant)
+    // Trigger N8N pro-signup workflow (non-bloquant, outside transaction)
     this.fireN8nProSignupWebhook(pro.id, email, completionScore, { firstName, lastName, phone, city }).catch(
       (err) => this.logger.warn(`N8N pro-signup webhook failed: ${err.message}`),
     );

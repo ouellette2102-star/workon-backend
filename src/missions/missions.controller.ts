@@ -9,7 +9,6 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { SkipThrottle } from '@nestjs/throttler';
 import { ApiTags } from '@nestjs/swagger';
 import { MissionsService } from './missions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -83,28 +82,8 @@ export class MissionsController {
     return this.missionsService.reserveMission(req.user.sub, missionId);
   }
 
-  /**
-   * POST /api/v1/missions/webhook-ghl
-   * Receives mission requests from GHL "Demande de Mission" form.
-   * No authentication required — GHL POSTs here directly.
-   */
-  @Post('webhook-ghl')
-  @SkipThrottle()
-  async receiveGhlMission(@Body() body: any) {
-    const mission = {
-      clientName: body.full_name || `${body.first_name ?? ''} ${body.last_name ?? ''}`.trim() || 'Client GHL',
-      clientEmail: body.email,
-      clientPhone: body.phone,
-      serviceType: body.service_type || body.type_de_service,
-      description: body.description || body.message,
-      city: body.city || body.ville,
-      budget: body.budget ? Number(body.budget) : undefined,
-      source: 'ghl_form',
-    };
-
-    const saved = await this.missionsService.createFromGhl(mission);
-    return { success: true, missionId: saved.id };
-  }
+  // GHL webhook moved to GhlController (src/ghl/ghl.controller.ts)
+  // Protected by GhlWebhookGuard (x-ghl-secret header validation)
 
   @Patch(':id/status')
   @UseGuards(JwtAuthGuard, RolesGuard)

@@ -4,26 +4,28 @@ import {
   Body,
   HttpCode,
   Logger,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
+  ApiHeader,
 } from '@nestjs/swagger';
 import { GhlService } from './ghl.service';
 import { GhlMissionWebhookDto } from './dto/ghl-mission-webhook.dto';
-import { GhlProSignupDto } from './dto/ghl-pro-signup.dto';
+import { GhlWebhookGuard } from './guards/ghl-webhook.guard';
 
 /**
  * GHL Integration Controller
  *
- * Public endpoints (no auth) for receiving webhooks from
- * GoHighLevel via N8N automation workflows.
+ * Mission webhook endpoint for GoHighLevel via N8N.
+ * Protected by GHL_WEBHOOK_SECRET validation (x-ghl-secret header).
  *
- * Security: These endpoints are called by N8N (server-to-server).
- * Rate limiting is handled by the global ThrottlerGuard.
+ * Pro signup is handled by ProsController (src/pros/pros.controller.ts).
  */
 @ApiTags('GHL Integration')
+@UseGuards(GhlWebhookGuard)
 @Controller('api/v1')
 export class GhlController {
   private readonly logger = new Logger(GhlController.name);
@@ -33,8 +35,6 @@ export class GhlController {
   /**
    * Receive mission creation webhook from GHL via N8N
    * POST /api/v1/missions/webhook-ghl
-   *
-   * No auth guard — called by N8N server-to-server
    */
   @Post('missions/webhook-ghl')
   @HttpCode(200)
@@ -42,29 +42,12 @@ export class GhlController {
     summary: 'GHL Mission Webhook',
     description: 'Receives mission creation data from GoHighLevel via N8N workflow',
   })
+  @ApiHeader({ name: 'x-ghl-secret', required: true, description: 'GHL webhook secret' })
   @ApiResponse({ status: 200, description: 'Mission created or duplicate detected' })
+  @ApiResponse({ status: 401, description: 'Invalid or missing GHL webhook secret' })
   @ApiResponse({ status: 400, description: 'Invalid payload' })
   async handleMissionWebhook(@Body() dto: GhlMissionWebhookDto) {
     this.logger.log(`Incoming GHL mission webhook: ${dto.title}`);
     return this.ghlService.createMissionFromGhl(dto);
-  }
-
-  /**
-   * Receive worker signup webhook from GHL via N8N
-   * POST /api/v1/pros/ghl-signup
-   *
-   * No auth guard — called by N8N server-to-server
-   */
-  @Post('pros/ghl-signup')
-  @HttpCode(200)
-  @ApiOperation({
-    summary: 'GHL Pro Signup',
-    description: 'Receives worker registration data from GoHighLevel signup form via N8N',
-  })
-  @ApiResponse({ status: 200, description: 'Worker registered or duplicate detected' })
-  @ApiResponse({ status: 400, description: 'Invalid payload' })
-  async handleProSignup(@Body() dto: GhlProSignupDto) {
-    this.logger.log(`Incoming GHL pro signup: ${dto.email}`);
-    return this.ghlService.registerProFromGhl(dto);
   }
 }

@@ -161,8 +161,8 @@ export class InvoiceService {
       }
     }
 
-    // 5. Calculate invoice (source of truth)
-    const priceCents = Math.round(mission.price * 100);
+    // 5. Calculate invoice (source of truth) - priceCents already stored in cents
+    const priceCents = mission.priceCents;
     const calculation = this.calculateInvoice(priceCents, `Mission: ${mission.title}`);
 
     // 6. Get URLs from config

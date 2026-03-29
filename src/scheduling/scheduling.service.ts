@@ -32,7 +32,7 @@ export class SchedulingService {
     description: string;
     categoryId: string;
     priceType: string;
-    price: number;
+    priceCents: number;
     duration: number;
     recurrenceRule: RecurrenceRule;
     recurrenceData?: Record<string, unknown>;
@@ -65,7 +65,7 @@ export class SchedulingService {
         description: data.description,
         categoryId: data.categoryId,
         priceType: data.priceType,
-        price: data.price,
+        priceCents: data.priceCents,
         duration: data.duration,
         recurrenceRule: data.recurrenceRule,
         recurrenceData: data.recurrenceData as Prisma.InputJsonValue,
@@ -302,7 +302,7 @@ export class SchedulingService {
     description?: string;
     scheduledAt: Date;
     duration: number;
-    price: number;
+    priceCents: number;
     priceType: string;
     timezone?: string;
   }) {
@@ -326,7 +326,7 @@ export class SchedulingService {
         duration: data.duration,
         endAt,
         timezone: data.timezone ?? 'America/Toronto',
-        price: data.price,
+        priceCents: data.priceCents,
         priceType: data.priceType,
         status: BookingStatus.PENDING,
       },

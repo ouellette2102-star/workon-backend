@@ -32,8 +32,8 @@ export class MissionResponseDto {
   status: string;
 
   @Expose()
-  @ApiProperty({ example: 75.0 })
-  price: number;
+  @ApiProperty({ example: 7500 })
+  priceCents: number;
 
   @Expose()
   @ApiProperty({ example: 45.5017 })

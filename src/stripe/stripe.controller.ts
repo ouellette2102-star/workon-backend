@@ -3,19 +3,24 @@ import {
   Controller,
   Get,
   Headers,
+  Param,
   Post,
+  Query,
   RawBodyRequest,
   Req,
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { StripeService } from './stripe.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
+import { RefundPaymentDto } from './dto/refund-payment.dto';
+import { OpenDisputeDto } from './dto/open-dispute.dto';
+import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
 
 @ApiTags('Payments - Stripe Connect')
 @Controller('api/v1/payments/stripe')
@@ -131,7 +136,7 @@ export class StripeController {
     return this.stripeService.createConnectPaymentIntent(
       req.user.userId || req.user.sub,
       dto.missionId,
-      dto.amount,
+      dto.amountCents,
     );
   }
 
@@ -150,7 +155,7 @@ export class StripeController {
     return this.stripeService.createPaymentIntent(
       req.user.userId || req.user.sub,
       dto.missionId,
-      dto.amount,
+      dto.amountCents,
     );
   }
 
@@ -161,8 +166,91 @@ export class StripeController {
   @Get('worker/history')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.WORKER)
-  async getWorkerPayments(@Request() req: any) {
-    return this.stripeService.getWorkerPayments(req.user.userId || req.user.sub);
+  @ApiQuery({ name: 'cursor', required: false, description: 'Cursor for next page' })
+  @ApiQuery({ name: 'limit', required: false, example: 20, description: 'Items per page (max 100)' })
+  async getWorkerPayments(
+    @Request() req: any,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.stripeService.getWorkerPayments(
+      req.user.userId || req.user.sub,
+      { cursor, limit: limit ? parseInt(limit, 10) : undefined },
+    );
+  }
+
+  // ============================================
+  // REFUNDS
+  // ============================================
+
+  /**
+   * Demander un remboursement
+   * POST /api/v1/payments/stripe/refund
+   */
+  @Post('refund')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT')
+  @ApiOperation({
+    summary: 'Request a refund',
+    description: 'Issues a full refund for a succeeded payment. Only the mission employer can request.',
+  })
+  @ApiResponse({ status: 200, description: 'Refund issued' })
+  @ApiResponse({ status: 400, description: 'Payment not eligible for refund' })
+  async refundPayment(@Request() req: any, @Body() dto: RefundPaymentDto) {
+    return this.stripeService.refundPayment(
+      req.user.userId || req.user.sub,
+      dto.paymentId,
+      dto.reason,
+    );
+  }
+
+  // ============================================
+  // DISPUTES
+  // ============================================
+
+  /**
+   * Ouvrir un litige
+   * POST /api/v1/payments/stripe/disputes
+   */
+  @Post('disputes')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT')
+  @ApiOperation({
+    summary: 'Open a dispute',
+    description: 'Opens a dispute on a mission. Only the employer or assigned worker can open.',
+  })
+  @ApiResponse({ status: 201, description: 'Dispute created' })
+  async openDispute(@Request() req: any, @Body() dto: OpenDisputeDto) {
+    return this.stripeService.openDispute(
+      req.user.userId || req.user.sub,
+      dto.missionId,
+      dto.reason,
+    );
+  }
+
+  /**
+   * Résoudre un litige
+   * POST /api/v1/payments/stripe/disputes/:id/resolve
+   */
+  @Post('disputes/:id/resolve')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT')
+  @ApiOperation({
+    summary: 'Resolve a dispute',
+    description: 'Resolves a dispute with optional refund.',
+  })
+  @ApiResponse({ status: 200, description: 'Dispute resolved' })
+  async resolveDispute(
+    @Param('id') disputeId: string,
+    @Request() req: any,
+    @Body() dto: ResolveDisputeDto,
+  ) {
+    return this.stripeService.resolveDispute(
+      disputeId,
+      dto.resolution,
+      req.user.userId || req.user.sub,
+      dto.refundRequested,
+    );
   }
 
   /**

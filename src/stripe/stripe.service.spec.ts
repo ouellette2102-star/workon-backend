@@ -106,7 +106,7 @@ describe('StripeService', () => {
         {
           id: 'payment-1',
           missionId: 'mission-1',
-          amount: 100,
+          amountCents: 10000,
           platformFeePct: 12,
           currency: 'CAD',
           status: PaymentStatus.SUCCEEDED,
@@ -123,7 +123,7 @@ describe('StripeService', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe('payment-1');
-      expect(result[0].netAmount).toBe(88); // 100 * (1 - 0.12)
+      expect(result[0].netAmountCents).toBe(8800); // 10000 * (1 - 0.12)
     });
 
     it('should throw ForbiddenException for non-worker', async () => {

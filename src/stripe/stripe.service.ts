@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { PaymentStatus, UserRole } from '@prisma/client';
+import { PaymentStatus, UserRole, DisputeStatus } from '@prisma/client';
 import Stripe from 'stripe';
 
 /**
@@ -76,7 +76,7 @@ export class StripeService {
   async createPaymentIntent(
     userId: string,
     missionId: string,
-    amountDollars: number,
+    amountCentsInput: number,
   ): Promise<{ clientSecret: string; paymentIntentId: string }> {
     this.ensureStripeInitialized();
 
@@ -131,8 +131,7 @@ export class StripeService {
     // NOTE (Post-MVP): Vérifier onboarding Stripe Connect du worker
     // const workerStripeAccountId = mission.assigneeWorker.stripeAccountId;
 
-    // Calculer le montant en centimes
-    const amountCents = Math.round(amountDollars * 100);
+    const amountCents = amountCentsInput;
 
     // Créer le PaymentIntent (simple pour MVP, sans Stripe Connect)
     const paymentIntent = await this.stripe!.paymentIntents.create({
@@ -157,7 +156,7 @@ export class StripeService {
         id: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         missionId: mission.id,
         stripePaymentIntentId: paymentIntent.id,
-        amount: amountDollars,
+        amountCents: amountCents,
         currency: 'CAD',
         platformFeePct: this.PLATFORM_FEE_PERCENT * 100, // Convertir en %
         status: PaymentStatus.REQUIRES_ACTION,
@@ -167,7 +166,7 @@ export class StripeService {
     });
 
     this.logger.log(
-      `PaymentIntent créé: ${paymentIntent.id} pour mission ${missionId}, montant: ${amountDollars} CAD`,
+      `PaymentIntent créé: ${paymentIntent.id} pour mission ${missionId}, montant: ${amountCents / 100} CAD`,
     );
 
     return {
@@ -277,10 +276,13 @@ export class StripeService {
     }
 
     // Mettre à jour le statut du paiement
+    const previousStatus = payment.status;
     await this.prisma.payment.update({
       where: { id: payment.id },
       data: { status: PaymentStatus.SUCCEEDED },
     });
+
+    await this.recordPaymentEvent(payment.id, 'payment_intent.succeeded', previousStatus, PaymentStatus.SUCCEEDED);
 
     this.logger.log(
       `Paiement réussi: ${payment.id}, mission: ${payment.missionId}`,
@@ -321,9 +323,14 @@ export class StripeService {
       return;
     }
 
+    const previousStatus = payment.status;
     await this.prisma.payment.update({
       where: { id: payment.id },
       data: { status: PaymentStatus.DISPUTED },
+    });
+
+    await this.recordPaymentEvent(payment.id, 'payment_intent.payment_failed', previousStatus, PaymentStatus.DISPUTED, {
+      failureMessage: paymentIntent.last_payment_error?.message,
     });
 
     this.logger.error(
@@ -336,7 +343,10 @@ export class StripeService {
    * 
    * NOTE (Post-MVP): Ajouter filtres par date, statut, etc.
    */
-  async getWorkerPayments(userId: string): Promise<any[]> {
+  async getWorkerPayments(
+    userId: string,
+    options: { cursor?: string; limit?: number } = {},
+  ) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { userProfile: true },
@@ -346,11 +356,15 @@ export class StripeService {
       throw new ForbiddenException('Accès réservé aux workers WorkOn');
     }
 
+    const limit = options.limit ?? 20;
+    const take = limit + 1;
+
     const payments = await this.prisma.payment.findMany({
       where: {
         mission: {
           assigneeWorkerId: userId,
         },
+        deletedAt: null,
       },
       include: {
         mission: {
@@ -362,21 +376,32 @@ export class StripeService {
         },
       },
       orderBy: { createdAt: 'desc' },
-      take: 20,
+      take,
+      ...(options.cursor ? { skip: 1, cursor: { id: options.cursor } } : {}),
     });
 
-    return payments.map((p: any) => ({
-      id: p.id,
-      missionId: p.missionId,
-      missionTitle: p.mission.title,
-      missionCategory: p.mission.categoryId,
-      amount: p.amount,
-      platformFeePct: p.platformFeePct,
-      netAmount: p.amount * (1 - p.platformFeePct / 100),
-      currency: p.currency,
-      status: p.status,
-      createdAt: p.createdAt,
-    }));
+    const hasMore = payments.length > limit;
+    const data = hasMore ? payments.slice(0, limit) : payments;
+
+    return {
+      data: data.map((p: any) => ({
+        id: p.id,
+        missionId: p.missionId,
+        missionTitle: p.mission.title,
+        missionCategory: p.mission.categoryId,
+        amountCents: p.amountCents,
+        platformFeePct: p.platformFeePct,
+        netAmountCents: p.amountCents * (1 - p.platformFeePct / 100),
+        currency: p.currency,
+        status: p.status,
+        createdAt: p.createdAt,
+      })),
+      pagination: {
+        nextCursor: hasMore && data.length > 0 ? data[data.length - 1].id : null,
+        hasMore,
+        count: data.length,
+      },
+    };
   }
 
   /**
@@ -589,7 +614,7 @@ export class StripeService {
   async createConnectPaymentIntent(
     employerId: string,
     missionId: string,
-    amountDollars: number,
+    amountCentsInput: number,
   ): Promise<{
     paymentIntentId: string;
     clientSecret: string;
@@ -640,7 +665,7 @@ export class StripeService {
       );
     }
 
-    const amountCents = Math.round(amountDollars * 100);
+    const amountCents = amountCentsInput;
     const platformFeeCents = Math.round(amountCents * this.PLATFORM_FEE_PERCENT);
     const workerReceivesCents = amountCents - platformFeeCents;
 
@@ -702,6 +727,225 @@ export class StripeService {
       });
 
       this.logger.log(`Worker ${userId} completed Stripe Connect onboarding`);
+    }
+  }
+
+  // ============================================
+  // REFUNDS
+  // ============================================
+
+  /**
+   * Issue a full refund for a payment
+   */
+  async refundPayment(
+    userId: string,
+    paymentId: string,
+    reason?: string,
+  ): Promise<{ refundId: string; status: string }> {
+    this.ensureStripeInitialized();
+
+    const payment = await this.prisma.payment.findFirst({
+      where: { id: paymentId, deletedAt: null },
+      include: { mission: true },
+    });
+
+    if (!payment) {
+      throw new NotFoundException('Paiement introuvable');
+    }
+
+    if (payment.mission.authorClientId !== userId) {
+      throw new ForbiddenException('Seul le client peut demander un remboursement');
+    }
+
+    if (payment.status !== PaymentStatus.SUCCEEDED) {
+      throw new BadRequestException('Seuls les paiements réussis peuvent être remboursés');
+    }
+
+    if (!payment.stripePaymentIntentId) {
+      throw new BadRequestException('Aucun PaymentIntent Stripe associé');
+    }
+
+    const refund = await this.stripe!.refunds.create({
+      payment_intent: payment.stripePaymentIntentId,
+      reason: 'requested_by_customer',
+      metadata: {
+        paymentId: payment.id,
+        missionId: payment.missionId,
+        requestedBy: userId,
+        userReason: reason || '',
+      },
+    });
+
+    await this.prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: PaymentStatus.REFUNDED,
+        updatedAt: new Date(),
+      },
+    });
+
+    this.logger.log(`Refund issued: ${refund.id} for payment ${paymentId}`);
+
+    return { refundId: refund.id, status: 'refunded' };
+  }
+
+  // ============================================
+  // DISPUTES
+  // ============================================
+
+  /**
+   * Open a dispute on a mission
+   */
+  async openDispute(
+    userId: string,
+    missionId: string,
+    reason: string,
+  ): Promise<{ disputeId: string }> {
+    const mission = await this.prisma.mission.findUnique({
+      where: { id: missionId },
+    });
+
+    if (!mission) {
+      throw new NotFoundException('Mission introuvable');
+    }
+
+    // Only employer or assigned worker can open a dispute
+    if (mission.authorClientId !== userId && mission.assigneeWorkerId !== userId) {
+      throw new ForbiddenException('Seules les parties impliquées peuvent ouvrir un litige');
+    }
+
+    // Check for existing open dispute
+    const existing = await this.prisma.dispute.findUnique({
+      where: { missionId },
+    });
+
+    if (existing && existing.status !== DisputeStatus.CLOSED) {
+      throw new BadRequestException('Un litige est déjà ouvert pour cette mission');
+    }
+
+    const dispute = await this.prisma.$transaction(async (tx) => {
+      const d = await tx.dispute.create({
+        data: {
+          id: `disp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          missionId,
+          openedById: userId,
+          reason,
+          status: DisputeStatus.OPEN,
+          updatedAt: new Date(),
+        },
+      });
+
+      await tx.disputeTimeline.create({
+        data: {
+          id: `dt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          disputeId: d.id,
+          action: 'OPENED',
+          actorId: userId,
+          note: reason,
+          updatedAt: new Date(),
+        },
+      });
+
+      return d;
+    });
+
+    this.logger.log(`Dispute opened: ${dispute.id} for mission ${missionId}`);
+
+    return { disputeId: dispute.id };
+  }
+
+  /**
+   * Resolve a dispute (admin or mediation)
+   */
+  async resolveDispute(
+    disputeId: string,
+    resolution: string,
+    actorId: string,
+    refundRequested: boolean,
+  ): Promise<{ status: string; refundId?: string }> {
+    const dispute = await this.prisma.dispute.findUnique({
+      where: { id: disputeId },
+      include: { mission: { include: { payments: true } } },
+    });
+
+    if (!dispute) {
+      throw new NotFoundException('Litige introuvable');
+    }
+
+    if (dispute.status === DisputeStatus.CLOSED) {
+      throw new BadRequestException('Ce litige est déjà fermé');
+    }
+
+    let refundId: string | undefined;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.dispute.update({
+        where: { id: disputeId },
+        data: {
+          status: DisputeStatus.RESOLVED,
+          resolution,
+          updatedAt: new Date(),
+        },
+      });
+
+      await tx.disputeTimeline.create({
+        data: {
+          id: `dt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          disputeId,
+          action: 'RESOLVED',
+          actorId,
+          note: resolution,
+          updatedAt: new Date(),
+        },
+      });
+    });
+
+    // Process refund if requested (outside transaction — Stripe call)
+    if (refundRequested) {
+      const succeededPayment = dispute.mission.payments.find(
+        (p: any) => p.status === PaymentStatus.SUCCEEDED && p.stripePaymentIntentId,
+      );
+
+      if (succeededPayment) {
+        const result = await this.refundPayment(
+          dispute.mission.authorClientId,
+          succeededPayment.id,
+          `Dispute resolution: ${resolution}`,
+        );
+        refundId = result.refundId;
+      }
+    }
+
+    this.logger.log(`Dispute resolved: ${disputeId}`);
+
+    return { status: 'resolved', refundId };
+  }
+
+  // ============================================
+  // PAYMENT EVENT SOURCING
+  // ============================================
+
+  private async recordPaymentEvent(
+    paymentId: string,
+    eventType: string,
+    previousStatus: string,
+    newStatus: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await this.prisma.paymentEvent.create({
+        data: {
+          id: `pe_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          paymentId,
+          eventType,
+          previousStatus,
+          newStatus,
+          metadata: metadata ?? undefined,
+        },
+      });
+    } catch (err) {
+      // Non-blocking: event recording failure should not break payment flow
+      this.logger.warn(`Failed to record payment event: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 }

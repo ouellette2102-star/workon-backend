@@ -26,7 +26,7 @@ export class MissionsLocalRepository {
         title: createMissionDto.title,
         description: createMissionDto.description,
         category: createMissionDto.category,
-        price: createMissionDto.price,
+        priceCents: createMissionDto.priceCents,
         latitude: createMissionDto.latitude,
         longitude: createMissionDto.longitude,
         city: createMissionDto.city,
@@ -69,7 +69,7 @@ export class MissionsLocalRepository {
           description,
           category,
           status,
-          price,
+          "priceCents",
           latitude,
           longitude,
           city,
@@ -191,7 +191,7 @@ export class MissionsLocalRepository {
         latitude: true,
         longitude: true,
         status: true,
-        price: true,
+        priceCents: true,
         city: true,
         createdAt: true,
       },
@@ -202,6 +202,50 @@ export class MissionsLocalRepository {
     this.logger.log(`Found ${missions.length} missions in bbox`);
 
     return missions;
+  }
+
+  /**
+   * Full-text search on local missions using PostgreSQL tsvector
+   */
+  async searchFullText(
+    query: string,
+    options: { city?: string; category?: string; limit?: number; offset?: number } = {},
+  ) {
+    const { city, category, limit = 20, offset = 0 } = options;
+
+    const conditions: string[] = [
+      `to_tsvector('french', coalesce(title, '') || ' ' || coalesce(description, '')) @@ plainto_tsquery('french', $1)`,
+    ];
+    const params: (string | number)[] = [query];
+    let paramIndex = 2;
+
+    if (city) {
+      conditions.push(`city = $${paramIndex}`);
+      params.push(city);
+      paramIndex++;
+    }
+
+    if (category) {
+      conditions.push(`category = $${paramIndex}`);
+      params.push(category);
+      paramIndex++;
+    }
+
+    conditions.push(`status = 'open'`);
+
+    params.push(limit, offset);
+
+    const results = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT id, title, description, category, price_cents as "priceCents", city, status, latitude, longitude,
+              ts_rank(to_tsvector('french', coalesce(title, '') || ' ' || coalesce(description, '')), plainto_tsquery('french', $1)) AS rank
+       FROM local_missions
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY rank DESC
+       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      ...params,
+    );
+
+    return results;
   }
 }
 

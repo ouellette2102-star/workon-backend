@@ -41,7 +41,7 @@ describe('OffersService', () => {
     id: 'offer_1',
     missionId: 'mission_1',
     workerId: 'worker_1',
-    price: 100,
+    priceCents: 10000,
     message: 'I can help',
     status: LocalOfferStatus.PENDING,
     createdAt: new Date('2026-01-30'),
@@ -75,19 +75,19 @@ describe('OffersService', () => {
 
       const result = await service.create('worker_1', {
         missionId: 'mission_1',
-        price: 100,
+        priceCents: 10000,
         message: 'I can help',
       });
 
       expect(result.id).toBe('offer_1');
-      expect(result.price).toBe(100);
+      expect(result.priceCents).toBe(10000);
     });
 
     it('should throw NotFoundException if mission not found', async () => {
       mockPrismaService.localMission.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.create('worker_1', { missionId: 'nonexistent', price: 100 }),
+        service.create('worker_1', { missionId: 'nonexistent', priceCents: 10000 }),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -98,7 +98,7 @@ describe('OffersService', () => {
       });
 
       await expect(
-        service.create('worker_1', { missionId: 'mission_1', price: 100 }),
+        service.create('worker_1', { missionId: 'mission_1', priceCents: 10000 }),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -109,7 +109,7 @@ describe('OffersService', () => {
       });
 
       await expect(
-        service.create('worker_1', { missionId: 'mission_1', price: 100 }),
+        service.create('worker_1', { missionId: 'mission_1', priceCents: 10000 }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -118,7 +118,7 @@ describe('OffersService', () => {
       mockPrismaService.localOffer.findUnique.mockResolvedValue(mockOffer);
 
       await expect(
-        service.create('worker_1', { missionId: 'mission_1', price: 100 }),
+        service.create('worker_1', { missionId: 'mission_1', priceCents: 10000 }),
       ).rejects.toThrow(ConflictException);
     });
   });
@@ -235,7 +235,7 @@ describe('OffersService', () => {
           title: 'Test Mission',
           description: 'Description',
           category: 'cleaning',
-          price: 100,
+          priceCents: 10000,
           city: 'Montreal',
           status: 'open',
           createdAt: new Date(),

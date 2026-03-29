@@ -85,8 +85,8 @@ export class MissionFeedResponseDto {
   @ApiProperty({ description: 'Adresse approximative', example: 'Plateau Mont-Royal', nullable: true })
   address: string | null;
 
-  @ApiProperty({ description: 'Taux horaire (CAD)', example: 25.0, nullable: true })
-  hourlyRate: number | null;
+  @ApiProperty({ description: 'Taux horaire en cents (CAD)', example: 2500, nullable: true })
+  hourlyRateCents: number | null;
 
   @ApiProperty({ description: 'Date de début (ISO 8601)', example: '2025-02-01T09:00:00.000Z', nullable: true })
   startsAt: string | null;
@@ -133,7 +133,7 @@ export interface MissionFeedResponse {
   category: string | null;
   city: string | null;
   address: string | null;
-  hourlyRate: number | null;
+  hourlyRateCents: number | null;
   startsAt: string | null;
   endsAt: string | null;
   status: string;

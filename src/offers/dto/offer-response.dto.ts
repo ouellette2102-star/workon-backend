@@ -31,8 +31,8 @@ export class OfferMissionDto {
   @ApiProperty({ example: 'plumbing' })
   category: string;
 
-  @ApiProperty({ example: 150.00 })
-  price: number;
+  @ApiProperty({ example: 15000 })
+  priceCents: number;
 
   @ApiProperty({ example: 'Montréal' })
   city: string;
@@ -64,10 +64,10 @@ export class OfferResponseDto {
   workerId: string;
 
   @ApiProperty({
-    description: 'Proposed price',
-    example: 150.00,
+    description: 'Proposed price in cents',
+    example: 15000,
   })
-  price: number;
+  priceCents: number;
 
   @ApiProperty({
     description: 'Optional message',

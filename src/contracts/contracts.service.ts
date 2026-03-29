@@ -16,8 +16,8 @@ export interface ContractResponse {
   employerId: string;
   workerId: string;
   status: ContractStatus;
-  amount: number;
-  hourlyRate: number | null;
+  amountCents: number;
+  hourlyRateCents: number | null;
   startAt: string | null;
   endAt: string | null;
   signedByWorker: boolean;
@@ -87,8 +87,8 @@ export class ContractsService {
         missionId: mission.id,
         employerId: mission.authorClientId,
         workerId: mission.assigneeWorkerId!,
-        amount: dto.amount,
-        hourlyRate: dto.hourlyRate,
+        amountCents: dto.amountCents,
+        hourlyRateCents: dto.hourlyRateCents,
         startAt: dto.startAt ? new Date(dto.startAt) : null,
         endAt: dto.endAt ? new Date(dto.endAt) : null,
         status: ContractStatus.DRAFT,
@@ -112,8 +112,8 @@ export class ContractsService {
     clerkUserId: string,
     contractId: string,
   ): Promise<ContractResponse> {
-    const contract = await this.prisma.contract.findUnique({
-      where: { id: contractId },
+    const contract = await this.prisma.contract.findFirst({
+      where: { id: contractId, deletedAt: null },
       include: {
         mission: { select: { id: true, title: true } },
         employer: { select: { id: true, clerkId: true } },
@@ -155,6 +155,7 @@ export class ContractsService {
           { employerId: user.id },
           { workerId: user.id },
         ],
+        deletedAt: null,
       },
       include: {
         mission: { select: { id: true, title: true } },
@@ -175,8 +176,8 @@ export class ContractsService {
     contractId: string,
     dto: UpdateContractStatusDto,
   ): Promise<ContractResponse> {
-    const contract = await this.prisma.contract.findUnique({
-      where: { id: contractId },
+    const contract = await this.prisma.contract.findFirst({
+      where: { id: contractId, deletedAt: null },
       include: {
         employer: { select: { id: true, clerkId: true } },
         worker: { select: { id: true, clerkId: true } },
@@ -276,8 +277,8 @@ export class ContractsService {
       employerId: contract.employerId,
       workerId: contract.workerId,
       status: contract.status,
-      amount: contract.amount,
-      hourlyRate: contract.hourlyRate,
+      amountCents: contract.amountCents,
+      hourlyRateCents: contract.hourlyRateCents,
       startAt: contract.startAt?.toISOString() || null,
       endAt: contract.endAt?.toISOString() || null,
       signedByWorker: contract.signedByWorker,

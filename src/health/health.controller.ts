@@ -31,6 +31,7 @@ export interface HealthResponse {
     stripe: ServiceCheck;
     storage: ServiceCheck;
     signedUrls: ServiceCheck;
+    n8n: ServiceCheck;
   };
 }
 
@@ -103,6 +104,7 @@ export class HealthController {
       stripe: await this.checkStripe(),
       storage: this.checkStorage(),
       signedUrls: this.checkSignedUrls(),
+      n8n: await this.checkN8n(),
     };
 
     // Déterminer le statut global
@@ -290,5 +292,52 @@ export class HealthController {
     }
 
     return { status: 'degraded', message: 'Using default secret (dev only)' };
+  }
+
+  /**
+   * Check N8N connectivity (with retry)
+   */
+  private async checkN8n(): Promise<ServiceCheck> {
+    const n8nBase = this.configService.get<string>('N8N_WEBHOOK_BASE');
+
+    if (!n8nBase) {
+      return { status: 'degraded', message: 'N8N_WEBHOOK_BASE not configured' };
+    }
+
+    const maxRetries = 2;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const start = Date.now();
+        const response = await Promise.race([
+          fetch(`${n8nBase}/healthz`, { method: 'GET' }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), 3000),
+          ),
+        ]);
+        const latencyMs = Date.now() - start;
+
+        if (response.ok || response.status === 404) {
+          // 404 is acceptable — N8N may not have /healthz but server is reachable
+          return {
+            status: latencyMs > 2000 ? 'degraded' : 'ok',
+            latencyMs,
+          };
+        }
+
+        if (attempt < maxRetries) continue;
+        return { status: 'degraded', message: `HTTP ${response.status}`, latencyMs };
+      } catch (err) {
+        if (attempt < maxRetries) {
+          this.logger.warn(`N8N health check attempt ${attempt + 1} failed, retrying...`);
+          continue;
+        }
+        return {
+          status: 'degraded',
+          message: `Unreachable after ${maxRetries + 1} attempts: ${err instanceof Error ? err.message : String(err)}`,
+        };
+      }
+    }
+
+    return { status: 'degraded', message: 'N8N check exhausted retries' };
   }
 }

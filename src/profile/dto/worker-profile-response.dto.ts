@@ -45,8 +45,8 @@ export class WorkerProfileResponseDto {
   @ApiProperty({ type: [WorkerBadgeDto] })
   badges: WorkerBadgeDto[];
 
-  @ApiPropertyOptional({ example: 45 })
-  hourlyRate?: number;
+  @ApiPropertyOptional({ example: 4500 })
+  hourlyRateCents?: number;
 }
 
 export class WorkersListResponseDto {

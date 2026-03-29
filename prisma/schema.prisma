@@ -124,14 +124,14 @@ enum ConsentType {
 model Dispute {
   id         String        @id
   missionId  String        @unique
-  openedById String
+  openedById String?
   reason     String
   status     DisputeStatus @default(OPEN)
   resolution String?
   createdAt  DateTime      @default(now())
   updatedAt  DateTime
   mission    Mission       @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  openedBy   User          @relation(fields: [openedById], references: [id], onDelete: Cascade)
+  openedBy   User?         @relation(fields: [openedById], references: [id], onDelete: SetNull)
 
   // PR-00: Trust foundation relations
   evidence DisputeEvidence[]
@@ -147,7 +147,7 @@ model LocalMission {
   description           String
   category              String
   status                LocalMissionStatus @default(open)
-  price                 Float
+  priceCents            Int                @map("price_cents")
   latitude              Float
   longitude             Float
   city                  String
@@ -171,6 +171,7 @@ model LocalMission {
   @@index([latitude, longitude])
   @@index([status])
   @@index([stripePaymentIntentId])
+  @@index([city, title, createdAt])
   @@map("local_missions")
 }
 
@@ -182,9 +183,9 @@ model LocalOffer {
   id        String           @id
   missionId String
   workerId  String
-  price     Float
-  message   String?
-  status    LocalOfferStatus @default(PENDING)
+  priceCents Int              @map("price_cents")
+  message    String?
+  status     LocalOfferStatus @default(PENDING)
   createdAt DateTime         @default(now())
   updatedAt DateTime
 
@@ -357,8 +358,8 @@ model Mission {
   locationLng      Float
   locationAddress  String?
   priceType        String
-  budgetMin        Float
-  budgetMax        Float
+  budgetMinCents   Int            @map("budget_min_cents")
+  budgetMaxCents   Int            @map("budget_max_cents")
   status           MissionStatus  @default(DRAFT)
   startAt          DateTime?
   endAt            DateTime?
@@ -409,7 +410,7 @@ model Offer {
   missionId     String
   workerId      String
   message       String?
-  proposedRate  Float
+  proposedRateCents Int          @map("proposed_rate_cents")
   eta           String?
   status        OfferStatus   @default(PENDING)
   createdAt     DateTime      @default(now())
@@ -428,37 +429,85 @@ model Payment {
   missionId              String        @unique
   stripePaymentIntentId  String?       @unique
   stripeConnectAccountId String?
-  amount                 Float
+  amountCents            Int           @map("amount_cents")
   currency               String        @default("CAD")
-  platformFeePct         Float         @default(10)
+  platformFeePct         Int           @default(10) @map("platform_fee_pct") // Percentage as integer (10 = 10%)
   status                 PaymentStatus @default(CREATED)
   lastStripeEventId      String?
   createdAt              DateTime      @default(now())
   updatedAt              DateTime
+  deletedAt              DateTime?
   mission                Mission       @relation(fields: [missionId], references: [id], onDelete: Cascade)
 
   @@index([missionId])
   @@index([status])
+  @@index([deletedAt])
   @@map("payments")
+}
+
+model Payout {
+  id                  String       @id
+  workerId            String
+  stripeTransferId    String?      @unique
+  amountCents         Int          @map("amount_cents")
+  currency            String       @default("CAD")
+  status              PayoutStatus @default(PENDING)
+  missionId           String?
+  paymentId           String?
+  failureReason       String?
+  arrivedAt           DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime
+
+  @@index([workerId])
+  @@index([status])
+  @@index([missionId])
+  @@map("payouts")
+}
+
+enum PayoutStatus {
+  PENDING
+  IN_TRANSIT
+  PAID
+  FAILED
+  CANCELED
+}
+
+model PaymentEvent {
+  id              String   @id
+  paymentId       String
+  eventType       String
+  stripeEventId   String?  @unique
+  previousStatus  String?
+  newStatus       String
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  @@index([paymentId])
+  @@index([eventType])
+  @@index([stripeEventId])
+  @@map("payment_events")
 }
 
 model Review {
   id           String           @id
-  authorId     String
-  targetUserId String
+  authorId     String?
+  targetUserId String?
   missionId    String?
   rating       Int
   comment      String?
   moderation   ReviewModeration @default(OK)
   createdAt    DateTime         @default(now())
   updatedAt    DateTime
-  author       User             @relation("reviews_authorIdTousers", fields: [authorId], references: [id], onDelete: Cascade)
+  deletedAt    DateTime?
+  author       User?            @relation("reviews_authorIdTousers", fields: [authorId], references: [id], onDelete: SetNull)
   mission      Mission?         @relation(fields: [missionId], references: [id])
-  targetUser   User             @relation("reviews_targetUserIdTousers", fields: [targetUserId], references: [id], onDelete: Cascade)
+  targetUser   User?            @relation("reviews_targetUserIdTousers", fields: [targetUserId], references: [id], onDelete: SetNull)
 
   @@index([missionId])
   @@index([moderation])
   @@index([targetUserId])
+  @@index([deletedAt])
   @@map("reviews")
 }
 
@@ -561,13 +610,15 @@ model Device {
 model WorkerProfile {
   id                 String                     @id
   userId             String                     @unique
-  hourlyRate         Float
+  hourlyRateCents    Int                        @default(0) @map("hourly_rate_cents")
   serviceAreas       Json?
   residentialEnabled Boolean                    @default(false)
   portfolio          Json[]                     @default([])
   availability       Json?
   completedMissions  Int                        @default(0)
-  totalEarnings      Float                      @default(0)
+  totalEarningsCents Int                        @default(0) @map("total_earnings_cents")
+  averageRating      Float                      @default(0)
+  reviewCount        Int                        @default(0)
   createdAt          DateTime                   @default(now())
   updatedAt          DateTime
   missions           Mission[]
@@ -694,7 +745,7 @@ enum VerificationStatus {
 model Message {
   id         String            @id
   missionId  String
-  senderId   String
+  senderId   String?
   senderRole MessageSenderRole
   content    String
   status     MessageStatus     @default(SENT)
@@ -702,7 +753,7 @@ model Message {
 
   // Relations
   mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  sender  User    @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  sender  User?   @relation(fields: [senderId], references: [id], onDelete: SetNull)
 
   @@index([missionId])
   @@index([senderId])
@@ -728,11 +779,11 @@ enum MessageStatus {
 model Contract {
   id               String         @id
   missionId        String         @unique
-  employerId       String
-  workerId         String
+  employerId       String?
+  workerId         String?
   status           ContractStatus @default(DRAFT)
-  amount           Float
-  hourlyRate       Float?
+  amountCents      Int            @map("amount_cents")
+  hourlyRateCents  Int?           @map("hourly_rate_cents")
   startAt          DateTime?
   endAt            DateTime?
   signedByWorker   Boolean        @default(false)
@@ -741,15 +792,17 @@ model Contract {
   contractUrl      String?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
+  deletedAt        DateTime?
 
   // Relations
   mission  Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  employer User    @relation("contracts_employerIdTousers", fields: [employerId], references: [id], onDelete: Cascade)
-  worker   User    @relation("contracts_workerIdTousers", fields: [workerId], references: [id], onDelete: Cascade)
+  employer User?   @relation("contracts_employerIdTousers", fields: [employerId], references: [id], onDelete: SetNull)
+  worker   User?   @relation("contracts_workerIdTousers", fields: [workerId], references: [id], onDelete: SetNull)
 
   @@index([employerId])
   @@index([workerId])
   @@index([status])
+  @@index([deletedAt])
   @@map("contracts")
 }
 
@@ -1119,7 +1172,7 @@ model RecurringMissionTemplate {
   description    String
   categoryId     String
   priceType      String // "hourly", "fixed"
-  price          Float
+  priceCents     Int    @map("price_cents")
   duration       Int // Duration in minutes
   recurrenceRule RecurrenceRule
   recurrenceData Json? // Additional rule data (days of week, etc.)
@@ -1202,8 +1255,8 @@ model Booking {
   reminderSentAt DateTime?
 
   // Pricing (snapshot at booking time)
-  price     Float
-  priceType String
+  priceCents Int    @map("price_cents")
+  priceType  String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -82,7 +82,7 @@ export class WorkersService {
         reviewCount: 0,
         completedMissions: completedCount,
         badges,
-        hourlyRate: undefined,
+        hourlyRateCents: undefined,
       };
     });
 
@@ -128,7 +128,7 @@ export class WorkersService {
       reviewCount: 0,
       completedMissions: completedCount,
       badges: this.computeBadges(0, completedCount, 0, w.trustTier),
-      hourlyRate: undefined,
+      hourlyRateCents: undefined,
     };
   }
 

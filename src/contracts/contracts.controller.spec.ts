@@ -13,8 +13,8 @@ const mockContract = {
   employerId: 'employer-1',
   workerId: 'worker-1',
   status: ContractStatus.DRAFT,
-  amount: 500,
-  hourlyRate: null,
+  amountCents: 50000,
+  hourlyRateCents: null,
   startAt: null,
   endAt: null,
   signedByWorker: false,
@@ -57,7 +57,7 @@ describe('ContractsController', () => {
   describe('createContract', () => {
     it('should create a contract', async () => {
       const mockReq = { user: { sub: 'clerk-employer' } };
-      const dto = { missionId: 'mission-1', amount: 500 };
+      const dto = { missionId: 'mission-1', amountCents: 50000 };
 
       mockContractsService.createContract.mockResolvedValue(mockContract);
 

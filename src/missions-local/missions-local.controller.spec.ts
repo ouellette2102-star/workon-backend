@@ -17,7 +17,7 @@ describe('MissionsLocalController', () => {
     address: '123 Main St',
     latitude: 45.5,
     longitude: -73.6,
-    price: 100,
+    priceCents: 10000,
     status: LocalMissionStatus.open,
     createdByUserId: 'user-1',
     assignedToUserId: null,
@@ -82,7 +82,7 @@ describe('MissionsLocalController', () => {
         city: 'Montreal',
         latitude: 45.5,
         longitude: -73.6,
-        price: 150,
+        priceCents: 15000,
       };
 
       service.create.mockResolvedValue({ ...mockMission, ...createDto });

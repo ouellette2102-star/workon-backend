@@ -11,22 +11,22 @@ export class CreateContractDto {
   missionId!: string;
 
   @ApiProperty({
-    description: 'Total amount for the contract',
-    example: 500.00,
+    description: 'Total amount for the contract in cents',
+    example: 50000,
     minimum: 0,
   })
   @IsNumber()
   @Min(0)
-  amount!: number;
+  amountCents!: number;
 
   @ApiPropertyOptional({
-    description: 'Hourly rate (if applicable)',
-    example: 25.00,
+    description: 'Hourly rate in cents (if applicable)',
+    example: 2500,
   })
   @IsOptional()
   @IsNumber()
   @Min(0)
-  hourlyRate?: number;
+  hourlyRateCents?: number;
 
   @ApiPropertyOptional({
     description: 'Contract start date (ISO 8601)',

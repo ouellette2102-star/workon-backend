@@ -66,7 +66,7 @@ export class PaymentsService {
   ) {
     this.ensureStripeConfigured();
 
-    const { missionId, amount } = createPaymentIntentDto;
+    const { missionId, amountCents: amount } = createPaymentIntentDto;
 
     if (amount <= 0) {
       throw new BadRequestException('Le montant doit être supérieur à 0');
@@ -90,8 +90,8 @@ export class PaymentsService {
     }
 
     // Vérifier s'il existe déjà un Payment pour cette mission (missionId unique)
-    const existingPayment = await this.prisma.payment.findUnique({
-      where: { missionId },
+    const existingPayment = await this.prisma.payment.findFirst({
+      where: { missionId, deletedAt: null },
     });
 
     if (existingPayment) {
@@ -116,7 +116,7 @@ export class PaymentsService {
       }
     }
 
-    const amountCents = Math.round(amount * 100);
+    const amountCents = amount; // DTO already provides amount in cents
     const idempotencyKey = this.generateIdempotencyKey(missionId!, 'create');
 
     // PR-03: Velocity checks for fraud prevention
@@ -152,7 +152,7 @@ export class PaymentsService {
       where: { missionId },
       update: {
         stripePaymentIntentId: paymentIntent.id,
-        amount,
+        amountCents: amount,
         status: PaymentStatus.CREATED,
         updatedAt: new Date(),
       },
@@ -160,7 +160,7 @@ export class PaymentsService {
         id: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         missionId: mission.id,
         stripePaymentIntentId: paymentIntent.id,
-        amount,
+        amountCents: amount,
         currency: 'CAD',
         platformFeePct: 10,
         status: PaymentStatus.CREATED,
@@ -194,8 +194,8 @@ export class PaymentsService {
   async capturePaymentIntent(userId: string, missionId: string) {
     this.ensureStripeConfigured();
 
-    const payment = await this.prisma.payment.findUnique({
-      where: { missionId },
+    const payment = await this.prisma.payment.findFirst({
+      where: { missionId, deletedAt: null },
       include: { mission: { include: { authorClient: true } } },
     });
 
@@ -249,8 +249,8 @@ export class PaymentsService {
   async cancelPaymentIntent(userId: string, missionId: string) {
     this.ensureStripeConfigured();
 
-    const payment = await this.prisma.payment.findUnique({
-      where: { missionId },
+    const payment = await this.prisma.payment.findFirst({
+      where: { missionId, deletedAt: null },
       include: { mission: { include: { authorClient: true } } },
     });
 
@@ -301,12 +301,12 @@ export class PaymentsService {
    * Récupérer le status d'un paiement
    */
   async getPaymentStatus(missionId: string) {
-    const payment = await this.prisma.payment.findUnique({
-      where: { missionId },
+    const payment = await this.prisma.payment.findFirst({
+      where: { missionId, deletedAt: null },
       select: {
         id: true,
         status: true,
-        amount: true,
+        amountCents: true,
         currency: true,
         stripePaymentIntentId: true,
         createdAt: true,
@@ -331,8 +331,8 @@ export class PaymentsService {
     const stripePaymentIntentId = paymentIntent.id;
 
     // Vérifier idempotence: ignorer si event déjà traité
-    const existingPayment = await this.prisma.payment.findUnique({
-      where: { stripePaymentIntentId },
+    const existingPayment = await this.prisma.payment.findFirst({
+      where: { stripePaymentIntentId, deletedAt: null },
     });
 
     if (existingPayment?.lastStripeEventId === event.id) {
@@ -473,6 +473,7 @@ export class PaymentsService {
         stripePaymentIntentId: {
           not: null,
         },
+        deletedAt: null,
       },
     });
 

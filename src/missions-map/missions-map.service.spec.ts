@@ -19,7 +19,7 @@ describe('MissionsMapService', () => {
     title: 'Test Mission',
     description: 'Test Description',
     category: 'cleaning',
-    price: 100,
+    priceCents: 10000,
     latitude: 45.5,
     longitude: -73.6,
     city: 'Montreal',

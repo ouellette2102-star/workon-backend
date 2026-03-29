@@ -11,13 +11,13 @@ export class CreateOfferDto {
   missionId: string;
 
   @ApiProperty({
-    description: 'Proposed price for the mission',
-    example: 150.00,
+    description: 'Proposed price for the mission in cents',
+    example: 15000,
     minimum: 0,
   })
   @IsNumber()
   @Min(0)
-  price: number;
+  priceCents: number;
 
   @ApiProperty({
     description: 'Optional message to the mission owner',

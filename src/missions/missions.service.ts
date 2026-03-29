@@ -23,8 +23,8 @@ type MissionSelect = {
   locationAddress: true;
   locationLat: true;
   locationLng: true;
-  budgetMin: true;
-  budgetMax: true;
+  budgetMinCents: true;
+  budgetMaxCents: true;
   startAt: true;
   endAt: true;
   status: true;
@@ -45,8 +45,8 @@ const missionSelect: MissionSelect = {
   locationAddress: true,
   locationLat: true,
   locationLng: true,
-  budgetMin: true,
-  budgetMax: true,
+  budgetMinCents: true,
+  budgetMaxCents: true,
   startAt: true,
   endAt: true,
   status: true,
@@ -63,8 +63,8 @@ export interface MissionResponse {
   description: string;
   categoryId: string;
   locationAddress: string | null;
-  budgetMin: number;
-  budgetMax: number;
+  budgetMinCents: number;
+  budgetMaxCents: number;
   startAt: Date | null;
   endAt: Date | null;
   status: MissionStatus;
@@ -145,9 +145,9 @@ export class MissionsService {
         locationAddress: dto.address || dto.city || null,
         locationLat: dto.latitude ?? 0,
         locationLng: dto.longitude ?? 0,
-        priceType: dto.hourlyRate ? 'HOURLY' : 'FIXED',
-        budgetMin: dto.hourlyRate || 0,
-        budgetMax: dto.hourlyRate || 0,
+        priceType: dto.hourlyRateCents ? 'HOURLY' : 'FIXED',
+        budgetMinCents: dto.hourlyRateCents || 0,
+        budgetMaxCents: dto.hourlyRateCents || 0,
         startAt: dto.startsAt ? new Date(dto.startsAt) : null,
         endAt: dto.endsAt ? new Date(dto.endsAt) : null,
         status: MissionStatus.OPEN,
@@ -555,8 +555,8 @@ export class MissionsService {
         description: mission.description,
         categoryId: mission.categoryId,
         locationAddress: mission.locationAddress,
-        budgetMin: mission.budgetMin,
-        budgetMax: mission.budgetMax,
+        budgetMinCents: mission.budgetMinCents,
+        budgetMaxCents: mission.budgetMaxCents,
         priceType: mission.priceType,
         startAt: mission.startAt ? mission.startAt.toISOString() : null,
         endAt: mission.endAt ? mission.endAt.toISOString() : null,
@@ -593,79 +593,7 @@ export class MissionsService {
    * Create a mission from a GHL webhook form submission.
    * Upserts a LocalUser (employer) then creates a LocalMission.
    */
-  async createFromGhl(data: {
-    clientName: string;
-    clientEmail: string;
-    clientPhone?: string;
-    serviceType?: string;
-    description?: string;
-    city?: string;
-    budget?: number;
-    source: string;
-  }): Promise<{ id: string; clientEmail: string }> {
-    const now = new Date();
-    const [firstName, ...rest] = (data.clientName || 'Client GHL').split(' ');
-    const lastName = rest.join(' ') || 'GHL';
-    const email = data.clientEmail.toLowerCase().trim();
-
-    // Upsert LocalUser as employer (use ORM — updatedAt required explicitly)
-    let localUser = await this.prisma.localUser.findUnique({ where: { email } });
-
-    if (!localUser) {
-      const { LocalUserRole } = await import('@prisma/client');
-      const bcrypt = await import('bcryptjs');
-      const tempPassword = await bcrypt.hash(
-        `ghl_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-        10,
-      );
-      localUser = await this.prisma.localUser.create({
-        data: {
-          id: `client_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-          email,
-          hashedPassword: tempPassword,
-          firstName,
-          lastName,
-          phone: data.clientPhone ?? '',
-          city: data.city ?? '',
-          role: LocalUserRole.employer,
-          updatedAt: now,
-        },
-      });
-      this.logger.log(`New GHL client created: ${localUser.id} (${email})`);
-    }
-
-    // Create LocalMission via raw SQL (updatedAt has no @default in schema)
-    const missionId = `lm_ghl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    await this.prisma.$executeRaw`
-      INSERT INTO local_missions (
-        id, title, description, category, status, price,
-        latitude, longitude, city, "createdByUserId", "createdAt", "updatedAt"
-      ) VALUES (
-        ${missionId},
-        ${data.serviceType ?? 'Service GHL'},
-        ${data.description ?? ''},
-        ${data.serviceType ?? 'general'},
-        'open',
-        ${data.budget ?? 0},
-        0, 0,
-        ${data.city ?? ''},
-        ${localUser.id},
-        ${now}, ${now}
-      )
-    `;
-
-    // Notify N8N (fire and forget)
-    const n8nBase = process.env.N8N_WEBHOOK_BASE;
-    if (n8nBase) {
-      fetch(`${n8nBase}/webhook/mission-created`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ missionId, ...data }),
-      }).catch((e: Error) => this.logger.warn(`N8N notification failed: ${e.message}`));
-    }
-
-    return { id: missionId, clientEmail: email };
-  }
+  // GHL mission creation consolidated into GhlService (src/ghl/ghl.service.ts)
 
   private calculateDistance(
     lat1: number,
@@ -723,8 +651,8 @@ export class MissionsService {
       description: mission.description,
       categoryId: mission.categoryId,
       locationAddress: mission.locationAddress,
-      budgetMin: mission.budgetMin,
-      budgetMax: mission.budgetMax,
+      budgetMinCents: mission.budgetMinCents,
+      budgetMaxCents: mission.budgetMaxCents,
       startAt: mission.startAt,
       endAt: mission.endAt,
       status: mission.status,

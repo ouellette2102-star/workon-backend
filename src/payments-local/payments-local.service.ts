@@ -95,8 +95,8 @@ export class PaymentsLocalService {
       );
     }
 
-    // Convert price to cents
-    const amountInCents = Math.round(mission.price * 100);
+    // priceCents is already stored in cents
+    const amountInCents = mission.priceCents;
 
     try {
       // Create Stripe PaymentIntent
@@ -118,7 +118,7 @@ export class PaymentsLocalService {
       return {
         paymentIntentId: paymentIntent.id,
         clientSecret: paymentIntent.client_secret!,
-        amount: amountInCents,
+        amountCents: mission.priceCents,
         currency: 'CAD',
         missionId: mission.id,
       };

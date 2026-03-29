@@ -81,9 +81,9 @@ export class CreateMissionDto {
   })
   @IsNumber()
   @IsOptional()
-  @Min(15)
-  @Max(500)
-  hourlyRate?: number;
+  @Min(1500)
+  @Max(50000)
+  hourlyRateCents?: number;
 
   @ApiPropertyOptional({
     description: 'Date et heure de début (ISO 8601)',

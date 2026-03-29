@@ -49,7 +49,7 @@ export class EarningsService {
       },
       select: {
         id: true,
-        price: true,
+        priceCents: true,
         status: true,
         paidAt: true,
       },
@@ -63,13 +63,13 @@ export class EarningsService {
     let paidCount = 0;
 
     for (const mission of missions) {
-      totalLifetimeGross += mission.price;
+      totalLifetimeGross += mission.priceCents;
 
       if (mission.status === 'paid') {
-        totalPaid += mission.price * (1 - COMMISSION_RATE);
+        totalPaid += mission.priceCents * (1 - COMMISSION_RATE);
         paidCount++;
       } else if (mission.status === 'completed') {
-        totalPending += mission.price;
+        totalPending += mission.priceCents;
         completedCount++;
       }
     }
@@ -146,7 +146,7 @@ export class EarningsService {
       select: {
         id: true,
         title: true,
-        price: true,
+        priceCents: true,
         status: true,
         paidAt: true,
         updatedAt: true,
@@ -173,9 +173,9 @@ export class EarningsService {
         `${mission.createdByUser.firstName} ${mission.createdByUser.lastName}`.trim() ||
         'Client',
       date: mission.updatedAt.toISOString(),
-      grossAmount: this.round(mission.price),
-      commissionAmount: this.round(mission.price * COMMISSION_RATE),
-      netAmount: this.round(mission.price * (1 - COMMISSION_RATE)),
+      grossAmount: this.round(mission.priceCents),
+      commissionAmount: this.round(mission.priceCents * COMMISSION_RATE),
+      netAmount: this.round(mission.priceCents * (1 - COMMISSION_RATE)),
       status: this.mapStatus(mission.status),
       paidAt: mission.paidAt?.toISOString(),
       currency: CURRENCY,
@@ -216,7 +216,7 @@ export class EarningsService {
         category: true,
         city: true,
         address: true,
-        price: true,
+        priceCents: true,
         status: true,
         paidAt: true,
         updatedAt: true,
@@ -244,9 +244,9 @@ export class EarningsService {
         `${mission.createdByUser.firstName} ${mission.createdByUser.lastName}`.trim() ||
         'Client',
       date: mission.updatedAt.toISOString(),
-      grossAmount: this.round(mission.price),
-      commissionAmount: this.round(mission.price * COMMISSION_RATE),
-      netAmount: this.round(mission.price * (1 - COMMISSION_RATE)),
+      grossAmount: this.round(mission.priceCents),
+      commissionAmount: this.round(mission.priceCents * COMMISSION_RATE),
+      netAmount: this.round(mission.priceCents * (1 - COMMISSION_RATE)),
       status: this.mapStatus(mission.status),
       paidAt: mission.paidAt?.toISOString(),
       currency: CURRENCY,
@@ -271,10 +271,10 @@ export class EarningsService {
   }
 
   /**
-   * Round to 2 decimal places.
+   * Convert cents to dollars and round to 2 decimal places.
    */
-  private round(value: number): number {
-    return Math.round(value * 100) / 100;
+  private round(cents: number): number {
+    return Math.round(cents) / 100;
   }
 }
 

@@ -110,6 +110,9 @@ function logDetailedDiagnostic(config: Record<string, unknown>): void {
     'SIGNED_URL_SECRET',
     'FRONTEND_URL',
     'CORS_ORIGIN',
+    // GHL/N8N integration (required for hors-app webhooks)
+    'GHL_WEBHOOK_SECRET',
+    'N8N_WEBHOOK_BASE',
   ];
 
   for (const key of criticalVars) {
@@ -307,6 +310,18 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   NOTIFICATION_WORKER_MAX_ITERATIONS?: string; // Max iterations before exit (default: 1000)
+
+  // ========================================
+  // GHL / N8N INTEGRATION
+  // ========================================
+
+  @IsString()
+  @IsOptional()
+  GHL_WEBHOOK_SECRET?: string; // Secret for x-ghl-secret header validation
+
+  @IsString()
+  @IsOptional()
+  N8N_WEBHOOK_BASE?: string; // Base URL for N8N webhook callbacks
 }
 
 /**

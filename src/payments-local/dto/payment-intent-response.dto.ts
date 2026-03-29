@@ -17,7 +17,7 @@ export class PaymentIntentResponseDto {
     example: 7500,
     description: 'Amount in cents',
   })
-  amount: number;
+  amountCents: number;
 
   @ApiProperty({
     example: 'CAD',

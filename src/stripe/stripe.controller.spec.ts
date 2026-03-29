@@ -92,7 +92,7 @@ describe('StripeController', () => {
   describe('createPaymentIntent', () => {
     it('should create payment intent', async () => {
       const mockReq = { user: { sub: 'employer-1' } };
-      const dto = { missionId: 'mission-1', amount: 100 };
+      const dto = { missionId: 'mission-1', amountCents: 10000 };
       const expectedResult = {
         clientSecret: 'pi_test_secret',
         paymentIntentId: 'pi_test_123',
@@ -106,7 +106,7 @@ describe('StripeController', () => {
       expect(mockStripeService.createPaymentIntent).toHaveBeenCalledWith(
         'employer-1',
         'mission-1',
-        100,
+        10000,
       );
     });
   });
@@ -118,7 +118,7 @@ describe('StripeController', () => {
         {
           id: 'pay-1',
           missionId: 'mission-1',
-          amount: 100,
+          amountCents: 10000,
           status: PaymentStatus.SUCCEEDED,
         },
       ];

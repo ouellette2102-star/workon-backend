@@ -321,5 +321,25 @@ export class MissionsLocalService {
       },
     };
   }
+
+  /**
+   * Full-text search missions using PostgreSQL tsvector
+   */
+  async search(
+    query: string,
+    options: { city?: string; category?: string; limit?: number; offset?: number } = {},
+  ) {
+    if (!query || query.trim().length < 2) {
+      throw new BadRequestException('Search query must be at least 2 characters');
+    }
+
+    const results = await this.missionsRepository.searchFullText(query.trim(), options);
+
+    return {
+      results,
+      count: results.length,
+      query: query.trim(),
+    };
+  }
 }
 

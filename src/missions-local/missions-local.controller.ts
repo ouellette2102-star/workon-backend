@@ -61,6 +61,32 @@ export class MissionsLocalController {
     });
   }
 
+  @Get('search')
+  @ApiOperation({
+    summary: 'Full-text search missions',
+    description: 'Search missions using PostgreSQL full-text search (French language support)',
+  })
+  @ApiQuery({ name: 'q', required: true, example: 'déneigement', description: 'Search query' })
+  @ApiQuery({ name: 'city', required: false, example: 'Montréal', description: 'Filter by city' })
+  @ApiQuery({ name: 'category', required: false, example: 'snow_removal', description: 'Filter by category' })
+  @ApiQuery({ name: 'limit', required: false, example: 20, description: 'Max results' })
+  @ApiQuery({ name: 'offset', required: false, example: 0, description: 'Offset for pagination' })
+  @ApiResponse({ status: 200, description: 'Search results ranked by relevance' })
+  async search(
+    @Query('q') q: string,
+    @Query('city') city?: string,
+    @Query('category') category?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.missionsService.search(q, {
+      city,
+      category,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      offset: offset ? parseInt(offset, 10) : undefined,
+    });
+  }
+
   @Get('map')
   @ApiOperation({
     summary: 'Get missions for map view',

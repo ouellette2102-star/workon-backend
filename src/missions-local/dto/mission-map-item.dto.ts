@@ -32,9 +32,9 @@ export class MissionMapItemDto {
   @Expose()
   status: string;
 
-  @ApiProperty({ description: 'Price/Rate in CAD', example: 150.0 })
+  @ApiProperty({ description: 'Price in cents (e.g. 15000 = $150.00 CAD)', example: 15000 })
   @Expose()
-  price: number;
+  priceCents: number;
 
   @ApiPropertyOptional({ description: 'City name', example: 'Montreal' })
   @Expose()

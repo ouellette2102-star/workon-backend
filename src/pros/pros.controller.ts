@@ -4,17 +4,19 @@ import {
   Body,
   Logger,
   HttpCode,
-  Headers,
-  UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiHeader } from '@nestjs/swagger';
 import { ProsService } from './pros.service';
+import { GhlWebhookGuard } from '../ghl/guards/ghl-webhook.guard';
 
 /**
  * Pros Controller — Endpoints publics pour l'onboarding des Pros
  * Reçoit les webhooks GHL (GoHighLevel) et N8N
+ * Protected by GHL_WEBHOOK_SECRET validation (x-ghl-secret header).
  */
 @ApiTags('Pros')
+@UseGuards(GhlWebhookGuard)
 @Controller('api/v1/pros')
 export class ProsController {
   private readonly logger = new Logger(ProsController.name);
@@ -34,16 +36,8 @@ export class ProsController {
       'Receives webhook from GoHighLevel when a Pro completes the signup form. ' +
       'Creates or updates LocalUser profile, then triggers N8N pro-signup workflow.',
   })
-  async handleGhlSignup(
-    @Body() body: GhlWebhookPayload,
-    @Headers('x-ghl-secret') ghlSecret?: string,
-  ) {
-    // Vérifier le secret GHL si configuré
-    const expectedSecret = process.env.GHL_WEBHOOK_SECRET;
-    if (expectedSecret && ghlSecret !== expectedSecret) {
-      throw new UnauthorizedException('Invalid GHL webhook secret');
-    }
-
+  @ApiHeader({ name: 'x-ghl-secret', required: true, description: 'GHL webhook secret' })
+  async handleGhlSignup(@Body() body: GhlWebhookPayload) {
     this.logger.log(`GHL signup received: ${body.email || body.contact?.email}`);
 
     const result = await this.prosService.handleGhlSignup(body);

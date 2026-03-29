@@ -30,11 +30,11 @@ export class GhlMissionWebhookDto {
   @IsNotEmpty()
   category: string;
 
-  @ApiProperty({ example: 75.0, description: 'Price in CAD' })
+  @ApiProperty({ example: 7500, description: 'Price in cents (e.g. 7500 = $75.00 CAD)' })
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  price: number;
+  priceCents: number;
 
   @ApiProperty({ example: 45.5017, description: 'Latitude' })
   @Type(() => Number)

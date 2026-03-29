@@ -11,12 +11,12 @@ export class CreatePaymentIntentDto {
   missionId?: string;
 
   @ApiProperty({
-    description: 'Amount in CAD dollars (will be converted to cents)',
-    example: 75.0,
+    description: 'Amount in cents (e.g., 7500 for $75.00 CAD)',
+    example: 7500,
     minimum: 1,
   })
   @IsNumber()
   @Min(1)
-  amount: number;
+  amountCents: number;
 }
 

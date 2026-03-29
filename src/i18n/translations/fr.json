@@ -1,0 +1,50 @@
+{
+  "auth": {
+    "unauthorized": "Non autorisé",
+    "forbidden": "Accès interdit",
+    "invalidCredentials": "Email ou mot de passe invalide",
+    "accountDisabled": "Compte désactivé"
+  },
+  "missions": {
+    "notFound": "Mission non trouvée",
+    "alreadyAssigned": "Cette mission est déjà assignée",
+    "cannotCancel": "Impossible d'annuler cette mission",
+    "created": "Mission créée avec succès",
+    "completed": "Mission complétée",
+    "onlyEmployers": "Seuls les employeurs peuvent créer des missions"
+  },
+  "payments": {
+    "notFound": "Paiement introuvable",
+    "refundSuccess": "Remboursement effectué",
+    "onlySucceeded": "Seuls les paiements réussis peuvent être remboursés",
+    "stripeNotConfigured": "Le service de paiement n'est pas configuré",
+    "missionMustBeCompleted": "La mission doit être complétée avant le paiement"
+  },
+  "disputes": {
+    "alreadyOpen": "Un litige est déjà ouvert pour cette mission",
+    "onlyParties": "Seules les parties impliquées peuvent ouvrir un litige",
+    "alreadyClosed": "Ce litige est déjà fermé",
+    "opened": "Litige ouvert",
+    "resolved": "Litige résolu"
+  },
+  "reviews": {
+    "selfReview": "Vous ne pouvez pas vous évaluer vous-même",
+    "duplicate": "Vous avez déjà laissé un avis pour cette mission",
+    "notFound": "Avis non trouvé"
+  },
+  "users": {
+    "notFound": "Utilisateur non trouvé",
+    "emailTaken": "Cet email est déjà utilisé"
+  },
+  "validation": {
+    "required": "Ce champ est requis",
+    "invalidEmail": "Email invalide",
+    "tooShort": "Trop court (minimum {min} caractères)",
+    "tooLong": "Trop long (maximum {max} caractères)"
+  },
+  "common": {
+    "serverError": "Erreur serveur interne",
+    "notFound": "Ressource non trouvée",
+    "badRequest": "Requête invalide"
+  }
+}

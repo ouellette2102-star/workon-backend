@@ -27,7 +27,7 @@ export class OffersService {
    * @throws ForbiddenException if worker tries to offer on their own mission
    */
   async create(workerId: string, createOfferDto: CreateOfferDto) {
-    const { missionId, price, message } = createOfferDto;
+    const { missionId, priceCents, message } = createOfferDto;
 
     // Check mission exists and is open
     const mission = await this.prisma.localMission.findUnique({
@@ -73,7 +73,7 @@ export class OffersService {
         id,
         missionId,
         workerId,
-        price,
+        priceCents,
         message,
         updatedAt: new Date(),
       },
@@ -274,7 +274,7 @@ export class OffersService {
             title: true,
             description: true,
             category: true,
-            price: true,
+            priceCents: true,
             city: true,
             status: true,
             createdAt: true,

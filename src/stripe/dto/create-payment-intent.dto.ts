@@ -5,7 +5,7 @@ export class CreatePaymentIntentDto {
   missionId: string;
 
   @IsNumber()
-  @Min(1) // Minimum 1$ CAD
-  amount: number; // Montant en dollars CAD
+  @Min(100) // Minimum 100 cents (1$ CAD)
+  amountCents: number; // Montant en cents CAD
 }
 

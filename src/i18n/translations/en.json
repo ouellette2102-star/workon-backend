@@ -1,0 +1,50 @@
+{
+  "auth": {
+    "unauthorized": "Unauthorized",
+    "forbidden": "Access forbidden",
+    "invalidCredentials": "Invalid email or password",
+    "accountDisabled": "Account disabled"
+  },
+  "missions": {
+    "notFound": "Mission not found",
+    "alreadyAssigned": "This mission is already assigned",
+    "cannotCancel": "Cannot cancel this mission",
+    "created": "Mission created successfully",
+    "completed": "Mission completed",
+    "onlyEmployers": "Only employers can create missions"
+  },
+  "payments": {
+    "notFound": "Payment not found",
+    "refundSuccess": "Refund issued",
+    "onlySucceeded": "Only succeeded payments can be refunded",
+    "stripeNotConfigured": "Payment service is not configured",
+    "missionMustBeCompleted": "Mission must be completed before payment"
+  },
+  "disputes": {
+    "alreadyOpen": "A dispute is already open for this mission",
+    "onlyParties": "Only involved parties can open a dispute",
+    "alreadyClosed": "This dispute is already closed",
+    "opened": "Dispute opened",
+    "resolved": "Dispute resolved"
+  },
+  "reviews": {
+    "selfReview": "You cannot review yourself",
+    "duplicate": "You already left a review for this mission",
+    "notFound": "Review not found"
+  },
+  "users": {
+    "notFound": "User not found",
+    "emailTaken": "This email is already in use"
+  },
+  "validation": {
+    "required": "This field is required",
+    "invalidEmail": "Invalid email",
+    "tooShort": "Too short (minimum {min} characters)",
+    "tooLong": "Too long (maximum {max} characters)"
+  },
+  "common": {
+    "serverError": "Internal server error",
+    "notFound": "Resource not found",
+    "badRequest": "Bad request"
+  }
+}

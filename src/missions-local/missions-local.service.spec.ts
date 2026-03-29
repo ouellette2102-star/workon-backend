@@ -20,7 +20,7 @@ describe('MissionsLocalService', () => {
     address: '123 Main St',
     latitude: 45.5,
     longitude: -73.6,
-    price: 100,
+    priceCents: 10000,
     status: 'open' as const,
     createdByUserId: 'user-employer-1',
     assignedToUserId: null,
@@ -97,7 +97,7 @@ describe('MissionsLocalService', () => {
       address: '123 Main St',
       latitude: 45.5,
       longitude: -73.6,
-      price: 150,
+      priceCents: 15000,
     };
 
     it('should create mission for employer', async () => {
