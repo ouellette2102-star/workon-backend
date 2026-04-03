@@ -6,7 +6,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { GhlMissionWebhookDto } from './dto/ghl-mission-webhook.dto';
 import { GhlProSignupDto } from './dto/ghl-pro-signup.dto';
 import * as crypto from 'crypto';
-import { generateUniqueReferralCode } from '../users/referral-code.util';
 
 /**
  * GHL Integration Service
@@ -123,8 +122,6 @@ export class GhlService {
     const tempPassword = crypto.randomBytes(32).toString('hex');
     const bcrypt = await import('bcryptjs');
     const hashedPassword = await bcrypt.hash(tempPassword, 12);
-    const referralCode = await generateUniqueReferralCode(this.prisma);
-
     const user = await this.prisma.localUser.create({
       data: {
         id,
@@ -135,7 +132,6 @@ export class GhlService {
         phone: dto.phone || null,
         city: dto.city || null,
         role: 'worker',
-        referralCode,
         active: true,
         updatedAt: new Date(),
       },
