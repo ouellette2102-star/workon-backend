@@ -45,6 +45,7 @@ import { SchedulingModule } from './scheduling/scheduling.module';
 import { ProductionConfigModule } from './config/production-config.module';
 import { GhlModule } from './ghl/ghl.module';
 import { ProsModule } from './pros/pros.module';
+import { LeadsModule } from './leads/leads.module';
 
 @Module({
   imports: [
@@ -204,6 +205,8 @@ import { ProsModule } from './pros/pros.module';
     GhlModule,
     // GHL hors-app webhooks - Pro registration + Mission creation
     ProsModule,
+    // Demand Capture System - Lead capture + routing
+    LeadsModule,
   ],
   controllers: [AppController],
   providers: [

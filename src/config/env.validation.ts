@@ -286,6 +286,22 @@ export class EnvironmentVariables {
   @IsOptional()
   SENDGRID_FROM_NAME?: string; // Sender name (default: WorkOn)
 
+  // ========================================
+  // GHL + N8N WEBHOOKS (Demand Capture)
+  // ========================================
+
+  @IsString()
+  @IsOptional()
+  GHL_WEBHOOK_URL?: string; // GoHighLevel webhook for lead/pro routing
+
+  @IsString()
+  @IsOptional()
+  GHL_WEBHOOK_SECRET?: string; // Secret for validating inbound GHL webhooks
+
+  @IsString()
+  @IsOptional()
+  N8N_WEBHOOK_BASE?: string; // N8N base URL for automation webhooks (e.g. https://n8n.workon.app)
+
   // Firebase is already configured via FIREBASE_* env vars in push module
 
   // ========================================
