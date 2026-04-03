@@ -1,18 +1,21 @@
--- CreateEnum
-CREATE TYPE "LeadStatus" AS ENUM ('NEW', 'CONTACTED', 'QUALIFIED', 'CONVERTED', 'LOST');
+-- CreateEnum (idempotent)
+DO $$ BEGIN
+  CREATE TYPE "LeadStatus" AS ENUM ('NEW', 'CONTACTED', 'QUALIFIED', 'CONVERTED', 'LOST');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- AlterTable: Add demand capture fields to local_users
-ALTER TABLE "local_users" ADD COLUMN "slug" TEXT;
-ALTER TABLE "local_users" ADD COLUMN "bio" TEXT;
-ALTER TABLE "local_users" ADD COLUMN "category" TEXT;
-ALTER TABLE "local_users" ADD COLUMN "serviceRadiusKm" INTEGER DEFAULT 25;
-ALTER TABLE "local_users" ADD COLUMN "completionScore" INTEGER DEFAULT 0;
+-- AlterTable: Add demand capture fields to local_users (idempotent)
+ALTER TABLE "local_users" ADD COLUMN IF NOT EXISTS "slug" TEXT;
+ALTER TABLE "local_users" ADD COLUMN IF NOT EXISTS "bio" TEXT;
+ALTER TABLE "local_users" ADD COLUMN IF NOT EXISTS "category" TEXT;
+ALTER TABLE "local_users" ADD COLUMN IF NOT EXISTS "serviceRadiusKm" INTEGER DEFAULT 25;
+ALTER TABLE "local_users" ADD COLUMN IF NOT EXISTS "completionScore" INTEGER DEFAULT 0;
 
--- CreateIndex: unique slug
-CREATE UNIQUE INDEX "local_users_slug_key" ON "local_users"("slug");
+-- CreateIndex: unique slug (idempotent)
+CREATE UNIQUE INDEX IF NOT EXISTS "local_users_slug_key" ON "local_users"("slug");
 
--- CreateIndex: slug lookup
-CREATE INDEX "local_users_slug_idx" ON "local_users"("slug");
+-- CreateIndex: slug lookup (idempotent)
+CREATE INDEX IF NOT EXISTS "local_users_slug_idx" ON "local_users"("slug");
 
 -- CreateTable: leads
 CREATE TABLE "leads" (
