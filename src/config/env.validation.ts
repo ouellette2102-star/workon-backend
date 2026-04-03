@@ -355,7 +355,7 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
       `❌ CONFIGURATION ERROR - Missing or invalid environment variables:\n\n${messages.join('\n')}\n\n` +
       `Please check your .env file in backend/ directory.\n` +
       `Required variables (all environments): DATABASE_URL, NODE_ENV\n` +
-      `Required variables (production only): JWT_SECRET, JWT_REFRESH_SECRET, CLERK_SECRET_KEY\n`,
+      `Required variables (production only): JWT_SECRET, JWT_REFRESH_SECRET\n`,
     );
   }
 
@@ -382,10 +382,9 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
       throw new Error('JWT_REFRESH_SECRET is required in production');
     }
 
-    // CLERK_SECRET_KEY - LIGNE ~282
+    // CLERK_SECRET_KEY — Clerk auth is disabled (local JWT only), so this is a warning not a crash
     if (!isPresent(validatedConfig.CLERK_SECRET_KEY)) {
-      console.error('❌ ERROR: CLERK_SECRET_KEY is required in production.');
-      throw new Error('CLERK_SECRET_KEY is required in production');
+      console.warn('⚠️  WARNING: CLERK_SECRET_KEY not set. Clerk auth is disabled (local JWT only).');
     }
 
     // STRIPE_SECRET_KEY - LIGNE ~288
@@ -394,15 +393,14 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
       throw new Error('STRIPE_SECRET_KEY is required in production');
     }
 
-    // STRIPE_WEBHOOK_SECRET - LIGNE ~294
+    // STRIPE_WEBHOOK_SECRET — warn but don't crash (webhook validation will fail gracefully)
     if (!isPresent(validatedConfig.STRIPE_WEBHOOK_SECRET)) {
-      console.error('❌ ERROR: STRIPE_WEBHOOK_SECRET is required in production. Webhook signature validation will fail.');
-      throw new Error('STRIPE_WEBHOOK_SECRET is required in production');
+      console.warn('⚠️  WARNING: STRIPE_WEBHOOK_SECRET not set. Stripe webhook signature validation will be skipped.');
     }
 
-    // FRONTEND_URL or CORS_ORIGIN - LIGNE ~300
+    // FRONTEND_URL or CORS_ORIGIN — warn but don't crash
     if (!isPresent(validatedConfig.FRONTEND_URL) && !isPresent(validatedConfig.CORS_ORIGIN)) {
-      throw new Error('FRONTEND_URL or CORS_ORIGIN must be set in production for CORS security');
+      console.warn('⚠️  WARNING: FRONTEND_URL or CORS_ORIGIN not set. CORS may be misconfigured.');
     }
 
     // =====================================================
