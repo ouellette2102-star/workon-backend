@@ -272,16 +272,26 @@ model LocalUser {
   deletionRequestedAt   DateTime? // When deletion was requested
   deletionScheduledFor  DateTime? // When data will be deleted (30-day grace)
 
+  // Demand Capture System
+  slug             String?   @unique // URL slug for /pro/{slug}
+  bio              String?   // Professional bio/description
+  category         String?   // Service category (menage, paysagement, etc.)
+  serviceRadiusKm  Int?      @default(25) // Service area radius
+  completionScore  Int?      @default(0) // Profile completion percentage
+
   assignedMissions LocalMission[] @relation("local_missions_assignedToUserIdTolocal_users")
   createdMissions  LocalMission[] @relation("local_missions_createdByUserIdTolocal_users")
   offers           LocalOffer[]
   devices          LocalDevice[] // Push notification devices
   messages         LocalMessage[] // Chat messages sent by this user
+  leads            Lead[]         // Leads received by this professional
+  gallery          ProMedia[]     // Portfolio images
 
   @@index([active])
   @@index([city])
   @@index([email])
   @@index([role])
+  @@index([slug])
   @@index([deletedAt])
   @@index([trustTier])
   @@index([phoneVerified])
@@ -1427,4 +1437,50 @@ enum DeliveryStatus {
   FAILED // Delivery failed
   BOUNCED // Email bounced
   UNSUBSCRIBED // User unsubscribed
+}
+
+// ── WorkOn Demand Capture System ──────────────────────────────
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  CONVERTED
+  LOST
+}
+
+model Lead {
+  id               String     @id @default(uuid())
+  professionalId   String
+  professional     LocalUser  @relation(fields: [professionalId], references: [id])
+  clientName       String
+  clientPhone      String
+  clientEmail      String?
+  serviceRequested String
+  message          String?
+  status           LeadStatus @default(NEW)
+  source           String?    // "organic", "facebook_ad", "google_ad", "referral"
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([professionalId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([professionalId, clientPhone, createdAt])
+  @@map("leads")
+}
+
+model ProMedia {
+  id             String    @id @default(uuid())
+  professionalId String
+  professional   LocalUser @relation(fields: [professionalId], references: [id])
+  imageUrl       String
+  caption        String?
+  type           String    @default("portfolio") // "portfolio", "logo", "cover"
+  sortOrder      Int       @default(0)
+  createdAt      DateTime  @default(now())
+
+  @@index([professionalId])
+  @@index([professionalId, sortOrder])
+  @@map("pro_media")
 }

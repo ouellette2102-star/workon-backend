@@ -1,19 +1,18 @@
 import {
   Controller,
   Post,
+  Get,
   Body,
+  Param,
   Logger,
   HttpCode,
   Headers,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { ProsService } from './pros.service';
+import { RegisterProDto } from './dto/register-pro.dto';
 
-/**
- * Pros Controller — Endpoints publics pour l'onboarding des Pros
- * Reçoit les webhooks GHL (GoHighLevel) et N8N
- */
 @ApiTags('Pros')
 @Controller('api/v1/pros')
 export class ProsController {
@@ -22,9 +21,61 @@ export class ProsController {
   constructor(private readonly prosService: ProsService) {}
 
   /**
+   * POST /api/v1/pros/register
+   * Public — registers a professional from the landing page form.
+   */
+  @Post('register')
+  @HttpCode(201)
+  @ApiOperation({
+    summary: 'Register a professional',
+    description:
+      'Creates a professional profile from the onboarding form. ' +
+      'Generates a unique slug for their public page, triggers GHL + N8N webhooks.',
+  })
+  @ApiResponse({ status: 201, description: 'Professional registered' })
+  @ApiResponse({ status: 409, description: 'Email already exists' })
+  async registerPro(@Body() dto: RegisterProDto) {
+    this.logger.log(`Pro registration: ${dto.email}`);
+    return this.prosService.registerPro(dto);
+  }
+
+  /**
+   * GET /api/v1/pros/:slug
+   * Public — returns professional profile data for the dynamic page.
+   */
+  @Get(':slug')
+  @ApiOperation({
+    summary: 'Get professional profile by slug',
+    description:
+      'Returns the public profile of a professional by their URL slug. ' +
+      'Used by the Next.js frontend to render /pro/{slug} pages.',
+  })
+  @ApiParam({ name: 'slug', example: 'marc-dubois-montreal' })
+  @ApiResponse({ status: 200, description: 'Professional profile' })
+  @ApiResponse({ status: 404, description: 'Professional not found' })
+  async getProBySlug(@Param('slug') slug: string) {
+    return this.prosService.getProBySlug(slug);
+  }
+
+  /**
+   * POST /api/v1/pros/:id/media
+   * Add a gallery image to a professional's profile.
+   */
+  @Post(':id/media')
+  @HttpCode(201)
+  @ApiOperation({ summary: 'Add gallery image to professional profile' })
+  @ApiParam({ name: 'id', description: 'Professional LocalUser ID' })
+  @ApiResponse({ status: 201, description: 'Media added' })
+  async addMedia(
+    @Param('id') id: string,
+    @Body() body: { imageUrl: string; caption?: string; type?: string },
+  ) {
+    return this.prosService.addProMedia(id, body.imageUrl, body.caption, body.type);
+  }
+
+  /**
    * POST /api/v1/pros/ghl-signup
-   * Webhook reçu depuis GHL Forms quand un Pro s'inscrit
-   * GHL → WorkOn Backend → Crée profil LocalUser → Trigger N8N
+   * Webhook from GHL Forms when a Pro signs up.
    */
   @Post('ghl-signup')
   @HttpCode(200)
@@ -38,21 +89,18 @@ export class ProsController {
     @Body() body: GhlWebhookPayload,
     @Headers('x-ghl-secret') ghlSecret?: string,
   ) {
-    // Vérifier le secret GHL si configuré
     const expectedSecret = process.env.GHL_WEBHOOK_SECRET;
     if (expectedSecret && ghlSecret !== expectedSecret) {
       throw new UnauthorizedException('Invalid GHL webhook secret');
     }
 
     this.logger.log(`GHL signup received: ${body.email || body.contact?.email}`);
-
     const result = await this.prosService.handleGhlSignup(body);
     return { received: true, proId: result.id };
   }
 }
 
 interface GhlWebhookPayload {
-  // GHL contact fields (standard format)
   email?: string;
   firstName?: string;
   first_name?: string;
@@ -62,8 +110,6 @@ interface GhlWebhookPayload {
   city?: string;
   customFields?: Record<string, string>;
   tags?: string[];
-
-  // GHL contact object (alternate format)
   contact?: {
     email?: string;
     firstName?: string;
