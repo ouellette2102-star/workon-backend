@@ -41,6 +41,10 @@ test-results/
 .env.local
 .env.*.local
 
+# Claude Code local settings (may contain DB credentials)
+.claude/settings.local.json
+.claude/*.local.json
+
 # Prisma
 *.db
 *.db-journal
