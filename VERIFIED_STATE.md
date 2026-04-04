@@ -1,7 +1,7 @@
 # VERIFIED STATE — WorkOn Production Systems
 
 > Single source of truth. Only facts verified against live systems belong here.
-> Last verified: 2026-04-03T20:06Z (Demand capture system deployed + E2E verified)
+> Last verified: 2026-04-04T04:10Z (W8 N8N workflow + frontend API URL fixes + CORS verified)
 
 ---
 
@@ -56,11 +56,13 @@
 **Status**: RUNNING, authenticated via browser session
 **API Keys**: 8 keys exist (claude, claude-auto-2, claude-fix-3, diagnostics-2026, WorkOn API, WorkOn Automation, WorkOn Final, WorkOn Workflows)
 
-### Workflows — ALL FIXED (verified 2026-03-28T20:46Z)
+### Workflows — ALL FIXED + W8 ADDED (verified 2026-04-03T04:00Z)
 
 All `$json.body.` and `.json.body.` references replaced with `$json.` / `.json.` across all 7 workflows.
 Stale backend URLs (`production-31db` staging) replaced with `production-8908` (production) in W2 and W3.
 Fix applied via N8N Public API (PUT /api/v1/workflows/{id}) using programmatically created API key.
+
+**W8: New Lead → GHL + Log** created 2026-04-03 via API. Webhook path: `/webhook/new-lead`. E2E verified: backend lead creation triggers N8N execution within 178ms.
 
 ### Environment Variables (37 total, verified 2026-03-28T20:46Z)
 
@@ -88,8 +90,9 @@ All required env vars are configured in Railway N8N service:
 | VNrFJszb85IvQfBY | W3: Mission Complétée → Payout | 0 | true | **FIXED & PUBLISHED** |
 | GWj6WJlBVKDPdy6U | W4: Promotion Réseaux Sociaux | 0 | true | **FIXED & PUBLISHED** |
 | YEuFCrSEIVygCG7U | Pro Signup Auto-Approval | 0 | true | **FIXED & PUBLISHED** |
+| q6sHeGMUTlS6mt05 | W8: New Lead → GHL + Log | 0 | true | **E2E VERIFIED** — Created 2026-04-03 |
 
-**Execution stats**: 9 total executions, first 5 failed (body mapping), last 2 succeeded.
+**Execution stats**: 12 total executions. W8 E2E verified: lead POST → N8N webhook fires in 178ms.
 
 ---
 
@@ -143,9 +146,12 @@ All required env vars are configured in Railway N8N service:
 
 1. **SENDGRID_API_KEY** — Must be set in Railway for lead notification emails to send. Requires SendGrid account credential.
 2. **GHL_WEBHOOK_URL + GHL_WEBHOOK_SECRET** — Must be set in Railway for GHL lead forwarding. Requires GHL account credential.
-3. **N8N new-lead workflow** — Create webhook workflow at `/webhook/new-lead` to receive lead notifications. Requires N8N login credentials.
-4. **Next.js frontend** — Wire up `NEXT_PUBLIC_API_URL` to `https://workon-backend-production-31db.up.railway.app` and deploy pro pages + demand form.
+3. **FRONTEND_URL on Railway** — Set to custom domain once configured (e.g., `https://workon.app`). Currently CORS is open; needs lock-down for production.
+4. **Custom domain** — Add `workon.app` to Vercel and set `FRONTEND_URL` on Railway backend to match.
 5. **Stripe Connect Express** — Requires manual activation on dashboard.stripe.com.
-6. ~~**Demand capture system**~~ — **DONE** (2026-04-03). Full system deployed: pro registration, public profiles, lead creation, duplicate detection, auth guards.
-7. ~~**N8N body mapping fix**~~ — **DONE** (2026-03-28).
-8. ~~**N8N stale backend URLs**~~ — **DONE** (2026-03-28).
+6. **Vercel redeploy** — Push frontend changes (API URL fix) to trigger Vercel production build with correct `NEXT_PUBLIC_API_URL`.
+7. ~~**N8N new-lead workflow**~~ — **DONE** (2026-04-03). W8 created via API, webhook at `/webhook/new-lead`, E2E verified 178ms latency.
+8. ~~**Next.js frontend API wiring**~~ — **DONE** (2026-04-03). Fixed stale fallback URL (8908→31db), fixed path mismatch in public-api.ts, set `NEXT_PUBLIC_API_URL` in .env.local.
+9. ~~**Demand capture system**~~ — **DONE** (2026-04-03). Full system deployed: pro registration, public profiles, lead creation, duplicate detection, auth guards.
+10. ~~**N8N body mapping fix**~~ — **DONE** (2026-03-28).
+11. ~~**N8N stale backend URLs**~~ — **DONE** (2026-03-28).
