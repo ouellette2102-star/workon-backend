@@ -7,49 +7,59 @@ import {
   IsLongitude,
   Min,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 /**
  * DTO for GHL mission webhook payload
- * Received from GoHighLevel via N8N workflow
+ * Received from GoHighLevel via N8N workflow.
+ *
+ * Accepts BOTH formats:
+ * - CamelCase (pre-mapped by N8N): title, description, category, price, etc.
+ * - Snake_case (raw GHL form fields): full_name, service_type, ville, etc.
+ *
+ * The service normalizes all fields before creating the mission.
+ * All fields are optional because GHL payloads vary by form configuration.
  */
 export class GhlMissionWebhookDto {
-  @ApiProperty({ example: 'Déneigement entrée', description: 'Mission title' })
-  @IsString()
-  @IsNotEmpty()
-  title: string;
+  // === CamelCase fields (pre-mapped by N8N or well-configured webhook) ===
 
-  @ApiProperty({ example: 'Besoin de déneiger une entrée de 20m', description: 'Mission description' })
+  @ApiPropertyOptional({ example: 'Déneigement entrée', description: 'Mission title' })
   @IsString()
-  @IsNotEmpty()
-  description: string;
+  @IsOptional()
+  title?: string;
 
-  @ApiProperty({ example: 'snow_removal', description: 'Mission category' })
+  @ApiPropertyOptional({ example: 'Besoin de déneiger une entrée de 20m', description: 'Mission description' })
   @IsString()
-  @IsNotEmpty()
-  category: string;
+  @IsOptional()
+  description?: string;
 
-  @ApiProperty({ example: 75.0, description: 'Price in CAD' })
+  @ApiPropertyOptional({ example: 'snow_removal', description: 'Mission category' })
+  @IsString()
+  @IsOptional()
+  category?: string;
+
+  @ApiPropertyOptional({ example: 75.0, description: 'Price in CAD' })
   @Type(() => Number)
   @IsNumber()
+  @IsOptional()
   @Min(0)
-  price: number;
+  price?: number;
 
-  @ApiProperty({ example: 45.5017, description: 'Latitude' })
+  @ApiPropertyOptional({ example: 45.5017, description: 'Latitude' })
   @Type(() => Number)
-  @IsLatitude()
-  latitude: number;
+  @IsOptional()
+  latitude?: number;
 
-  @ApiProperty({ example: -73.5673, description: 'Longitude' })
+  @ApiPropertyOptional({ example: -73.5673, description: 'Longitude' })
   @Type(() => Number)
-  @IsLongitude()
-  longitude: number;
+  @IsOptional()
+  longitude?: number;
 
-  @ApiProperty({ example: 'Montréal', description: 'City' })
+  @ApiPropertyOptional({ example: 'Montréal', description: 'City' })
   @IsString()
-  @IsNotEmpty()
-  city: string;
+  @IsOptional()
+  city?: string;
 
   @ApiPropertyOptional({ example: '123 rue Example', description: 'Address' })
   @IsString()
@@ -70,4 +80,47 @@ export class GhlMissionWebhookDto {
   @IsString()
   @IsOptional()
   clientName?: string;
+
+  // === Snake_case aliases (raw GHL form field names) ===
+  // N8N may forward GHL payloads without transforming field names.
+  // The service checks both camelCase and snake_case for each field.
+
+  @IsString()
+  @IsOptional()
+  full_name?: string;
+
+  @IsString()
+  @IsOptional()
+  first_name?: string;
+
+  @IsString()
+  @IsOptional()
+  last_name?: string;
+
+  @IsString()
+  @IsOptional()
+  email?: string;
+
+  @IsString()
+  @IsOptional()
+  phone?: string;
+
+  @IsString()
+  @IsOptional()
+  service_type?: string;
+
+  @IsString()
+  @IsOptional()
+  type_de_service?: string;
+
+  @IsString()
+  @IsOptional()
+  message?: string;
+
+  @IsString()
+  @IsOptional()
+  ville?: string;
+
+  @IsOptional()
+  budget?: any;
 }
