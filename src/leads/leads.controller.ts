@@ -116,4 +116,39 @@ export class LeadsController {
   ) {
     return this.leadsService.updateLeadStatus(id, dto);
   }
+
+  /**
+   * POST /api/v1/leads/:id/convert
+   * Protected (admin) — manually convert a lead to a mission
+   * with optional custom parameters (price, location, category).
+   */
+  @Post(':id/convert')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Convert lead to mission',
+    description:
+      'Manually converts a lead into an open mission. ' +
+      'Optional params override auto-detected values (price, location, category).',
+  })
+  @ApiParam({ name: 'id', description: 'Lead ID' })
+  @ApiResponse({ status: 201, description: 'Mission created from lead' })
+  @ApiResponse({ status: 404, description: 'Lead not found' })
+  @ApiResponse({ status: 409, description: 'Lead already converted' })
+  async convertLeadToMission(
+    @Param('id') id: string,
+    @Body() params: {
+      price?: number;
+      latitude?: number;
+      longitude?: number;
+      city?: string;
+      address?: string;
+      category?: string;
+      title?: string;
+    },
+  ) {
+    this.logger.log(`Manual lead→mission conversion requested: ${id}`);
+    return this.leadsService.convertLeadToMission(id, params);
+  }
 }

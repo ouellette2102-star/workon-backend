@@ -47,6 +47,8 @@ export class LeadsService {
         lastName: true,
         email: true,
         phone: true,
+        city: true,
+        category: true,
       },
     });
 
@@ -88,7 +90,13 @@ export class LeadsService {
       `Lead created: ${lead.id} → pro ${pro.id} (${pro.firstName} ${pro.lastName})`,
     );
 
-    // 5. Fire notifications (non-blocking)
+    // 5. Auto-convert lead to mission (non-blocking)
+    // Uses professional's city/location to create an open mission
+    this.autoConvertLeadToMission(lead, pro).catch((err) =>
+      this.logger.warn(`Lead→Mission auto-conversion failed: ${err.message}`),
+    );
+
+    // 6. Fire notifications (non-blocking)
     this.fireGhlWebhook(lead, pro).catch((err) =>
       this.logger.warn(`GHL webhook failed: ${err.message}`),
     );
@@ -191,6 +199,268 @@ export class LeadsService {
 
     this.logger.log(`Lead ${leadId} status updated: ${lead.status} → ${dto.status}`);
     return updated;
+  }
+
+  // ── Lead → Mission Bridge ──────────────────────────────────
+
+  /**
+   * Quebec city coordinates for geo-defaulting.
+   * Used when a professional's exact location isn't available.
+   */
+  private static readonly QC_CITY_COORDS: Record<string, { lat: number; lng: number }> = {
+    'montréal': { lat: 45.5017, lng: -73.5673 },
+    'montreal': { lat: 45.5017, lng: -73.5673 },
+    'québec': { lat: 46.8139, lng: -71.2080 },
+    'quebec': { lat: 46.8139, lng: -71.2080 },
+    'laval': { lat: 45.6066, lng: -73.7124 },
+    'gatineau': { lat: 45.4765, lng: -75.7013 },
+    'longueuil': { lat: 45.5312, lng: -73.5185 },
+    'sherbrooke': { lat: 45.4042, lng: -71.8929 },
+    'trois-rivières': { lat: 46.3432, lng: -72.5432 },
+    'trois-rivieres': { lat: 46.3432, lng: -72.5432 },
+    'lévis': { lat: 46.8032, lng: -71.1827 },
+    'levis': { lat: 46.8032, lng: -71.1827 },
+    'terrebonne': { lat: 45.6960, lng: -73.6473 },
+    'saint-jean-sur-richelieu': { lat: 45.3073, lng: -73.2628 },
+    'repentigny': { lat: 45.7421, lng: -73.4596 },
+    'brossard': { lat: 45.4583, lng: -73.4633 },
+    'drummondville': { lat: 45.8838, lng: -72.4843 },
+    'granby': { lat: 45.4001, lng: -72.7329 },
+    'saint-hyacinthe': { lat: 45.6307, lng: -72.9570 },
+    'rimouski': { lat: 48.4490, lng: -68.5240 },
+    'saguenay': { lat: 48.4279, lng: -71.0548 },
+  };
+
+  /**
+   * Automatically convert a lead into an open mission.
+   * Maps serviceRequested → category, uses pro's city for geolocation.
+   * The mission is created as "open" so nearby workers can see it.
+   */
+  private async autoConvertLeadToMission(
+    lead: {
+      id: string;
+      clientName: string;
+      clientPhone: string;
+      clientEmail: string | null;
+      serviceRequested: string;
+      message: string | null;
+    },
+    pro: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      city?: string | null;
+      category?: string | null;
+    },
+  ): Promise<void> {
+    // Check if this lead was already converted
+    const existingMission = await this.prisma.localMission.findUnique({
+      where: { leadId: lead.id },
+    });
+    if (existingMission) {
+      this.logger.debug(`Lead ${lead.id} already converted to mission ${existingMission.id}`);
+      return;
+    }
+
+    // Resolve city from pro's profile
+    const city = pro.city || 'Montréal';
+    const normalizedCity = city.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const coords = LeadsService.QC_CITY_COORDS[normalizedCity]
+      || LeadsService.QC_CITY_COORDS['montreal'];
+
+    // Map serviceRequested to a category
+    const category = this.mapServiceToCategory(lead.serviceRequested, pro.category);
+
+    // Build mission title and description
+    const title = `${lead.serviceRequested} — ${city}`;
+    const description = [
+      `Demande de ${lead.clientName} pour : ${lead.serviceRequested}.`,
+      lead.message ? `\nDétails : ${lead.message}` : '',
+      `\nCréée automatiquement à partir d'une demande client via WorkOn.`,
+    ].filter(Boolean).join('');
+
+    // Find or create system user for lead-originated missions
+    const systemUserId = 'system_lead_bridge';
+    await this.prisma.localUser.upsert({
+      where: { id: systemUserId },
+      create: {
+        id: systemUserId,
+        firstName: 'WorkOn',
+        lastName: 'Demandes',
+        email: 'leads@workon.ca',
+        hashedPassword: 'SYSTEM_ACCOUNT_NO_LOGIN',
+        role: 'employer',
+        active: true,
+        updatedAt: new Date(),
+      },
+      update: {},
+    });
+
+    // Create the mission
+    const missionId = `lm_lead_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    const mission = await this.prisma.localMission.create({
+      data: {
+        id: missionId,
+        title,
+        description,
+        category,
+        price: 0, // Price TBD — pro will quote
+        latitude: coords.lat,
+        longitude: coords.lng,
+        city,
+        createdByUserId: systemUserId,
+        leadId: lead.id,
+        clientName: lead.clientName,
+        clientPhone: lead.clientPhone,
+        clientEmail: lead.clientEmail,
+        status: 'open',
+        updatedAt: new Date(),
+      },
+    });
+
+    // Update lead status to QUALIFIED (mission created)
+    await this.prisma.lead.update({
+      where: { id: lead.id },
+      data: { status: LeadStatus.QUALIFIED },
+    });
+
+    this.logger.log(
+      `Lead→Mission bridge: ${lead.id} → ${mission.id} (${category}, ${city})`,
+    );
+  }
+
+  /**
+   * Manually convert a lead to a mission with custom parameters.
+   * Used by admin or pro to set price, exact location, etc.
+   */
+  async convertLeadToMission(
+    leadId: string,
+    params: {
+      price?: number;
+      latitude?: number;
+      longitude?: number;
+      city?: string;
+      address?: string;
+      category?: string;
+      title?: string;
+    } = {},
+  ) {
+    const lead = await this.prisma.lead.findUnique({
+      where: { id: leadId },
+      include: {
+        professional: {
+          select: { id: true, firstName: true, lastName: true, city: true, category: true },
+        },
+      },
+    });
+
+    if (!lead) throw new NotFoundException('Demande introuvable');
+
+    // Check if already converted
+    const existingMission = await this.prisma.localMission.findUnique({
+      where: { leadId },
+    });
+    if (existingMission) {
+      throw new ConflictException('Cette demande a déjà été convertie en mission');
+    }
+
+    const city = params.city || lead.professional.city || 'Montréal';
+    const normalizedCity = city.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const coords = params.latitude && params.longitude
+      ? { lat: params.latitude, lng: params.longitude }
+      : LeadsService.QC_CITY_COORDS[normalizedCity] || LeadsService.QC_CITY_COORDS['montreal'];
+
+    const category = params.category || this.mapServiceToCategory(lead.serviceRequested, lead.professional.category);
+    const title = params.title || `${lead.serviceRequested} — ${city}`;
+
+    const systemUserId = 'system_lead_bridge';
+    await this.prisma.localUser.upsert({
+      where: { id: systemUserId },
+      create: {
+        id: systemUserId,
+        firstName: 'WorkOn',
+        lastName: 'Demandes',
+        email: 'leads@workon.ca',
+        hashedPassword: 'SYSTEM_ACCOUNT_NO_LOGIN',
+        role: 'employer',
+        active: true,
+        updatedAt: new Date(),
+      },
+      update: {},
+    });
+
+    const missionId = `lm_lead_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    const mission = await this.prisma.localMission.create({
+      data: {
+        id: missionId,
+        title,
+        description: [
+          `Demande de ${lead.clientName} pour : ${lead.serviceRequested}.`,
+          lead.message ? `\nDétails : ${lead.message}` : '',
+        ].filter(Boolean).join(''),
+        category,
+        price: params.price ?? 0,
+        latitude: coords.lat,
+        longitude: coords.lng,
+        city,
+        address: params.address || null,
+        createdByUserId: systemUserId,
+        leadId: lead.id,
+        clientName: lead.clientName,
+        clientPhone: lead.clientPhone,
+        clientEmail: lead.clientEmail,
+        status: 'open',
+        updatedAt: new Date(),
+      },
+    });
+
+    await this.prisma.lead.update({
+      where: { id: leadId },
+      data: { status: LeadStatus.CONVERTED },
+    });
+
+    this.logger.log(`Manual lead→mission conversion: ${leadId} → ${missionId}`);
+
+    return {
+      missionId: mission.id,
+      leadId: lead.id,
+      title: mission.title,
+      category: mission.category,
+      city: mission.city,
+      status: mission.status,
+    };
+  }
+
+  /**
+   * Map a free-form service description to a mission category.
+   * Falls back to pro's category or 'other'.
+   */
+  private mapServiceToCategory(serviceRequested: string, proCategory?: string | null): string {
+    const service = serviceRequested.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    const categoryMap: Record<string, string[]> = {
+      'entretien': ['entretien', 'menage', 'nettoyage', 'cleaning', 'lavage', 'femme de menage'],
+      'reparation': ['reparation', 'repair', 'plomberie', 'plumbing', 'electricite', 'electrique'],
+      'construction-legere': ['construction', 'renovation', 'peinture', 'painting', 'plancher', 'gyproc'],
+      'commerce': ['commerce', 'vente', 'livraison', 'delivery', 'demenagement', 'moving'],
+      'restauration': ['restauration', 'cuisine', 'traiteur', 'catering', 'chef'],
+      'education': ['education', 'tutorat', 'tutoring', 'cours', 'formation'],
+      'numerique': ['numerique', 'web', 'informatique', 'computer', 'site', 'digital'],
+      'beaute': ['beaute', 'coiffure', 'esthetique', 'massage', 'maquillage'],
+      'culture': ['culture', 'photo', 'video', 'musique', 'evenement', 'animation'],
+      'services-a-la-personne': ['garde', 'babysitting', 'aide', 'accompagnement', 'soins'],
+    };
+
+    for (const [category, keywords] of Object.entries(categoryMap)) {
+      if (keywords.some((kw) => service.includes(kw))) {
+        return category;
+      }
+    }
+
+    // Fallback to pro's category or 'other'
+    return proCategory || 'other';
   }
 
   // ── Webhooks (non-blocking) ──────────────────────────────
