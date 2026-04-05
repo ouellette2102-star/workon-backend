@@ -159,6 +159,12 @@ model LocalMission {
   // PR-6: Payment fields
   paidAt                DateTime?
   stripePaymentIntentId String?
+  // Lead → Mission bridge fields
+  leadId                String?            @unique
+  clientName            String?
+  clientPhone           String?
+  clientEmail           String?
+  lead                  Lead?              @relation(fields: [leadId], references: [id])
   assignedToUser        LocalUser?         @relation("local_missions_assignedToUserIdTolocal_users", fields: [assignedToUserId], references: [id])
   createdByUser         LocalUser          @relation("local_missions_createdByUserIdTolocal_users", fields: [createdByUserId], references: [id], onDelete: Cascade)
   offers                LocalOffer[]
@@ -171,6 +177,7 @@ model LocalMission {
   @@index([latitude, longitude])
   @@index([status])
   @@index([stripePaymentIntentId])
+  @@index([leadId])
   @@map("local_missions")
 }
 
@@ -1450,18 +1457,19 @@ enum LeadStatus {
 }
 
 model Lead {
-  id               String     @id @default(uuid())
+  id               String        @id @default(uuid())
   professionalId   String
-  professional     LocalUser  @relation(fields: [professionalId], references: [id])
+  professional     LocalUser     @relation(fields: [professionalId], references: [id])
   clientName       String
   clientPhone      String
   clientEmail      String?
   serviceRequested String
   message          String?
-  status           LeadStatus @default(NEW)
-  source           String?    // "organic", "facebook_ad", "google_ad", "referral"
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  status           LeadStatus    @default(NEW)
+  source           String?       // "organic", "facebook_ad", "google_ad", "referral"
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  mission          LocalMission? // Back-relation: mission created from this lead
 
   @@index([professionalId])
   @@index([status])
