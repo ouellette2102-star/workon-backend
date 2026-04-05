@@ -47,6 +47,7 @@ import { ProductionConfigModule } from './config/production-config.module';
 import { GhlModule } from './ghl/ghl.module';
 import { ProsModule } from './pros/pros.module';
 import { LeadsModule } from './leads/leads.module';
+import { PublicModule } from './public/public.module';
 
 @Module({
   imports: [
@@ -212,6 +213,8 @@ import { LeadsModule } from './leads/leads.module';
     ProsModule,
     // Demand Capture System - Lead capture + routing
     LeadsModule,
+    // Public API - No-auth endpoints for frontend landing pages
+    PublicModule,
   ],
   controllers: [AppController],
   providers: [
