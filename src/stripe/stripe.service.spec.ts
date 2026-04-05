@@ -123,7 +123,7 @@ describe('StripeService', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe('payment-1');
-      expect(result[0].netAmount).toBe(88); // 100 * (1 - 0.12)
+      expect(result[0].netAmount).toBe(85); // 100 * (1 - 0.15)
     });
 
     it('should throw ForbiddenException for non-worker', async () => {

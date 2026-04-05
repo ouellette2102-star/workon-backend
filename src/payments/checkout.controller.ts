@@ -69,7 +69,7 @@ export class CheckoutController {
       
       **Pricing:**
       - Subtotal: Mission price
-      - Platform fee: 12%
+      - Platform fee: 15%
       - Total: Subtotal + Platform fee
     `,
   })
@@ -161,7 +161,7 @@ export class CheckoutController {
     return {
       subtotal: calculation.subtotalCents / 100,
       platformFee: calculation.platformFeeCents / 100,
-      platformFeePercent: 12, // Match PLATFORM_FEE_RATE
+      platformFeePercent: 15, // Match PLATFORM_FEE_RATE
       taxes: calculation.taxesCents / 100,
       total: calculation.totalCents / 100,
       currency: calculation.currency,

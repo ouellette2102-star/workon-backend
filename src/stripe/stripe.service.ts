@@ -20,7 +20,7 @@ import Stripe from 'stripe';
 export class StripeService {
   private stripe: Stripe | null;
   private readonly logger = new Logger(StripeService.name);
-  private readonly PLATFORM_FEE_PERCENT = 0.12; // 12% de frais WorkOn
+  private readonly PLATFORM_FEE_PERCENT = 0.15; // 15% de frais WorkOn
 
   constructor(
     private prisma: PrismaService,

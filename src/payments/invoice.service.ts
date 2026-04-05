@@ -36,8 +36,8 @@ export class InvoiceService {
   private readonly stripe?: Stripe;
   private readonly logger = new Logger(InvoiceService.name);
   
-  // Platform fee: 12% (marketplace model)
-  private readonly PLATFORM_FEE_RATE = 0.12;
+  // Platform fee: 15% (marketplace model)
+  private readonly PLATFORM_FEE_RATE = 0.15;
   
   // Tax rates (Quebec example - TPS 5% + TVQ 9.975%)
   private readonly TAX_ENABLED = false; // Set to true to enable taxes

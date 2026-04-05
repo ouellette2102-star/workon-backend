@@ -108,7 +108,7 @@ export class StripeController {
   @ApiBearerAuth('JWT')
   @ApiOperation({
     summary: 'Create Connect payment intent',
-    description: 'Creates a PaymentIntent that automatically transfers funds to the worker after deducting the 12% platform fee.',
+    description: 'Creates a PaymentIntent that automatically transfers funds to the worker after deducting the 15% platform fee.',
   })
   @ApiResponse({
     status: 201,
