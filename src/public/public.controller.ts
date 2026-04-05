@@ -1,37 +1,19 @@
 import {
   Controller,
   Get,
-  Post,
   Param,
   Query,
   Logger,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { PublicService } from './public.service';
-import { CatalogService } from '../catalog/catalog.service';
 
 @ApiTags('Public')
 @Controller('api/v1/public')
 export class PublicController {
   private readonly logger = new Logger(PublicController.name);
 
-  constructor(
-    private readonly publicService: PublicService,
-    private readonly catalogService: CatalogService,
-  ) {}
-
-  /**
-   * POST /api/v1/public/seed-catalog
-   * Temporary public endpoint to seed catalog data.
-   * TODO: Remove after initial seed is complete.
-   */
-  @Post('seed-catalog')
-  @ApiOperation({ summary: '[TEMP] Seed catalog data' })
-  @ApiResponse({ status: 200, description: 'Catalog seeded' })
-  async seedCatalog() {
-    this.logger.warn('Temporary seed-catalog endpoint called');
-    return this.catalogService.seedCatalog();
-  }
+  constructor(private readonly publicService: PublicService) {}
 
   /**
    * GET /api/v1/public/stats
