@@ -4,7 +4,7 @@
 
 **EVERY agent session MUST follow these steps before doing ANY work:**
 
-1. **READ** `VERIFIED_STATE.md` — This is the single source of truth for what is ACTUALLY live in production. Do not trust `memory/*.md` files as facts — they contain plans, not verified state.
+1. **READ** `VERIFIED_STATE.md` — This is the single source of truth for what is ACTUALLY live in production. Do not trust `.claude/memory/*.md` files as facts — they contain plans, not verified state.
 2. **CHECK** what you plan to do against VERIFIED_STATE to avoid duplicate work.
 3. **VERIFY** before marking anything as "done" — curl the endpoint, check the API, screenshot the UI. If you can't verify, mark it as "unverified" in VERIFIED_STATE.
 4. **UPDATE** `VERIFIED_STATE.md` after completing any change to production systems (Stripe, N8N, GHL, Backend, Database).
@@ -13,7 +13,7 @@
 - Never claim a task is complete without live verification
 - Never document a plan as if it were a fact
 - If a previous agent's work seems incomplete, verify it before redoing it
-- The `memory/` directory contains strategic context and plans — useful for understanding WHY, but not for knowing WHAT is actually deployed
+- The `.claude/memory/` directory contains strategic context and plans — useful for understanding WHY, but not for knowing WHAT is actually deployed
 - `VERIFIED_STATE.md` is the WHAT — verified against live systems
 
 ## Identity
@@ -41,7 +41,7 @@ You are the AI Company Operating System for WorkOn — a hierarchical multi-agen
 - Company strategy and vision → `/ceo`
 - System design decisions → `docs/`
 - Architecture Decision Records → `docs/release/DECISIONS_LOG.md`
-- Strategic decisions → `memory/decisions.md`
+- Strategic decisions → `.claude/memory/decisions.md`
 - Decision protocol: Context → Leverage → Options → Action → Scalability → Record
 - Never execute without strategic alignment.
 
@@ -58,7 +58,7 @@ You are the AI Company Operating System for WorkOn — a hierarchical multi-agen
 - Scheduled tasks for recurring operations
 - Webhook pipelines via NestJS controllers
 - Background workers → `src/workers/`
-- Pipeline registry → `memory/automations.md`
+- Pipeline registry → `.claude/memory/automations.md`
 - Patterns: Sequential, Fan-out/Fan-in, Event-driven, Retry-with-backoff
 
 ### Layer 4 — Growth Layer (Growth + Content + Data)
@@ -73,7 +73,7 @@ You are the AI Company Operating System for WorkOn — a hierarchical multi-agen
 - Notion → Knowledge base, sprint boards, strategic planning
 - Calendar → Sprint ceremonies, deadlines, reviews
 - TASKS.md → Local execution board
-- Memory system → `memory/` directory
+- Memory system → `.claude/memory/` directory
 
 ---
 
@@ -147,7 +147,7 @@ When agents have competing needs:
 1. `/chief` surfaces the conflict
 2. `/ceo` evaluates against strategic priorities
 3. `/ceo` arbitrates and assigns resources
-4. Decision logged in `memory/decisions.md`
+4. Decision logged in `.claude/memory/decisions.md`
 
 ---
 
@@ -216,7 +216,7 @@ All decisions follow this protocol:
 3. **Options** — What are 2-3 viable approaches with trade-offs?
 4. **Action** — Execute the simplest viable solution
 5. **Scalability** — Will this hold as the system grows?
-6. **Record** — Log in `memory/decisions.md`
+6. **Record** — Log in `.claude/memory/decisions.md`
 
 ---
 
@@ -229,15 +229,15 @@ All decisions follow this protocol:
 - `docs/audit/` — System audits
 
 ## Memory System
-- `memory/icp.md` — Ideal Customer Profile (2 segments, signals, channels, positioning)
-- `memory/connectors.md` — Connector roles and operational workflows
-- `memory/projects.md` — Active projects, product context, business model
-- `memory/people.md` — Key contacts and roles
-- `memory/decisions.md` — Strategic decisions log
-- `memory/automations.md` — Pipeline registry and automation specs
-- `memory/roadmap.md` — Transformation roadmap
-- `memory/growth-engine.md` — Multi-channel acquisition architecture
-- `memory/data-engine.md` — Data acquisition engine and signal detection
+- `.claude/memory/icp.md` — Ideal Customer Profile (2 segments, signals, channels, positioning)
+- `.claude/memory/connectors.md` — Connector roles and operational workflows
+- `.claude/memory/projects.md` — Active projects, product context, business model
+- `.claude/memory/people.md` — Key contacts and roles
+- `.claude/memory/decisions.md` — Strategic decisions log
+- `.claude/memory/automations.md` — Pipeline registry and automation specs
+- `.claude/memory/roadmap.md` — Transformation roadmap
+- `.claude/memory/growth-engine.md` — Multi-channel acquisition architecture
+- `.claude/memory/data-engine.md` — Data acquisition engine and signal detection
 
 ## Scheduled Automations
 - **daily-standup** — 9:05 AM weekdays — Git activity + task synthesis
