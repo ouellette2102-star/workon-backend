@@ -11,7 +11,35 @@ import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { GlobalHttpExceptionFilter } from './common/filters';
 
+/**
+ * Run database migrations before starting the app.
+ * This ensures schema and Prisma client are always in sync.
+ */
+async function runMigrations() {
+  const dbUrl = process.env.DATABASE_URL || '';
+  if (!dbUrl || dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1')) {
+    console.log('[migrations] Skipping — no remote DATABASE_URL');
+    return;
+  }
+
+  console.log('[migrations] Running prisma db push...');
+  const { execSync } = require('child_process');
+  try {
+    execSync('npx prisma db push --accept-data-loss', {
+      stdio: 'inherit',
+      timeout: 60000,
+    });
+    console.log('[migrations] Schema sync complete');
+  } catch (err) {
+    console.error('[migrations] WARNING: prisma db push failed:', (err as Error).message);
+    // Don't crash — app may still work if schema is compatible
+  }
+}
+
 async function bootstrap() {
+  // Run migrations first
+  await runMigrations();
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     // Logger sera configuré via Winston dans AppModule
     bufferLogs: true,
