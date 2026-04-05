@@ -355,7 +355,7 @@ export class LeadsService {
     });
 
     this.logger.log(
-      `Lead→Mission bridge: ${lead.id} → ${mission.id} (${category}, ${city})`,
+      `Lead→Mission bridge: ${lead.id} → ${missionId} (${category}, ${city})`,
     );
   }
 

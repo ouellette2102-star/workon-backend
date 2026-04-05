@@ -26,6 +26,10 @@ describe('MissionsLocalService', () => {
     assignedToUserId: null,
     paidAt: null,
     stripePaymentIntentId: null,
+    leadId: null,
+    clientName: null,
+    clientPhone: null,
+    clientEmail: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
