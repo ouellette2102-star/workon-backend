@@ -107,36 +107,48 @@ export class ProsService {
    * Get professional profile by slug for public page rendering.
    */
   async getProBySlug(slug: string) {
-    const pro = await this.prisma.localUser.findUnique({
-      where: { slug },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        city: true,
-        phone: true,
-        email: true,
-        pictureUrl: true,
-        bio: true,
-        category: true,
-        serviceRadiusKm: true,
-        completionScore: true,
-        slug: true,
-        trustTier: true,
-        phoneVerified: true,
-        createdAt: true,
-        active: true,
-        gallery: {
-          orderBy: { sortOrder: 'asc' },
-          select: {
-            id: true,
-            imageUrl: true,
-            caption: true,
-            type: true,
-          },
+    const normalizedSlug = slug.toLowerCase().trim();
+
+    const selectFields = {
+      id: true,
+      firstName: true,
+      lastName: true,
+      city: true,
+      phone: true,
+      email: true,
+      pictureUrl: true,
+      bio: true,
+      category: true,
+      serviceRadiusKm: true,
+      completionScore: true,
+      slug: true,
+      trustTier: true,
+      phoneVerified: true,
+      createdAt: true,
+      active: true,
+      gallery: {
+        orderBy: { sortOrder: 'asc' as const },
+        select: {
+          id: true,
+          imageUrl: true,
+          caption: true,
+          type: true,
         },
       },
+    };
+
+    // Try slug lookup first, then fallback to ID lookup
+    let pro = await this.prisma.localUser.findUnique({
+      where: { slug: normalizedSlug },
+      select: selectFields,
     });
+
+    if (!pro) {
+      pro = await this.prisma.localUser.findUnique({
+        where: { id: slug },
+        select: selectFields,
+      });
+    }
 
     if (!pro || !pro.active) {
       throw new NotFoundException('Professionnel introuvable');
