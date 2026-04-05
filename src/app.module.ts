@@ -154,7 +154,11 @@ import { LeadsModule } from './leads/leads.module';
     // ============================================================
     // Notifications module (needed by MissionsModule and MessagesModule)
     NotificationsModule,
-    // Legacy modules (kept active)
+    // GHL Integration — imported before MissionsModule so GhlController
+    // handles POST /api/v1/missions/webhook-ghl with validated DTO,
+    // deduplication, real client creation, and N8N callout.
+    GhlModule,
+    // Legacy modules (kept active — webhook-ghl route now shadowed by GhlController)
     MissionsModule,
     MessagesModule,
     ContractsModule,
@@ -204,8 +208,6 @@ import { LeadsModule } from './leads/leads.module';
     SchedulingModule,
     // Production configuration - Feature flags, secrets validation, safe defaults (PR-11)
     ProductionConfigModule,
-    // GHL Integration - GoHighLevel webhooks via N8N (missions + worker signup)
-    GhlModule,
     // GHL hors-app webhooks - Pro registration + Mission creation
     ProsModule,
     // Demand Capture System - Lead capture + routing
