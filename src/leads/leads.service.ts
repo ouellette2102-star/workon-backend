@@ -253,13 +253,18 @@ export class LeadsService {
       category?: string | null;
     },
   ): Promise<void> {
-    // Check if this lead was already converted
-    const existingMission = await this.prisma.localMission.findUnique({
-      where: { leadId: lead.id },
-    });
-    if (existingMission) {
-      this.logger.debug(`Lead ${lead.id} already converted to mission ${existingMission.id}`);
-      return;
+    // Check if this lead was already converted (graceful if leadId column not yet migrated)
+    try {
+      const existingMission = await this.prisma.localMission.findUnique({
+        where: { leadId: lead.id },
+      });
+      if (existingMission) {
+        this.logger.debug(`Lead ${lead.id} already converted to mission ${existingMission.id}`);
+        return;
+      }
+    } catch {
+      // leadId column may not exist yet — continue with creation
+      this.logger.debug('leadId lookup failed (migration pending?), proceeding with creation');
     }
 
     // Resolve city from pro's profile
@@ -296,28 +301,52 @@ export class LeadsService {
       update: {},
     });
 
-    // Create the mission
+    // Create the mission (with graceful fallback if bridge columns not migrated yet)
     const missionId = `lm_lead_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-    const mission = await this.prisma.localMission.create({
-      data: {
-        id: missionId,
-        title,
-        description,
-        category,
-        price: 0, // Price TBD — pro will quote
-        latitude: coords.lat,
-        longitude: coords.lng,
-        city,
-        createdByUserId: systemUserId,
+    let missionData: any = {
+      id: missionId,
+      title,
+      description,
+      category,
+      price: 0, // Price TBD — pro will quote
+      latitude: coords.lat,
+      longitude: coords.lng,
+      city,
+      createdByUserId: systemUserId,
+      status: 'open',
+      updatedAt: new Date(),
+    };
+
+    // Try to include bridge fields (may fail if migration not yet applied)
+    try {
+      missionData = {
+        ...missionData,
         leadId: lead.id,
         clientName: lead.clientName,
         clientPhone: lead.clientPhone,
         clientEmail: lead.clientEmail,
+      };
+      await this.prisma.localMission.create({ data: missionData });
+    } catch (err) {
+      // Fallback: create without bridge fields, append contact info to description
+      this.logger.debug('Bridge fields failed, falling back to description-only');
+      const fallbackDescription = `${description}\n\nContact: ${lead.clientName} — ${lead.clientPhone}${lead.clientEmail ? ` (${lead.clientEmail})` : ''}`;
+      missionData = {
+        id: missionId,
+        title,
+        description: fallbackDescription,
+        category,
+        price: 0,
+        latitude: coords.lat,
+        longitude: coords.lng,
+        city,
+        createdByUserId: systemUserId,
         status: 'open',
         updatedAt: new Date(),
-      },
-    });
+      };
+      await this.prisma.localMission.create({ data: missionData });
+    }
 
     // Update lead status to QUALIFIED (mission created)
     await this.prisma.lead.update({
