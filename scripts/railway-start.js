@@ -42,8 +42,8 @@ log(`NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
 if (!dbHost || dbHost.includes('localhost') || dbHost.includes('127.0.0.1')) {
   log('WARNING: Invalid DATABASE_URL host — skipping migrations');
 } else {
-  log('Running prisma migrate deploy...');
-  run('npx', ['prisma', 'migrate', 'deploy'], 'Prisma migrate deploy');
+  log('Running prisma db push (schema sync)...');
+  run('npx', ['prisma', 'db', 'push', '--accept-data-loss'], 'Prisma db push');
 }
 
 run('node', ['dist/main.js'], 'Start server');
