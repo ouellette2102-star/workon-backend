@@ -7,66 +7,13 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { PublicService } from './public.service';
-import { PrismaService } from '../prisma/prisma.service';
 
 @ApiTags('Public')
 @Controller('api/v1/public')
 export class PublicController {
   private readonly logger = new Logger(PublicController.name);
 
-  constructor(
-    private readonly publicService: PublicService,
-    private readonly prisma: PrismaService,
-  ) {}
-
-  /**
-   * GET /api/v1/public/debug/test-mission
-   * TEMPORARY diagnostic — tests mission creation directly.
-   * TODO: Remove after debugging.
-   */
-  @Get('debug/test-mission')
-  async debugTestMission() {
-    try {
-      const sysUser = await this.prisma.localUser.upsert({
-        where: { id: 'system_debug_test' },
-        create: {
-          id: 'system_debug_test',
-          firstName: 'Debug',
-          lastName: 'Test',
-          email: 'debug@workon.ca',
-          hashedPassword: 'SYSTEM_NO_LOGIN',
-          role: 'employer',
-          active: false,
-          updatedAt: new Date(),
-        },
-        update: {},
-      });
-
-      const id = `lm_debug_${Date.now()}`;
-      const mission = await this.prisma.localMission.create({
-        data: {
-          id,
-          title: 'Debug Mission',
-          description: 'Debug test',
-          category: 'debug',
-          price: 0,
-          latitude: 45.5,
-          longitude: -73.5,
-          city: 'Debug',
-          createdByUserId: sysUser.id,
-          status: 'open',
-          updatedAt: new Date(),
-        },
-      });
-
-      // Clean up
-      await this.prisma.localMission.delete({ where: { id: mission.id } });
-
-      return { success: true, missionId: mission.id };
-    } catch (error: any) {
-      return { success: false, error: error.message, code: error.code, meta: error.meta };
-    }
-  }
+  constructor(private readonly publicService: PublicService) {}
 
   /**
    * GET /api/v1/public/stats
