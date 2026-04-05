@@ -16,6 +16,7 @@ import { AdminModule } from './admin/admin.module';
 import { LoggerModule } from './logger/logger.module';
 import { ProfileModule } from './profile/profile.module';
 import { MessagesModule } from './messages/messages.module';
+import { MessagesLocalModule } from './messages-local/messages-local.module';
 import { NotificationsModule } from './notifications/notifications.module';
 // import { MissionTimeLogsModule } from './mission-time-logs/mission-time-logs.module';
 import { StripeModule } from './stripe/stripe.module';
@@ -168,6 +169,8 @@ import { LeadsModule } from './leads/leads.module';
     // NATIVE (LocalUser/LocalMission) MODULES - ACTIVE IN PRODUCTION
     // ============================================================
     MissionsLocalModule,
+    // Messages module for LocalMission chat (was missing — frontend calls these routes)
+    MessagesLocalModule,
     MetricsModule,
     PaymentsLocalModule,
     // Public read-only catalog API (categories + skills)
