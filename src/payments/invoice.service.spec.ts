@@ -62,9 +62,9 @@ describe('InvoiceService', () => {
 
       expect(result).toEqual({
         subtotalCents: 10000,
-        platformFeeCents: 1200, // 12%
+        platformFeeCents: 1500, // 15%
         taxesCents: 0, // TAX_ENABLED is false
-        totalCents: 11200,
+        totalCents: 11500,
         currency: 'CAD',
         description: 'Test Mission',
       });
@@ -76,13 +76,13 @@ describe('InvoiceService', () => {
     });
 
     it('should round platform fee up', () => {
-      // 1000 cents = $10, 12% = 120 cents
+      // 1000 cents = $10, 15% = 150 cents
       const result = service.calculateInvoice(1000, 'Small mission');
-      expect(result.platformFeeCents).toBe(120);
+      expect(result.platformFeeCents).toBe(150);
 
       // Edge case: 1 cent should round up
       const result2 = service.calculateInvoice(1, 'Tiny mission');
-      expect(result2.platformFeeCents).toBe(1); // Math.ceil(0.12) = 1
+      expect(result2.platformFeeCents).toBe(1); // Math.ceil(0.15) = 1
     });
   });
 

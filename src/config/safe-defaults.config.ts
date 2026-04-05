@@ -136,7 +136,7 @@ export function getSafeDefaults(): AppConfiguration {
       currency: process.env.STRIPE_CURRENCY || 'cad',
       minAmount: parseInt(process.env.MIN_PAYMENT_AMOUNT || '500', 10), // $5.00 CAD
       maxAmount: parseInt(process.env.MAX_PAYMENT_AMOUNT || '1000000', 10), // $10,000 CAD
-      platformFeePercent: parseFloat(process.env.PLATFORM_FEE_PERCENT || '10'),
+      platformFeePercent: parseFloat(process.env.PLATFORM_FEE_PERCENT || '15'),
       refundWindowDays: parseInt(process.env.REFUND_WINDOW_DAYS || '14', 10),
       velocityMaxTransactionsPerHour: 10,
       velocityMaxTransactionsPerDay: 50,
