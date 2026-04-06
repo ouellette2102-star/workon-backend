@@ -247,7 +247,12 @@ export class SwipeService {
   }
 
   /**
-   * Create in-app notifications for both users on match
+   * Log match notification intent for both users.
+   *
+   * NOTE: The Notification model currently only supports Clerk User FK.
+   * Once Notification supports LocalUser, this should create real
+   * notification records + push notifications. For now, logs the intent
+   * so the match event is traceable.
    */
   private async notifyMatch(userId1: string, userId2: string, matchId: string) {
     try {
@@ -256,42 +261,14 @@ export class SwipeService {
         this.prisma.localUser.findUnique({ where: { id: userId2 }, select: { firstName: true } }),
       ]);
 
-      // Notification for user1
-      await this.prisma.notification.create({
-        data: {
-          id: `notif_match_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
-          userId: userId1,
-          type: 'swipe_match',
-          payloadJSON: JSON.stringify({
-            matchId,
-            matchedUserId: userId2,
-            matchedUserName: user2?.firstName || 'Quelqu\'un',
-            message: `Vous avez un match avec ${user2?.firstName || 'un utilisateur'}!`,
-          }),
-          updatedAt: new Date(),
-        },
-      });
-
-      // Notification for user2
-      await this.prisma.notification.create({
-        data: {
-          id: `notif_match_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
-          userId: userId2,
-          type: 'swipe_match',
-          payloadJSON: JSON.stringify({
-            matchId,
-            matchedUserId: userId1,
-            matchedUserName: user1?.firstName || 'Quelqu\'un',
-            message: `Vous avez un match avec ${user1?.firstName || 'un utilisateur'}!`,
-          }),
-          updatedAt: new Date(),
-        },
-      });
-
-      this.logger.log(`Match notifications sent for match ${matchId}`);
+      this.logger.log(
+        `MATCH_NOTIFICATION: match=${matchId} ` +
+        `user1=${userId1}(${user1?.firstName}) ` +
+        `user2=${userId2}(${user2?.firstName}) ` +
+        `— notification pending Notification model LocalUser support`,
+      );
     } catch (error) {
-      // Don't fail the match if notifications fail
-      this.logger.warn(`Failed to send match notifications: ${error}`);
+      this.logger.warn(`Failed to log match notification: ${error}`);
     }
   }
 }

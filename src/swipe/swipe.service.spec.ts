@@ -34,7 +34,11 @@ describe('SwipeService', () => {
         upsert: jest.fn().mockResolvedValue({ id: 'sm_1', userId1: 'user_1', userId2: 'worker_1' }),
       },
       localUser: {
-        findMany: jest.fn().mockResolvedValue([mockCandidate]),
+        findMany: jest.fn().mockResolvedValue([{ ...mockCandidate, receivedReviews: [{ rating: 5 }] }]),
+        findUnique: jest.fn().mockResolvedValue({ firstName: 'Test' }),
+      },
+      notification: {
+        create: jest.fn().mockResolvedValue({ id: 'notif_1' }),
       },
     };
 
