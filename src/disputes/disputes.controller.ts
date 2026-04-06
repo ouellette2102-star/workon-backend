@@ -18,6 +18,7 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
+import { CreateDisputeDto, AddEvidenceDto, ResolveDisputeDto } from './dto/create-dispute.dto';
 
 /**
  * Disputes Controller
@@ -39,16 +40,13 @@ export class DisputesController {
   @Post()
   @ApiOperation({ summary: 'Open a dispute on a mission' })
   @ApiResponse({ status: 201, description: 'Dispute created' })
-  async createDispute(@Request() req: any, @Body() body: {
-    missionId: string;
-    reason: string;
-  }) {
+  async createDispute(@Request() req: any, @Body() dto: CreateDisputeDto) {
     const dispute = await this.prisma.dispute.create({
       data: {
         id: `disp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        missionId: body.missionId,
+        missionId: dto.missionId,
         openedById: req.user.sub,
-        reason: body.reason,
+        reason: dto.reason,
         updatedAt: new Date(),
       },
     });
@@ -95,11 +93,7 @@ export class DisputesController {
 
   @Post(':id/evidence')
   @ApiOperation({ summary: 'Add evidence to a dispute' })
-  async addEvidence(@Request() req: any, @Param('id') disputeId: string, @Body() body: {
-    type: string;
-    content: string;
-    fileUrl?: string;
-  }) {
+  async addEvidence(@Request() req: any, @Param('id') disputeId: string, @Body() dto: AddEvidenceDto) {
     const dispute = await this.prisma.dispute.findUnique({ where: { id: disputeId } });
     if (!dispute) throw new NotFoundException('Dispute not found');
 
@@ -108,9 +102,9 @@ export class DisputesController {
         id: `ev_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         disputeId,
         submittedById: req.user.sub,
-        type: body.type,
-        content: body.content,
-        fileUrl: body.fileUrl,
+        type: dto.type,
+        content: dto.content,
+        fileUrl: dto.fileUrl,
         updatedAt: new Date(),
       },
     });
@@ -122,7 +116,7 @@ export class DisputesController {
         disputeId,
         action: 'EVIDENCE_ADDED',
         performedById: req.user.sub,
-        details: `Evidence submitted: ${body.type}`,
+        details: `Evidence submitted: ${dto.type}`,
       },
     });
 
@@ -131,9 +125,7 @@ export class DisputesController {
 
   @Patch(':id/resolve')
   @ApiOperation({ summary: 'Resolve a dispute' })
-  async resolveDispute(@Request() req: any, @Param('id') id: string, @Body() body: {
-    resolution: string;
-  }) {
+  async resolveDispute(@Request() req: any, @Param('id') id: string, @Body() dto: ResolveDisputeDto) {
     const dispute = await this.prisma.dispute.findUnique({ where: { id } });
     if (!dispute) throw new NotFoundException('Dispute not found');
 
@@ -141,7 +133,7 @@ export class DisputesController {
       where: { id },
       data: {
         status: 'RESOLVED',
-        resolution: body.resolution,
+        resolution: dto.resolution,
         updatedAt: new Date(),
       },
     });
@@ -152,7 +144,7 @@ export class DisputesController {
         disputeId: id,
         action: 'RESOLVED',
         performedById: req.user.sub,
-        details: body.resolution,
+        details: dto.resolution,
       },
     });
 
