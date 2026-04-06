@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SchedulingController } from './scheduling.controller';
 import { SchedulingService } from './scheduling.service';
-import { APP_GUARD } from '@nestjs/core';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 describe('SchedulingController', () => {
   let controller: SchedulingController;
@@ -30,7 +30,7 @@ describe('SchedulingController', () => {
         { provide: SchedulingService, useValue: service },
       ],
     })
-      .overrideGuard(require('../auth/guards/jwt-auth.guard').JwtAuthGuard)
+      .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: () => true })
       .compile();
 
