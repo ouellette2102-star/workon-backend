@@ -320,6 +320,7 @@ model LocalUser {
   swipesReceived   SwipeAction[] @relation("swipe_candidateId")
   matchesAsUser1   SwipeMatch[]  @relation("swipe_match_user1")
   matchesAsUser2   SwipeMatch[]  @relation("swipe_match_user2")
+  notifications    Notification[]
 
   @@index([active])
   @@index([city])
@@ -444,8 +445,13 @@ model Notification {
   createdAt   DateTime  @default(now())
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // LocalUser support (optional — for native auth system notifications)
+  localUserId String?
+  localUser   LocalUser? @relation(fields: [localUserId], references: [id], onDelete: Cascade)
+
   @@index([readAt])
   @@index([userId])
+  @@index([localUserId])
   @@map("notifications")
 }
 
