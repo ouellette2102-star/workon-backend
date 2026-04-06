@@ -339,7 +339,14 @@ LocalMission utilise des statuts en **lowercase** (`open`, `assigned`, `in_progr
 - **API** : `POST /api/v1/contracts`
 - **État résultant** : contrat `DRAFT` → `PENDING` → `ACCEPTED`
 
-### 6.6 Paiement
+### 6.6 Booking (réservation)
+- **Trigger** : client réserve un créneau chez un worker
+- **API** : `POST /api/v1/scheduling/bookings`
+- **Prérequis** : worker doit avoir des disponibilités configurées
+- **État résultant** : booking `PENDING` → worker confirme → `CONFIRMED`
+- **Entités** : Booking, AvailabilitySlot, RecurringMissionTemplate (optionnel)
+
+### 6.7 Paiement
 - **Trigger** : mission complétée, employeur paie
 - **API** : `POST /api/v1/payments-local/intent` ou `POST /api/v1/payments/checkout`
 - **Webhook** : `POST /api/v1/webhooks/stripe`
@@ -360,10 +367,16 @@ LocalMission utilise des statuts en **lowercase** (`open`, `assigned`, `in_progr
 - **API** : `POST /api/v1/reviews`
 - **Impact** : mise à jour du trustTier
 
-### 6.10 Annulation / Dispute
-- **Trigger** : une partie annule ou ouvre un litige
+### 6.11 Annulation
+- **Trigger** : une partie annule la mission
 - **API** : `POST /api/v1/missions-local/:id/cancel`
 - **État résultant** : mission `cancelled`
+
+### 6.12 Dispute (litige)
+- **Trigger** : une partie ouvre un litige sur une mission
+- **API** : `POST /api/v1/disputes`
+- **Flux** : ouverture → soumission de preuves → résolution
+- **Entités** : Dispute, DisputeEvidence, DisputeTimeline
 
 ---
 
@@ -448,7 +461,7 @@ Les agents IA **ne doivent PAS** :
 | User | User / LocalUser | Deux systèmes coexistants |
 | Mission | Mission / LocalMission | Deux systèmes coexistants |
 | Proposal | Offer / LocalOffer | **Renommage prévu** : Offer → Proposal |
-| Contract | Contract | Clerk uniquement pour l'instant |
+| Contract | Contract | Supporte Clerk + LocalUser (FK optionnels) |
 | Payment | Payment | Clerk uniquement |
 | Invoice | Invoice | Partagé (supporte LocalMission) |
 | Message | Message / LocalMessage | Deux systèmes coexistants |
@@ -464,10 +477,15 @@ Les agents IA **ne doivent PAS** :
 |------|--------|----------|
 | Dual User system (Clerk + Local) | Complexité, duplication | Post-MVP — convergence planifiée |
 | Offer → Proposal renaming | Incohérence terminologique | Low — cosmétique |
-| LocalMission sans Contract | Pas de contrat formel pour mobile | Medium — à ajouter |
-| LocalMission sans Dispute | Pas de gestion de litiges mobile | Medium — à ajouter |
+| ~~LocalMission sans Contract~~ | ~~Pas de contrat formel pour mobile~~ | **RÉSOLU** — FK optionnels ajoutés |
+| ~~LocalMission sans Dispute~~ | ~~Pas de gestion de litiges mobile~~ | **RÉSOLU** — DisputesController créé |
+| ~~Review/Booking sans LocalUser~~ | ~~Features inaccessibles mobile~~ | **RÉSOLU** — FK optionnels ajoutés |
+| ~~Booking sans API HTTP~~ | ~~Feature bloquée~~ | **RÉSOLU** — SchedulingController créé |
+| ~~platformFeePct @default(10)~~ | ~~Erreur commission~~ | **RÉSOLU** — corrigé à @default(15) |
 | Enum casing inconsistency (lowercase vs UPPERCASE) | Confusion dev | Low — cosmétique |
 | signatureNonce absent | Pas de non-répudiation crypto | Post-MVP |
+| Swipe discovery absent | Pas de découverte de talents | Design requis avant implémentation |
+| Booking non connecté au pipeline Payment/Invoice | Booking isolé du flux financier | Medium — intégration planifiée |
 
 ---
 
