@@ -214,6 +214,43 @@ export class SchedulingService {
     return dates;
   }
 
+  /**
+   * Generate missions for ALL active recurring templates.
+   * Designed to be called by an external cron (Railway Cron / N8N).
+   * Generates the next occurrence for each active template.
+   */
+  async generateAllRecurring(): Promise<{ processed: number; generated: number; errors: number }> {
+    const templates = await this.prisma.recurringMissionTemplate.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { validUntil: null },
+          { validUntil: { gte: new Date() } },
+        ],
+      },
+    });
+
+    let generated = 0;
+    let errors = 0;
+
+    for (const template of templates) {
+      try {
+        const result = await this.generateMissionsFromTemplate(
+          template.id,
+          template.workerId,
+          { count: 1 }, // Generate only the next occurrence
+        );
+        generated += result.generated;
+      } catch (error) {
+        errors++;
+        this.logger.warn(`Failed to generate for template ${template.id}: ${error}`);
+      }
+    }
+
+    this.logger.log(`Recurring generation: ${templates.length} processed, ${generated} generated, ${errors} errors`);
+    return { processed: templates.length, generated, errors };
+  }
+
   // ========================================
   // AVAILABILITY SLOTS
   // ========================================
