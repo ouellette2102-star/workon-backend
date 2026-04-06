@@ -481,6 +481,34 @@ export class SchedulingService {
       data: { status: BookingStatus.COMPLETED },
     });
 
+    // Create Invoice from completed booking (Booking → Invoice pipeline)
+    if (booking.price > 0) {
+      const PLATFORM_FEE_PERCENT = 0.15;
+      const subtotalCents = Math.round(booking.price * 100);
+      const platformFeeCents = Math.round(subtotalCents * PLATFORM_FEE_PERCENT);
+      const totalCents = subtotalCents + platformFeeCents;
+
+      try {
+        const invoice = await this.prisma.invoice.create({
+          data: {
+            localMissionId: booking.localMissionId || undefined,
+            payerUserId: booking.clientId,
+            payerLocalUserId: booking.localClientId || undefined,
+            subtotalCents,
+            platformFeeCents,
+            totalCents,
+            currency: 'CAD',
+            description: `Booking: ${booking.title}`,
+            metadata: { bookingId: booking.id },
+          },
+        });
+        this.logger.log(`Invoice ${invoice.id} created for booking ${bookingId} (${totalCents / 100} CAD)`);
+      } catch (error) {
+        // Don't fail booking completion if invoice creation fails
+        this.logger.error(`Failed to create invoice for booking ${bookingId}: ${error}`);
+      }
+    }
+
     this.logger.log(`Booking ${bookingId} completed`);
   }
 }
