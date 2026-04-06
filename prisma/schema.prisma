@@ -123,21 +123,28 @@ enum ConsentType {
 
 model Dispute {
   id         String        @id
-  missionId  String        @unique
+  missionId  String?       @unique
   openedById String
   reason     String
   status     DisputeStatus @default(OPEN)
   resolution String?
   createdAt  DateTime      @default(now())
   updatedAt  DateTime
-  mission    Mission       @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  mission    Mission?      @relation(fields: [missionId], references: [id], onDelete: Cascade)
   openedBy   User          @relation(fields: [openedById], references: [id], onDelete: Cascade)
+
+  // LocalMission support
+  localMissionId  String?  @unique
+  localOpenedById String?
+  localMission    LocalMission? @relation(fields: [localMissionId], references: [id], onDelete: Cascade)
+  localOpenedBy   LocalUser?    @relation(fields: [localOpenedById], references: [id], onDelete: SetNull)
 
   // PR-00: Trust foundation relations
   evidence DisputeEvidence[]
   timeline DisputeTimeline[]
 
   @@index([status])
+  @@index([localMissionId])
   @@map("disputes")
 }
 
@@ -170,10 +177,11 @@ model LocalMission {
   offers                LocalOffer[]
   messages              LocalMessage[]
 
-  // Cross-system relations (Review, Booking, Contract)
+  // Cross-system relations (Review, Booking, Contract, Dispute)
   reviews   Review[]
   bookings  Booking[]
   contracts Contract[]
+  disputes  Dispute[]
 
   @@index([assignedToUserId])
   @@index([category])
@@ -242,6 +250,8 @@ model LocalUser {
   lastName       String
   phone          String?
   city           String?
+  latitude       Float?  // Worker geolocation for Map/Swipe discovery
+  longitude      Float?  // Worker geolocation for Map/Swipe discovery
   pictureUrl     String? // Profile picture URL
   role           LocalUserRole @default(worker)
   active         Boolean       @default(true)
@@ -299,15 +309,21 @@ model LocalUser {
   leads            Lead[]         // Leads received by this professional
   gallery          ProMedia[]     // Portfolio images
 
-  // Cross-system relations (Review, Booking, Contract support for LocalUser)
+  // Cross-system relations (Review, Booking, Contract, Dispute support for LocalUser)
   authoredReviews  Review[]       @relation("reviews_localAuthorId")
   receivedReviews  Review[]       @relation("reviews_localTargetUserId")
+  openedDisputes   Dispute[]
   bookingsAsClient Booking[]
   contractsAsEmployer Contract[]  @relation("contracts_localEmployerId")
   contractsAsWorker   Contract[]  @relation("contracts_localWorkerId")
+  swipesSent       SwipeAction[] @relation("swipe_swiperId")
+  swipesReceived   SwipeAction[] @relation("swipe_candidateId")
+  matchesAsUser1   SwipeMatch[]  @relation("swipe_match_user1")
+  matchesAsUser2   SwipeMatch[]  @relation("swipe_match_user2")
 
   @@index([active])
   @@index([city])
+  @@index([latitude, longitude])
   @@index([email])
   @@index([role])
   @@index([slug])
@@ -1529,4 +1545,51 @@ model ProMedia {
   @@index([professionalId])
   @@index([professionalId, sortOrder])
   @@map("pro_media")
+}
+
+// ── WorkOn Swipe Discovery System ──────────────────────────────
+
+model SwipeAction {
+  id          String          @id @default(cuid())
+  swiperId    String
+  candidateId String
+  action      SwipeActionType
+  createdAt   DateTime        @default(now())
+
+  swiper    LocalUser @relation("swipe_swiperId", fields: [swiperId], references: [id], onDelete: Cascade)
+  candidate LocalUser @relation("swipe_candidateId", fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([swiperId, candidateId])
+  @@index([swiperId])
+  @@index([candidateId])
+  @@map("swipe_actions")
+}
+
+model SwipeMatch {
+  id        String           @id @default(cuid())
+  userId1   String
+  userId2   String
+  matchedAt DateTime         @default(now())
+  status    SwipeMatchStatus @default(ACTIVE)
+
+  user1 LocalUser @relation("swipe_match_user1", fields: [userId1], references: [id], onDelete: Cascade)
+  user2 LocalUser @relation("swipe_match_user2", fields: [userId2], references: [id], onDelete: Cascade)
+
+  @@unique([userId1, userId2])
+  @@index([userId1])
+  @@index([userId2])
+  @@index([status])
+  @@map("swipe_matches")
+}
+
+enum SwipeActionType {
+  LIKE
+  PASS
+  SUPERLIKE
+}
+
+enum SwipeMatchStatus {
+  ACTIVE
+  EXPIRED
+  CONVERTED // Converted to mission or contract
 }

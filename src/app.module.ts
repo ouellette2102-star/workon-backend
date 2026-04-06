@@ -49,6 +49,7 @@ import { ProsModule } from './pros/pros.module';
 import { LeadsModule } from './leads/leads.module';
 import { PublicModule } from './public/public.module';
 import { DisputesModule } from './disputes/disputes.module';
+import { SwipeModule } from './swipe/swipe.module';
 
 @Module({
   imports: [
@@ -218,6 +219,8 @@ import { DisputesModule } from './disputes/disputes.module';
     PublicModule,
     // Disputes - Mission dispute management (evidence, resolution, timeline)
     DisputesModule,
+    // Swipe Discovery - Talent discovery (MAP = find work, SWIPE = find talent)
+    SwipeModule,
   ],
   controllers: [AppController],
   providers: [

@@ -2,9 +2,15 @@ import { IsString, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateDisputeDto {
-  @ApiProperty({ example: 'mission_123', description: 'Mission ID to dispute' })
+  @ApiPropertyOptional({ example: 'mission_123', description: 'Clerk Mission ID (use this OR localMissionId)' })
   @IsString()
-  missionId: string;
+  @IsOptional()
+  missionId?: string;
+
+  @ApiPropertyOptional({ example: 'lm_123', description: 'Local Mission ID (use this OR missionId)' })
+  @IsString()
+  @IsOptional()
+  localMissionId?: string;
 
   @ApiProperty({ example: 'Travail non complété selon les termes', description: 'Reason for dispute' })
   @IsString()

@@ -71,6 +71,21 @@ export class SchedulingController {
     return this.schedulingService.deactivateTemplate(id, req.user.sub);
   }
 
+  @Post('templates/:id/generate')
+  @ApiOperation({ summary: 'Generate missions from a recurring template' })
+  @ApiResponse({ status: 201, description: 'Missions generated' })
+  async generateFromTemplate(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Query('count') count?: string,
+  ) {
+    return this.schedulingService.generateMissionsFromTemplate(
+      id,
+      req.user.sub,
+      { count: count ? parseInt(count, 10) : undefined },
+    );
+  }
+
   // ========================================
   // AVAILABILITY
   // ========================================

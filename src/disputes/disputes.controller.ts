@@ -44,14 +44,16 @@ export class DisputesController {
     const dispute = await this.prisma.dispute.create({
       data: {
         id: `disp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        missionId: dto.missionId,
+        missionId: dto.missionId || undefined,
+        localMissionId: dto.localMissionId || undefined,
         openedById: req.user.sub,
+        localOpenedById: dto.localMissionId ? req.user.sub : undefined,
         reason: dto.reason,
         updatedAt: new Date(),
       },
     });
 
-    this.logger.log(`Dispute created: ${dispute.id} for mission ${body.missionId}`);
+    this.logger.log(`Dispute created: ${dispute.id} for mission ${dto.missionId || dto.localMissionId}`);
     return dispute;
   }
 
