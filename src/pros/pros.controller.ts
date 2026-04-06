@@ -90,8 +90,8 @@ export class ProsController {
     @Headers('x-ghl-secret') ghlSecret?: string,
   ) {
     const expectedSecret = process.env.GHL_WEBHOOK_SECRET;
-    if (expectedSecret && ghlSecret !== expectedSecret) {
-      throw new UnauthorizedException('Invalid GHL webhook secret');
+    if (!expectedSecret || ghlSecret !== expectedSecret) {
+      throw new UnauthorizedException('Invalid or missing GHL webhook secret');
     }
 
     this.logger.log(`GHL signup received: ${body.email || body.contact?.email}`);

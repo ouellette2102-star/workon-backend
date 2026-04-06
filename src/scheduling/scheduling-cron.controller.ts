@@ -35,8 +35,8 @@ export class SchedulingCronController {
   @ApiResponse({ status: 401, description: 'Invalid cron secret' })
   async generateRecurring(@Headers('x-cron-secret') cronSecret: string) {
     const expectedSecret = process.env.CRON_SECRET;
-    if (expectedSecret && cronSecret !== expectedSecret) {
-      throw new UnauthorizedException('Invalid cron secret');
+    if (!expectedSecret || cronSecret !== expectedSecret) {
+      throw new UnauthorizedException('Invalid or missing cron secret');
     }
 
     this.logger.log('Cron: generating recurring missions...');
