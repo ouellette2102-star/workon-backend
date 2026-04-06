@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService } from '../cache/cache.service';
 import { GetCategoriesQueryDto } from './dto/get-categories.query.dto';
 import { GetSkillsQueryDto } from './dto/get-skills.query.dto';
 import {
@@ -12,7 +13,10 @@ import * as path from 'path';
 export class CatalogService {
   private readonly logger = new Logger(CatalogService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
+  ) {}
 
   /**
    * Get all categories with optional filtering
@@ -30,19 +34,22 @@ export class CatalogService {
     }
     // 'all' = no filter
 
-    const categories = await this.prisma.category.findMany({
-      where,
-      orderBy: { name: 'asc' },
-      select: {
-        id: true,
-        name: true,
-        nameEn: true,
-        icon: true,
-        legalNotes: true,
-        residentialAllowed: true,
-        createdAt: true,
-      },
-    });
+    const cacheKey = `categories:${includeResidential || 'all'}`;
+    const categories = await this.cache.getOrSet(cacheKey, async () => {
+      return this.prisma.category.findMany({
+        where,
+        orderBy: { name: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          nameEn: true,
+          icon: true,
+          legalNotes: true,
+          residentialAllowed: true,
+          createdAt: true,
+        },
+      });
+    }, 600); // 10 min cache
 
     this.logger.debug(`Found ${categories.length} categories`);
     return categories;
