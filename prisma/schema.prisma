@@ -242,6 +242,8 @@ model LocalUser {
   lastName       String
   phone          String?
   city           String?
+  latitude       Float?  // Worker geolocation for Map/Swipe discovery
+  longitude      Float?  // Worker geolocation for Map/Swipe discovery
   pictureUrl     String? // Profile picture URL
   role           LocalUserRole @default(worker)
   active         Boolean       @default(true)
@@ -308,6 +310,7 @@ model LocalUser {
 
   @@index([active])
   @@index([city])
+  @@index([latitude, longitude])
   @@index([email])
   @@index([role])
   @@index([slug])

@@ -1,5 +1,6 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsLatitude, IsLongitude } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 export class UpdateUserProfileDto {
   @ApiPropertyOptional({
@@ -33,5 +34,17 @@ export class UpdateUserProfileDto {
   @IsString()
   @IsOptional()
   city?: string;
+
+  @ApiPropertyOptional({ example: 45.5017, description: 'Worker latitude for geolocation' })
+  @Type(() => Number)
+  @IsLatitude()
+  @IsOptional()
+  latitude?: number;
+
+  @ApiPropertyOptional({ example: -73.5673, description: 'Worker longitude for geolocation' })
+  @Type(() => Number)
+  @IsLongitude()
+  @IsOptional()
+  longitude?: number;
 }
 
