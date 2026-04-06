@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { SwipeService } from './swipe.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
+import { DevicesService } from '../devices/devices.service';
 
 describe('SwipeService', () => {
   let service: SwipeService;
@@ -42,10 +44,15 @@ describe('SwipeService', () => {
       },
     };
 
+    const mockPushService = { sendNotification: jest.fn().mockResolvedValue(undefined) };
+    const mockDevicesService = { getPushTokensForUser: jest.fn().mockResolvedValue([]) };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SwipeService,
         { provide: PrismaService, useValue: prisma },
+        { provide: PushService, useValue: mockPushService },
+        { provide: DevicesService, useValue: mockDevicesService },
       ],
     }).compile();
 
