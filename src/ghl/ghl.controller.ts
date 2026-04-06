@@ -40,12 +40,17 @@ export class GhlController {
   @HttpCode(200)
   @ApiOperation({
     summary: 'GHL Mission Webhook',
-    description: 'Receives mission creation data from GoHighLevel via N8N workflow',
+    description: 'Receives mission creation data from GoHighLevel via N8N workflow. Accepts raw JSON body to tolerate extra GHL fields.',
   })
   @ApiResponse({ status: 200, description: 'Mission created or duplicate detected' })
   @ApiResponse({ status: 400, description: 'Invalid payload' })
-  async handleMissionWebhook(@Body() dto: GhlMissionWebhookDto) {
-    this.logger.log(`Incoming GHL mission webhook: ${dto.title}`);
+  // Accept raw body — GHL/N8N payloads include extra fields (form_id,
+  // contact_id, timestamp, etc.) that the global ValidationPipe with
+  // forbidNonWhitelisted would reject. The service handles field mapping.
+  async handleMissionWebhook(@Body() body: Record<string, any>) {
+    // Map raw body to DTO shape — service normalizes snake_case/camelCase
+    const dto = body as GhlMissionWebhookDto;
+    this.logger.log(`Incoming GHL mission webhook: ${dto.title || dto.service_type || 'unknown'}`);
     return this.ghlService.createMissionFromGhl(dto);
   }
 
