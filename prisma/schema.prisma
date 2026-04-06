@@ -123,21 +123,28 @@ enum ConsentType {
 
 model Dispute {
   id         String        @id
-  missionId  String        @unique
+  missionId  String?       @unique
   openedById String
   reason     String
   status     DisputeStatus @default(OPEN)
   resolution String?
   createdAt  DateTime      @default(now())
   updatedAt  DateTime
-  mission    Mission       @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  mission    Mission?      @relation(fields: [missionId], references: [id], onDelete: Cascade)
   openedBy   User          @relation(fields: [openedById], references: [id], onDelete: Cascade)
+
+  // LocalMission support
+  localMissionId  String?  @unique
+  localOpenedById String?
+  localMission    LocalMission? @relation(fields: [localMissionId], references: [id], onDelete: Cascade)
+  localOpenedBy   LocalUser?    @relation(fields: [localOpenedById], references: [id], onDelete: SetNull)
 
   // PR-00: Trust foundation relations
   evidence DisputeEvidence[]
   timeline DisputeTimeline[]
 
   @@index([status])
+  @@index([localMissionId])
   @@map("disputes")
 }
 
@@ -170,10 +177,11 @@ model LocalMission {
   offers                LocalOffer[]
   messages              LocalMessage[]
 
-  // Cross-system relations (Review, Booking, Contract)
+  // Cross-system relations (Review, Booking, Contract, Dispute)
   reviews   Review[]
   bookings  Booking[]
   contracts Contract[]
+  disputes  Dispute[]
 
   @@index([assignedToUserId])
   @@index([category])
@@ -301,9 +309,10 @@ model LocalUser {
   leads            Lead[]         // Leads received by this professional
   gallery          ProMedia[]     // Portfolio images
 
-  // Cross-system relations (Review, Booking, Contract support for LocalUser)
+  // Cross-system relations (Review, Booking, Contract, Dispute support for LocalUser)
   authoredReviews  Review[]       @relation("reviews_localAuthorId")
   receivedReviews  Review[]       @relation("reviews_localTargetUserId")
+  openedDisputes   Dispute[]
   bookingsAsClient Booking[]
   contractsAsEmployer Contract[]  @relation("contracts_localEmployerId")
   contractsAsWorker   Contract[]  @relation("contracts_localWorkerId")
