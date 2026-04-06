@@ -122,22 +122,22 @@ enum ConsentType {
 }
 
 model Dispute {
-  id         String        @id
-  missionId  String?       @unique
-  openedById String?
-  reason     String
-  status     DisputeStatus @default(OPEN)
-  resolution String?
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime
-  mission    Mission?      @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  openedBy   User?         @relation(fields: [openedById], references: [id], onDelete: Cascade)
-
-  // LocalMission support
-  localMissionId  String?  @unique
+  id              String        @id
+  missionId       String?       @unique
+  localMissionId  String?       @unique
+  openedById      String?
   localOpenedById String?
-  localMission    LocalMission? @relation(fields: [localMissionId], references: [id], onDelete: Cascade)
-  localOpenedBy   LocalUser?    @relation(fields: [localOpenedById], references: [id], onDelete: SetNull)
+  reason          String
+  status          DisputeStatus @default(OPEN)
+  resolution      String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime
+
+  // Relations
+  mission       Mission?      @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  openedBy      User?         @relation(fields: [openedById], references: [id], onDelete: Cascade)
+  localMission  LocalMission? @relation(fields: [localMissionId], references: [id], onDelete: Cascade)
+  localOpenedBy LocalUser?    @relation(fields: [localOpenedById], references: [id], onDelete: SetNull)
 
   // PR-00: Trust foundation relations
   evidence DisputeEvidence[]
@@ -176,12 +176,12 @@ model LocalMission {
   createdByUser         LocalUser          @relation("local_missions_createdByUserIdTolocal_users", fields: [createdByUserId], references: [id], onDelete: Cascade)
   offers                LocalOffer[]
   messages              LocalMessage[]
+  contract              Contract?
+  disputes              Dispute[]
 
-  // Cross-system relations (Review, Booking, Contract, Dispute)
-  reviews   Review[]
-  bookings  Booking[]
-  contracts Contract[]
-  disputes  Dispute[]
+  // Cross-system relations (Review, Booking)
+  reviews  Review[]
+  bookings Booking[]
 
   @@index([assignedToUserId])
   @@index([category])
@@ -250,8 +250,8 @@ model LocalUser {
   lastName       String
   phone          String?
   city           String?
-  latitude       Float?  // Worker geolocation for Map/Swipe discovery
-  longitude      Float?  // Worker geolocation for Map/Swipe discovery
+  latitude       Float? // Worker geolocation for Map/Swipe discovery
+  longitude      Float? // Worker geolocation for Map/Swipe discovery
   pictureUrl     String? // Profile picture URL
   role           LocalUserRole @default(worker)
   active         Boolean       @default(true)
@@ -275,6 +275,13 @@ model LocalUser {
   bankVerifiedAt  DateTime?
   stripeAccountId String? // Stripe Connect account ID
 
+  // Insurance verification
+  insuranceVerified   Boolean   @default(false)
+  insuranceVerifiedAt DateTime?
+  insuranceProvider   String? // e.g., "CSST", "Desjardins"
+  insuranceProofUrl   String? // Upload URL of insurance certificate
+  insuranceExpiresAt  DateTime? // Expiry date
+
   // Trust tier (computed from verifications)
   trustTier          TrustTier @default(BASIC)
   trustTierUpdatedAt DateTime?
@@ -295,32 +302,31 @@ model LocalUser {
   deletionScheduledFor  DateTime? // When data will be deleted (30-day grace)
 
   // Demand Capture System
-  slug             String?   @unique // URL slug for /pro/{slug}
-  bio              String?   // Professional bio/description
-  category         String?   // Service category (menage, paysagement, etc.)
-  serviceRadiusKm  Int?      @default(25) // Service area radius
-  completionScore  Int?      @default(0) // Profile completion percentage
+  slug            String? @unique // URL slug for /pro/{slug}
+  bio             String? // Professional bio/description
+  category        String? // Service category (menage, paysagement, etc.)
+  serviceRadiusKm Int?    @default(25) // Service area radius
+  completionScore Int?    @default(0) // Profile completion percentage
 
-  assignedMissions LocalMission[] @relation("local_missions_assignedToUserIdTolocal_users")
-  createdMissions  LocalMission[] @relation("local_missions_createdByUserIdTolocal_users")
-  offers           LocalOffer[]
-  devices          LocalDevice[] // Push notification devices
-  messages         LocalMessage[] // Chat messages sent by this user
-  leads            Lead[]         // Leads received by this professional
-  gallery          ProMedia[]     // Portfolio images
-
+  assignedMissions    LocalMission[] @relation("local_missions_assignedToUserIdTolocal_users")
+  createdMissions     LocalMission[] @relation("local_missions_createdByUserIdTolocal_users")
+  offers              LocalOffer[]
+  devices             LocalDevice[] // Push notification devices
+  messages            LocalMessage[] // Chat messages sent by this user
+  leads               Lead[] // Leads received by this professional
+  gallery             ProMedia[] // Portfolio images
   // Cross-system relations (Review, Booking, Contract, Dispute support for LocalUser)
-  authoredReviews  Review[]       @relation("reviews_localAuthorId")
-  receivedReviews  Review[]       @relation("reviews_localTargetUserId")
-  openedDisputes   Dispute[]
-  bookingsAsClient Booking[]
-  contractsAsEmployer Contract[]  @relation("contracts_localEmployerId")
-  contractsAsWorker   Contract[]  @relation("contracts_localWorkerId")
-  swipesSent       SwipeAction[] @relation("swipe_swiperId")
-  swipesReceived   SwipeAction[] @relation("swipe_candidateId")
-  matchesAsUser1   SwipeMatch[]  @relation("swipe_match_user1")
-  matchesAsUser2   SwipeMatch[]  @relation("swipe_match_user2")
-  notifications    Notification[]
+  authoredReviews     Review[]       @relation("reviews_localAuthorId")
+  receivedReviews     Review[]       @relation("reviews_localTargetUserId")
+  openedDisputes      Dispute[]
+  bookingsAsClient    Booking[]
+  contractsAsEmployer Contract[]     @relation("contracts_localEmployerId")
+  contractsAsWorker   Contract[]     @relation("contracts_localWorkerId")
+  swipesSent          SwipeAction[]  @relation("swipe_swiperId")
+  swipesReceived      SwipeAction[]  @relation("swipe_candidateId")
+  matchesAsUser1      SwipeMatch[]   @relation("swipe_match_user1")
+  matchesAsUser2      SwipeMatch[]   @relation("swipe_match_user2")
+  notifications       Notification[]
 
   @@index([active])
   @@index([city])
@@ -338,16 +344,16 @@ model LocalUser {
 
 /// Device registration for push notifications (LocalUser system)
 model LocalDevice {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   userId     String
   deviceId   String // Unique device identifier (vendor ID, etc.)
   platform   String // ios, android, web
   pushToken  String? // FCM/APNs token
   appVersion String?
-  active     Boolean  @default(true)
-  lastSeenAt DateTime @default(now())
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  active     Boolean   @default(true)
+  lastSeenAt DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
   user       LocalUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, deviceId])
@@ -361,13 +367,13 @@ model LocalDevice {
 // ============================================
 /// Chat messages for local missions (LocalUser system)
 model LocalMessage {
-  id         String              @id
+  id         String             @id
   missionId  String
   senderId   String
   senderRole LocalMessageRole
   content    String
-  status     LocalMessageStatus  @default(SENT)
-  createdAt  DateTime            @default(now())
+  status     LocalMessageStatus @default(SENT)
+  createdAt  DateTime           @default(now())
 
   // Relations
   mission LocalMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
@@ -788,9 +794,12 @@ enum MessageStatus {
 
 model Contract {
   id               String         @id
-  missionId        String         @unique
-  employerId       String
-  workerId         String
+  missionId        String?        @unique
+  localMissionId   String?        @unique
+  employerId       String?
+  workerId         String?
+  localEmployerId  String?
+  localWorkerId    String?
   status           ContractStatus @default(DRAFT)
   amount           Float
   hourlyRate       Float?
@@ -803,23 +812,22 @@ model Contract {
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
-  // Relations
-  mission  Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  employer User    @relation("contracts_employerIdTousers", fields: [employerId], references: [id], onDelete: Cascade)
-  worker   User    @relation("contracts_workerIdTousers", fields: [workerId], references: [id], onDelete: Cascade)
+  // Relations (Clerk system)
+  mission  Mission? @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  employer User?    @relation("contracts_employerIdTousers", fields: [employerId], references: [id], onDelete: Cascade)
+  worker   User?    @relation("contracts_workerIdTousers", fields: [workerId], references: [id], onDelete: Cascade)
 
-  // LocalUser/LocalMission support (optional — for native auth system)
-  localMissionId  String?
-  localEmployerId String?
-  localWorkerId   String?
-  localMission    LocalMission? @relation(fields: [localMissionId], references: [id], onDelete: SetNull)
-  localEmployer   LocalUser?    @relation("contracts_localEmployerId", fields: [localEmployerId], references: [id], onDelete: SetNull)
-  localWorker     LocalUser?    @relation("contracts_localWorkerId", fields: [localWorkerId], references: [id], onDelete: SetNull)
+  // Relations (Local system)
+  localMission  LocalMission? @relation(fields: [localMissionId], references: [id], onDelete: Cascade)
+  localEmployer LocalUser?    @relation("contracts_localEmployerId", fields: [localEmployerId], references: [id], onDelete: SetNull)
+  localWorker   LocalUser?    @relation("contracts_localWorkerId", fields: [localWorkerId], references: [id], onDelete: SetNull)
 
   @@index([employerId])
   @@index([workerId])
-  @@index([status])
+  @@index([localEmployerId])
+  @@index([localWorkerId])
   @@index([localMissionId])
+  @@index([status])
   @@map("contracts")
 }
 
@@ -1284,10 +1292,10 @@ model Booking {
   template RecurringMissionTemplate? @relation(fields: [templateId], references: [id])
 
   // LocalUser support (optional — for native auth system)
-  localClientId   String?
-  localMissionId  String?
-  localClient     LocalUser?    @relation(fields: [localClientId], references: [id], onDelete: SetNull)
-  localMission    LocalMission? @relation(fields: [localMissionId], references: [id], onDelete: SetNull)
+  localClientId  String?
+  localMissionId String?
+  localClient    LocalUser?    @relation(fields: [localClientId], references: [id], onDelete: SetNull)
+  localMission   LocalMission? @relation(fields: [localMissionId], references: [id], onDelete: SetNull)
 
   @@index([clientId])
   @@index([workerId, scheduledAt])
@@ -1526,7 +1534,7 @@ model Lead {
   serviceRequested String
   message          String?
   status           LeadStatus    @default(NEW)
-  source           String?       // "organic", "facebook_ad", "google_ad", "referral"
+  source           String? // "organic", "facebook_ad", "google_ad", "referral"
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   mission          LocalMission? // Back-relation: mission created from this lead

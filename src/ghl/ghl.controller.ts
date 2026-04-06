@@ -4,27 +4,31 @@ import {
   Body,
   HttpCode,
   Logger,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
+  ApiHeader,
 } from '@nestjs/swagger';
 import { GhlService } from './ghl.service';
 import { GhlMissionWebhookDto } from './dto/ghl-mission-webhook.dto';
 import { GhlProSignupDto } from './dto/ghl-pro-signup.dto';
+import { GhlWebhookGuard } from './guards/ghl-webhook.guard';
 
 /**
  * GHL Integration Controller
  *
- * Public endpoints (no auth) for receiving webhooks from
+ * Authenticated webhook endpoints for receiving data from
  * GoHighLevel via N8N automation workflows.
  *
- * Security: These endpoints are called by N8N (server-to-server).
+ * Security: Protected by GhlWebhookGuard (API key or HMAC signature).
  * Rate limiting is handled by the global ThrottlerGuard.
  */
 @ApiTags('GHL Integration')
 @Controller('api/v1')
+@UseGuards(GhlWebhookGuard)
 export class GhlController {
   private readonly logger = new Logger(GhlController.name);
 
@@ -38,9 +42,10 @@ export class GhlController {
    */
   @Post('missions/webhook-ghl')
   @HttpCode(200)
+  @ApiHeader({ name: 'X-Webhook-Secret', required: false, description: 'API key for webhook authentication' })
   @ApiOperation({
     summary: 'GHL Mission Webhook',
-    description: 'Receives mission creation data from GoHighLevel via N8N workflow. Accepts raw JSON body to tolerate extra GHL fields.',
+    description: 'Receives mission creation data from GoHighLevel via N8N workflow. Requires X-Webhook-Secret header.',
   })
   @ApiResponse({ status: 200, description: 'Mission created or duplicate detected' })
   @ApiResponse({ status: 400, description: 'Invalid payload' })

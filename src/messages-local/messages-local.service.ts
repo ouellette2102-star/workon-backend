@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { LocalMessageRole, LocalMessageStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ContactFilterService } from '../common/security/contact-filter.service';
 
 export interface LocalMessageResponse {
   id: string;
@@ -40,7 +41,10 @@ export interface LocalConversation {
 export class MessagesLocalService {
   private readonly logger = new Logger(MessagesLocalService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly contactFilter: ContactFilterService,
+  ) {}
 
   /**
    * Check if user has access to a mission's chat
@@ -82,7 +86,8 @@ export class MessagesLocalService {
   async getMessagesForMission(
     missionId: string,
     userId: string,
-  ): Promise<LocalMessageResponse[]> {
+    options?: { cursor?: string; limit?: number },
+  ): Promise<{ messages: LocalMessageResponse[]; nextCursor: string | null; hasMore: boolean }> {
     const { canAccess } = await this.checkMissionAccess(missionId, userId);
 
     if (!canAccess) {
@@ -91,20 +96,36 @@ export class MessagesLocalService {
       );
     }
 
+    const limit = Math.min(options?.limit || 50, 100);
+    const whereClause: any = { missionId };
+
+    if (options?.cursor) {
+      whereClause.createdAt = { gt: new Date(options.cursor) };
+    }
+
     const messages = await this.prisma.localMessage.findMany({
-      where: { missionId },
+      where: whereClause,
       orderBy: { createdAt: 'asc' },
+      take: limit + 1,
     });
 
-    return messages.map((msg) => ({
-      id: msg.id,
-      missionId: msg.missionId,
-      senderId: msg.senderId,
-      senderRole: msg.senderRole,
-      content: msg.content,
-      status: msg.status,
-      createdAt: msg.createdAt.toISOString(),
-    }));
+    const hasMore = messages.length > limit;
+    const items = hasMore ? messages.slice(0, limit) : messages;
+    const nextCursor = hasMore ? items[items.length - 1].createdAt.toISOString() : null;
+
+    return {
+      messages: items.map((msg) => ({
+        id: msg.id,
+        missionId: msg.missionId,
+        senderId: msg.senderId,
+        senderRole: msg.senderRole,
+        content: msg.content,
+        status: msg.status,
+        createdAt: msg.createdAt.toISOString(),
+      })),
+      nextCursor,
+      hasMore,
+    };
   }
 
   /**
@@ -119,6 +140,9 @@ export class MessagesLocalService {
     if (!trimmedContent) {
       throw new BadRequestException('Le message ne peut pas être vide');
     }
+
+    // Anti-disintermediation: filter contact information
+    const { filtered, wasFiltered } = this.contactFilter.filterMessage(trimmedContent);
 
     const { canAccess, senderRole } = await this.checkMissionAccess(
       missionId,
@@ -149,9 +173,13 @@ export class MessagesLocalService {
         missionId,
         senderId: userId,
         senderRole,
-        content: trimmedContent,
+        content: wasFiltered ? filtered : trimmedContent,
       },
     });
+
+    if (wasFiltered) {
+      this.logger.warn(`Contact info filtered from message ${message.id} by user ${userId}`);
+    }
 
     this.logger.log(`Message created: ${message.id} for mission ${missionId}`);
 

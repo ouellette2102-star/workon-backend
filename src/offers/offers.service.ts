@@ -224,6 +224,21 @@ export class OffersService {
         },
       });
 
+      // Auto-create contract for the accepted offer
+      const contractId = `contract_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      await tx.contract.create({
+        data: {
+          id: contractId,
+          localMissionId: offer.missionId,
+          localEmployerId: offer.mission.createdByUserId,
+          localWorkerId: offer.workerId,
+          amount: offer.price,
+          status: 'DRAFT',
+        },
+      });
+
+      this.logger.log(`Auto-created contract ${contractId} for offer ${offerId}`);
+
       return acceptedOffer;
     });
 

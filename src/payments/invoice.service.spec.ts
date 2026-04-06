@@ -8,6 +8,13 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 
+// Mock getAppConfig before importing the service
+jest.mock('../config/safe-defaults.config', () => ({
+  getAppConfig: () => ({
+    payments: { platformFeePercent: 15 },
+  }),
+}));
+
 describe('InvoiceService', () => {
   let service: InvoiceService;
   let prisma: jest.Mocked<PrismaService>;
@@ -67,6 +74,7 @@ describe('InvoiceService', () => {
         totalCents: 11500,
         currency: 'CAD',
         description: 'Test Mission',
+        platformFeeRate: 0.15,
       });
     });
 
@@ -221,14 +229,16 @@ describe('InvoiceService', () => {
         },
       });
 
-      expect(mockPrismaService.localMission.update).toHaveBeenCalledWith({
-        where: { id: 'lm-1' },
-        data: {
-          status: 'paid',
-          paidAt: expect.any(Date),
-          stripePaymentIntentId: 'pi_123',
-        },
-      });
+      expect(mockPrismaService.localMission.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'lm-1' },
+          data: {
+            status: 'paid',
+            paidAt: expect.any(Date),
+            stripePaymentIntentId: 'pi_123',
+          },
+        }),
+      );
     });
   });
 

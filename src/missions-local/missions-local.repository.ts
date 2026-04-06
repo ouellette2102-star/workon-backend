@@ -58,12 +58,15 @@ export class MissionsLocalRepository {
     latitude: number,
     longitude: number,
     radiusKm: number,
-    _options?: { sort?: string; category?: string; query?: string },
+    options?: { sort?: string; category?: string; query?: string; priceMin?: number; priceMax?: number },
   ) {
-    // CTE pre-computes Haversine once per row — eliminates double calculation
+    // Build dynamic WHERE conditions for the CTE
+    const priceMin = options?.priceMin ?? 0;
+    const priceMax = options?.priceMax ?? 999999;
+
     const missions = await this.prisma.$queryRaw<any[]>`
       WITH distances AS (
-        SELECT 
+        SELECT
           id,
           title,
           description,
@@ -80,15 +83,17 @@ export class MissionsLocalRepository {
           "updatedAt",
           6371 * acos(
             LEAST(1.0,
-              cos(radians(${latitude})) 
-              * cos(radians(latitude)) 
-              * cos(radians(longitude) - radians(${longitude})) 
-              + sin(radians(${latitude})) 
+              cos(radians(${latitude}))
+              * cos(radians(latitude))
+              * cos(radians(longitude) - radians(${longitude}))
+              + sin(radians(${latitude}))
               * sin(radians(latitude))
             )
           ) AS "distanceKm"
         FROM local_missions
         WHERE status = 'open'
+          AND price >= ${priceMin}
+          AND price <= ${priceMax}
       )
       SELECT * FROM distances
       WHERE "distanceKm" <= ${radiusKm}

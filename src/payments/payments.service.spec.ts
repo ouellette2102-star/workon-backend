@@ -28,6 +28,10 @@ describe('PaymentsService', () => {
       updateMany: jest.fn(),
       findMany: jest.fn(),
     },
+    stripeEvent: {
+      findUnique: jest.fn(),
+      upsert: jest.fn(),
+    },
   };
 
   const mockConfigService = {
@@ -146,9 +150,9 @@ describe('PaymentsService', () => {
         data: { object: { id: 'pi_123' } },
       } as any;
 
-      mockPrismaService.payment.findUnique.mockResolvedValue({
-        id: 'pay-1',
-        lastStripeEventId: 'evt_123', // Same event ID
+      mockPrismaService.stripeEvent.findUnique.mockResolvedValue({
+        id: 'evt_123',
+        processed: true,
       });
 
       await service.handleWebhookEvent(mockEvent);
@@ -164,11 +168,8 @@ describe('PaymentsService', () => {
         data: { object: { id: 'pi_123', amount_capturable: 10000 } },
       } as any;
 
-      mockPrismaService.payment.findUnique.mockResolvedValue({
-        id: 'pay-1',
-        status: PaymentStatus.CREATED,
-      });
-
+      mockPrismaService.stripeEvent.findUnique.mockResolvedValue(null);
+      mockPrismaService.stripeEvent.upsert.mockResolvedValue({});
       mockPrismaService.payment.updateMany.mockResolvedValue({ count: 1 });
 
       await service.handleWebhookEvent(mockEvent);
@@ -192,11 +193,8 @@ describe('PaymentsService', () => {
         data: { object: { id: 'pi_456' } },
       } as any;
 
-      mockPrismaService.payment.findUnique.mockResolvedValue({
-        id: 'pay-2',
-        status: PaymentStatus.AUTHORIZED,
-      });
-
+      mockPrismaService.stripeEvent.findUnique.mockResolvedValue(null);
+      mockPrismaService.stripeEvent.upsert.mockResolvedValue({});
       mockPrismaService.payment.updateMany.mockResolvedValue({ count: 1 });
 
       await service.handleWebhookEvent(mockEvent);
@@ -220,11 +218,8 @@ describe('PaymentsService', () => {
         data: { object: { id: 'pi_789' } },
       } as any;
 
-      mockPrismaService.payment.findUnique.mockResolvedValue({
-        id: 'pay-3',
-        status: PaymentStatus.AUTHORIZED,
-      });
-
+      mockPrismaService.stripeEvent.findUnique.mockResolvedValue(null);
+      mockPrismaService.stripeEvent.upsert.mockResolvedValue({});
       mockPrismaService.payment.updateMany.mockResolvedValue({ count: 1 });
 
       await service.handleWebhookEvent(mockEvent);
@@ -252,11 +247,8 @@ describe('PaymentsService', () => {
         },
       } as any;
 
-      mockPrismaService.payment.findUnique.mockResolvedValue({
-        id: 'pay-4',
-        status: PaymentStatus.CREATED,
-      });
-
+      mockPrismaService.stripeEvent.findUnique.mockResolvedValue(null);
+      mockPrismaService.stripeEvent.upsert.mockResolvedValue({});
       mockPrismaService.payment.updateMany.mockResolvedValue({ count: 1 });
 
       await service.handleWebhookEvent(mockEvent);
@@ -276,7 +268,8 @@ describe('PaymentsService', () => {
         data: { object: { id: 'cus_123' } },
       } as any;
 
-      mockPrismaService.payment.findUnique.mockResolvedValue(null);
+      mockPrismaService.stripeEvent.findUnique.mockResolvedValue(null);
+      mockPrismaService.stripeEvent.upsert.mockResolvedValue({});
 
       await service.handleWebhookEvent(mockEvent);
 

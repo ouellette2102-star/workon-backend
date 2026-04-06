@@ -4,16 +4,20 @@ import {
   ForbiddenException,
   BadRequestException,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { MissionsLocalRepository } from './missions-local.repository';
 import { CreateMissionDto } from './dto/create-mission.dto';
 import { NearbyMissionsQueryDto } from './dto/nearby-missions-query.dto';
 import { MissionsMapQueryDto } from './dto/missions-map-query.dto';
+import { InvoiceService } from '../payments/invoice.service';
 
 /**
  * Missions Service - Business logic for mission management
- * 
- * Handles mission CRUD, status transitions, authorization
+ *
+ * Handles mission CRUD, status transitions, authorization.
+ * Auto-creates invoice on mission completion.
  */
 @Injectable()
 export class MissionsLocalService {
@@ -21,6 +25,8 @@ export class MissionsLocalService {
 
   constructor(
     private readonly missionsRepository: MissionsLocalRepository,
+    @Inject(forwardRef(() => InvoiceService))
+    private readonly invoiceService: InvoiceService,
   ) {}
 
   /**
@@ -72,6 +78,8 @@ export class MissionsLocalService {
         sort: (query as any).sort,
         category: (query as any).category,
         query: (query as any).query,
+        priceMin: (query as any).priceMin,
+        priceMax: (query as any).priceMax,
       },
     );
 
@@ -201,6 +209,18 @@ export class MissionsLocalService {
     );
 
     this.logger.log(`Mission ${missionId} completed by user ${userId}`);
+
+    // Auto-create invoice for the employer to pay
+    try {
+      const checkout = await this.invoiceService.createCheckoutSession(
+        missionId,
+        mission.createdByUserId,
+      );
+      this.logger.log(`Auto-created invoice ${checkout.invoiceId} for completed mission ${missionId}`);
+    } catch (err) {
+      // Don't fail mission completion if invoice creation fails (e.g. Stripe not configured)
+      this.logger.warn(`Failed to auto-create invoice for mission ${missionId}: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
     return updated;
   }

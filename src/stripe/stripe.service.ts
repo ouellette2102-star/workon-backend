@@ -9,23 +9,24 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaymentStatus, UserRole } from '@prisma/client';
 import Stripe from 'stripe';
+import { getAppConfig } from '../config/safe-defaults.config';
 
 /**
- * Service de gestion Stripe pour WorkOn (version MVP).
- * 
- * NOTE (Post-MVP): Stripe Connect à implémenter pour transferts directs aux workers.
- * Pour l'instant, ce service gère uniquement les paiements directs simples.
+ * Service de gestion Stripe pour WorkOn.
+ * Supports both direct payments and Stripe Connect for worker payouts.
  */
 @Injectable()
 export class StripeService {
   private stripe: Stripe | null;
   private readonly logger = new Logger(StripeService.name);
-  private readonly PLATFORM_FEE_PERCENT = 0.15; // 15% de frais WorkOn
+  private readonly PLATFORM_FEE_PERCENT: number;
 
   constructor(
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
   ) {
+    this.PLATFORM_FEE_PERCENT = getAppConfig().payments.platformFeePercent / 100;
+
     const secretKey = process.env.STRIPE_SECRET_KEY;
     const isDev = process.env.NODE_ENV !== 'production';
 

@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { MissionsService } from './missions.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PaymentsService } from '../payments/payments.service';
 import {
   ForbiddenException,
   NotFoundException,
@@ -15,6 +16,13 @@ const mockNotificationsService = {
   sendNotification: jest.fn(),
   notifyMissionStatusChange: jest.fn(),
   createForMissionStatusChange: jest.fn(),
+};
+
+const mockPaymentsService = {
+  createPaymentIntent: jest.fn(),
+  capturePaymentIntent: jest.fn(),
+  cancelPaymentIntent: jest.fn(),
+  getPaymentStatus: jest.fn(),
 };
 
 const mockPrismaService = {
@@ -49,6 +57,7 @@ describe('MissionsService', () => {
         MissionsService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: NotificationsService, useValue: mockNotificationsService },
+        { provide: PaymentsService, useValue: mockPaymentsService },
       ],
     }).compile();
 

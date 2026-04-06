@@ -67,5 +67,25 @@ export class NearbyMissionsQueryDto {
   @IsString()
   @IsOptional()
   query?: string;
+
+  @ApiPropertyOptional({
+    example: 50,
+    description: 'Minimum price filter (CAD)',
+  })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  priceMin?: number;
+
+  @ApiPropertyOptional({
+    example: 500,
+    description: 'Maximum price filter (CAD)',
+  })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  priceMax?: number;
 }
 

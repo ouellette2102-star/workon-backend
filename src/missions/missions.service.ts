@@ -13,6 +13,7 @@ import { CreateMissionDto } from './dto/create-mission.dto';
 import { ListAvailableMissionsDto } from './dto/list-available-missions.dto';
 import { UpdateMissionStatusDto } from './dto/update-mission-status.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PaymentsService } from '../payments/payments.service';
 import { isDevEnvironment } from '../common/utils/environment.util';
 
 type MissionSelect = {
@@ -83,6 +84,8 @@ export class MissionsService {
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => NotificationsService))
     private readonly notificationsService: NotificationsService,
+    @Inject(forwardRef(() => PaymentsService))
+    private readonly paymentsService: PaymentsService,
   ) {}
 
   async createMissionForEmployer(
@@ -338,6 +341,23 @@ export class MissionsService {
         );
       } catch (error) {
         this.logger.error(`Failed to create notification: ${error.message}`);
+      }
+    }
+
+    // Auto-capture payment when mission is completed
+    if (newStatus === MissionStatus.COMPLETED) {
+      try {
+        const payment = await this.prisma.payment.findUnique({
+          where: { missionId },
+          select: { id: true, status: true, stripePaymentIntentId: true },
+        });
+        if (payment && payment.stripePaymentIntentId &&
+            ['AUTHORIZED', 'REQUIRES_ACTION', 'CREATED'].includes(payment.status)) {
+          await this.paymentsService.capturePaymentIntent(userId, missionId);
+          this.logger.log(`Auto-captured payment for completed mission ${missionId}`);
+        }
+      } catch (error) {
+        this.logger.warn(`Failed to auto-capture payment for mission ${missionId}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
 

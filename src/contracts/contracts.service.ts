@@ -127,8 +127,8 @@ export class ContractsService {
 
     // Vérifier l'accès
     if (
-      contract.employer.clerkId !== clerkUserId &&
-      contract.worker.clerkId !== clerkUserId
+      contract.employer?.clerkId !== clerkUserId &&
+      contract.worker?.clerkId !== clerkUserId
     ) {
       throw new ForbiddenException('Accès non autorisé à ce contrat');
     }
@@ -187,8 +187,8 @@ export class ContractsService {
       throw new NotFoundException('Contrat non trouvé');
     }
 
-    const isEmployer = contract.employer.clerkId === clerkUserId;
-    const isWorker = contract.worker.clerkId === clerkUserId;
+    const isEmployer = contract.employer?.clerkId === clerkUserId;
+    const isWorker = contract.worker?.clerkId === clerkUserId;
 
     if (!isEmployer && !isWorker) {
       throw new ForbiddenException('Accès non autorisé');

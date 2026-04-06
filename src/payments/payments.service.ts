@@ -15,11 +15,13 @@ import Stripe from 'stripe';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { StripeSecurityService } from './stripe-security.service';
 import * as crypto from 'crypto';
+import { getAppConfig } from '../config/safe-defaults.config';
 
 @Injectable()
 export class PaymentsService {
   private readonly stripe?: Stripe;
   private readonly logger = new Logger(PaymentsService.name);
+  private readonly platformFeePercent: number;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -27,6 +29,7 @@ export class PaymentsService {
     @Inject(forwardRef(() => StripeSecurityService))
     private readonly stripeSecurityService: StripeSecurityService,
   ) {
+    this.platformFeePercent = getAppConfig().payments.platformFeePercent;
     const stripeSecretKey =
       this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!stripeSecretKey) {
@@ -162,7 +165,7 @@ export class PaymentsService {
         stripePaymentIntentId: paymentIntent.id,
         amount,
         currency: 'CAD',
-        platformFeePct: 10,
+        platformFeePct: this.platformFeePercent,
         status: PaymentStatus.CREATED,
         updatedAt: new Date(),
       },
@@ -322,23 +325,34 @@ export class PaymentsService {
   }
 
   /**
-   * Traiter un webhook Stripe (idempotent via lastStripeEventId)
+   * Traiter un webhook Stripe (idempotent via StripeEvent table)
    */
   async handleWebhookEvent(event: Stripe.Event): Promise<void> {
     this.logger.debug(`Réception webhook Stripe ${event.type}`, { eventId: event.id });
 
-    const paymentIntent = event.data.object as Stripe.PaymentIntent;
-    const stripePaymentIntentId = paymentIntent.id;
-
-    // Vérifier idempotence: ignorer si event déjà traité
-    const existingPayment = await this.prisma.payment.findUnique({
-      where: { stripePaymentIntentId },
+    // Check idempotency via StripeEvent table (stores ALL processed event IDs)
+    const existingEvent = await this.prisma.stripeEvent.findUnique({
+      where: { id: event.id },
     });
 
-    if (existingPayment?.lastStripeEventId === event.id) {
+    if (existingEvent?.processed) {
       this.logger.debug(`Event ${event.id} déjà traité, ignoré`);
       return;
     }
+
+    // Record event for idempotency before processing
+    await this.prisma.stripeEvent.upsert({
+      where: { id: event.id },
+      update: { processed: true, processedAt: new Date() },
+      create: {
+        id: event.id,
+        type: event.type,
+        processed: true,
+        processedAt: new Date(),
+      },
+    });
+
+    const paymentIntent = event.data.object as Stripe.PaymentIntent;
 
     try {
       switch (event.type) {
