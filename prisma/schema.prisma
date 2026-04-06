@@ -447,7 +447,7 @@ model Payment {
   stripeConnectAccountId String?
   amount                 Float
   currency               String        @default("CAD")
-  platformFeePct         Float         @default(10)
+  platformFeePct         Float         @default(15)
   status                 PaymentStatus @default(CREATED)
   lastStripeEventId      String?
   createdAt              DateTime      @default(now())
