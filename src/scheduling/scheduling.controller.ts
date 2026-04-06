@@ -184,4 +184,5 @@ export class SchedulingController {
       upcoming: upcoming === 'true',
     });
   }
+
 }

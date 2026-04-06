@@ -1,5 +1,7 @@
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
+import { DevicesService } from '../devices/devices.service';
 
 /**
  * Swipe Discovery Service
@@ -16,7 +18,11 @@ import { PrismaService } from '../prisma/prisma.service';
 export class SwipeService {
   private readonly logger = new Logger(SwipeService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pushService: PushService,
+    private readonly devicesService: DevicesService,
+  ) {}
 
   /**
    * Get swipe candidates (workers/companies) for a user
@@ -358,6 +364,26 @@ export class SwipeService {
       }
 
       this.logger.log(`Match notifications created for match ${matchId}`);
+
+      // Send FCM push notifications to both users
+      for (const uid of [userId1, userId2]) {
+        const otherName = uid === userId1
+          ? (user2?.firstName || 'Utilisateur')
+          : (user1?.firstName || 'Utilisateur');
+        try {
+          const tokens = await this.devicesService.getPushTokensForUser(uid);
+          if (tokens.length > 0) {
+            await this.pushService.sendNotification(
+              tokens,
+              'Nouveau match!',
+              `Vous avez un match avec ${otherName}`,
+              { type: 'swipe_match', matchId },
+            );
+          }
+        } catch {
+          // Push is best-effort
+        }
+      }
     } catch (error) {
       this.logger.warn(`Failed to create match notifications: ${error}`);
     }
