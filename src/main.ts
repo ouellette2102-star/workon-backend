@@ -10,6 +10,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { GlobalHttpExceptionFilter } from './common/filters';
+import { execSync } from 'child_process';
 
 /**
  * Run database migrations before starting the app.
@@ -23,7 +24,7 @@ async function runMigrations() {
   }
 
   console.log('[migrations] Running prisma db push...');
-  const { execSync } = require('child_process');
+  // execSync imported at top of file
   try {
     execSync('npx prisma db push --accept-data-loss', {
       stdio: 'inherit',
