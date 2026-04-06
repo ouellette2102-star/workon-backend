@@ -222,6 +222,71 @@ export class SwipeService {
   }
 
   /**
+   * Create a mission from a match
+   * The authenticated user becomes the employer, the matched user becomes the worker.
+   */
+  async createMissionFromMatch(
+    userId: string,
+    matchId: string,
+    data: { title: string; description?: string; category: string; price: number },
+  ) {
+    // Find the match and verify the user is part of it
+    const match = await this.prisma.swipeMatch.findUnique({
+      where: { id: matchId },
+    });
+
+    if (!match || (match.userId1 !== userId && match.userId2 !== userId)) {
+      throw new NotFoundException('Match not found');
+    }
+
+    if (match.status !== 'ACTIVE') {
+      throw new BadRequestException('Match is no longer active');
+    }
+
+    const workerId = match.userId1 === userId ? match.userId2 : match.userId1;
+
+    // Fetch employer geolocation
+    const employer = await this.prisma.localUser.findUnique({
+      where: { id: userId },
+      select: { latitude: true, longitude: true, city: true },
+    });
+
+    const missionId = `lm_sw_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+    const mission = await this.prisma.localMission.create({
+      data: {
+        id: missionId,
+        title: data.title,
+        description: data.description || `Mission créée depuis match ${matchId}`,
+        category: data.category,
+        price: data.price,
+        latitude: employer?.latitude ?? 0,
+        longitude: employer?.longitude ?? 0,
+        city: employer?.city ?? '',
+        createdByUserId: userId,
+        assignedToUserId: workerId,
+        status: 'assigned',
+        updatedAt: new Date(),
+      },
+    });
+
+    // Mark match as converted
+    await this.prisma.swipeMatch.update({
+      where: { id: matchId },
+      data: { status: 'CONVERTED' },
+    });
+
+    this.logger.log(`Mission ${missionId} created from match ${matchId} (${userId} → ${workerId})`);
+
+    return {
+      missionId: mission.id,
+      matchId,
+      workerId,
+      status: 'assigned',
+    };
+  }
+
+  /**
    * Haversine distance in km between two coordinates
    */
   private haversineDistance(
