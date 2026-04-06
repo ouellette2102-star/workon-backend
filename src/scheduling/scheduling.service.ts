@@ -118,6 +118,102 @@ export class SchedulingService {
     this.logger.log(`Deactivated template ${templateId}`);
   }
 
+  /**
+   * Generate missions from a recurring template
+   * Creates LocalMission instances for the next N occurrences
+   * Includes deduplication: skips dates that already have a mission with the same title
+   */
+  async generateMissionsFromTemplate(
+    templateId: string,
+    workerId: string,
+    options?: { count?: number },
+  ) {
+    const template = await this.prisma.recurringMissionTemplate.findFirst({
+      where: { id: templateId, workerId, isActive: true },
+      include: { worker: { include: { user: true } } },
+    });
+
+    if (!template) {
+      throw new NotFoundException('Active template not found');
+    }
+
+    const count = Math.min(options?.count || 4, 12); // Max 12 at a time
+    const now = new Date();
+    const dates = this.calculateNextDates(template.recurrenceRule, now, count);
+
+    const created: string[] = [];
+
+    for (const scheduledDate of dates) {
+      // Deduplication: check if mission already exists for this date + title
+      const existing = await this.prisma.localMission.findFirst({
+        where: {
+          title: template.title,
+          createdByUserId: workerId,
+          createdAt: {
+            gte: new Date(scheduledDate.getTime() - 24 * 60 * 60 * 1000),
+            lte: new Date(scheduledDate.getTime() + 24 * 60 * 60 * 1000),
+          },
+        },
+      });
+
+      if (existing) {
+        this.logger.log(`Skipping duplicate for ${template.title} on ${scheduledDate.toISOString()}`);
+        continue;
+      }
+
+      const missionId = `lm_rec_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+      await this.prisma.localMission.create({
+        data: {
+          id: missionId,
+          title: template.title,
+          description: `${template.description} (récurrent)`,
+          category: template.categoryId,
+          price: template.price,
+          latitude: 0,
+          longitude: 0,
+          city: '',
+          createdByUserId: workerId,
+          status: 'open',
+          updatedAt: new Date(),
+        },
+      });
+
+      created.push(missionId);
+    }
+
+    this.logger.log(`Generated ${created.length} missions from template ${templateId}`);
+    return { templateId, generated: created.length, missionIds: created };
+  }
+
+  /**
+   * Calculate next occurrence dates based on recurrence rule
+   */
+  private calculateNextDates(rule: RecurrenceRule, from: Date, count: number): Date[] {
+    const dates: Date[] = [];
+    const current = new Date(from);
+
+    for (let i = 0; i < count; i++) {
+      switch (rule) {
+        case RecurrenceRule.WEEKLY:
+          current.setDate(current.getDate() + 7);
+          break;
+        case RecurrenceRule.BIWEEKLY:
+          current.setDate(current.getDate() + 14);
+          break;
+        case RecurrenceRule.MONTHLY:
+          current.setMonth(current.getMonth() + 1);
+          break;
+        case RecurrenceRule.CUSTOM:
+          current.setDate(current.getDate() + 7); // Default to weekly for custom
+          break;
+      }
+      dates.push(new Date(current));
+    }
+
+    return dates;
+  }
+
   // ========================================
   // AVAILABILITY SLOTS
   // ========================================
