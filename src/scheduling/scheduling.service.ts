@@ -452,15 +452,48 @@ export class SchedulingService {
       throw new BadRequestException(`Cannot confirm booking in ${booking.status} status`);
     }
 
-    await this.prisma.booking.update({
-      where: { id: bookingId },
-      data: {
-        status: BookingStatus.CONFIRMED,
-        confirmedAt: new Date(),
-      },
-    });
+    // Create a linked LocalMission for this booking (Booking → Mission pipeline)
+    const missionId = `lm_bk_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
-    this.logger.log(`Booking ${bookingId} confirmed by worker ${workerId}`);
+    try {
+      await this.prisma.localMission.create({
+        data: {
+          id: missionId,
+          title: booking.title,
+          description: booking.description || `Booking confirmé: ${booking.title}`,
+          category: 'booking',
+          price: booking.price,
+          latitude: 0,
+          longitude: 0,
+          city: '',
+          createdByUserId: booking.clientId,
+          assignedToUserId: workerId,
+          status: 'assigned',
+          updatedAt: new Date(),
+        },
+      });
+
+      await this.prisma.booking.update({
+        where: { id: bookingId },
+        data: {
+          status: BookingStatus.CONFIRMED,
+          confirmedAt: new Date(),
+          localMissionId: missionId,
+        },
+      });
+
+      this.logger.log(`Booking ${bookingId} confirmed → LocalMission ${missionId} created`);
+    } catch (error) {
+      // If mission creation fails, still confirm the booking
+      await this.prisma.booking.update({
+        where: { id: bookingId },
+        data: {
+          status: BookingStatus.CONFIRMED,
+          confirmedAt: new Date(),
+        },
+      });
+      this.logger.warn(`Booking ${bookingId} confirmed but mission creation failed: ${error}`);
+    }
   }
 
   /**

@@ -69,14 +69,33 @@ export class SwipeService {
         pictureUrl: true,
         trustTier: true,
         completionScore: true,
+        receivedReviews: {
+          select: { rating: true },
+          where: { moderation: 'OK' },
+        },
       },
-      take: 20,
+      take: 40, // Fetch more, then rank and trim
       orderBy: [{ completionScore: 'desc' }, { createdAt: 'desc' }],
     });
 
-    // If geo filter, compute distances and filter
+    // Compute average rating and enrich candidates
+    let enriched = candidates.map((c) => {
+      const reviews = c.receivedReviews || [];
+      const avgRating = reviews.length > 0
+        ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+        : 0;
+      const { receivedReviews, ...rest } = c;
+      return { ...rest, avgRating: Math.round(avgRating * 10) / 10, reviewCount: reviews.length };
+    });
+
+    // Filter by minimum rating
+    if (filters?.minRating) {
+      enriched = enriched.filter((c) => c.avgRating >= filters.minRating!);
+    }
+
+    // Filter by geo distance
     if (filters?.lat && filters?.lng && filters?.radiusKm) {
-      return candidates.filter((c) => {
+      enriched = enriched.filter((c) => {
         if (!c.latitude || !c.longitude) return false;
         const dist = this.haversineDistance(
           filters.lat!,
@@ -88,7 +107,14 @@ export class SwipeService {
       });
     }
 
-    return candidates;
+    // Sort by composite score: rating weight + completionScore
+    enriched.sort((a, b) => {
+      const scoreA = (a.avgRating * 20) + (a.completionScore || 0);
+      const scoreB = (b.avgRating * 20) + (b.completionScore || 0);
+      return scoreB - scoreA;
+    });
+
+    return enriched.slice(0, 20);
   }
 
   /**
@@ -139,6 +165,10 @@ export class SwipeService {
         });
 
         this.logger.log(`Match created: ${match.id} between ${userId1} and ${userId2}`);
+
+        // Notify both users of the match
+        await this.notifyMatch(swiperId, candidateId, match.id);
+
         return { action, matched: true, matchId: match.id };
       }
     }
@@ -214,5 +244,31 @@ export class SwipeService {
 
   private toRad(deg: number): number {
     return deg * (Math.PI / 180);
+  }
+
+  /**
+   * Log match notification intent for both users.
+   *
+   * NOTE: The Notification model currently only supports Clerk User FK.
+   * Once Notification supports LocalUser, this should create real
+   * notification records + push notifications. For now, logs the intent
+   * so the match event is traceable.
+   */
+  private async notifyMatch(userId1: string, userId2: string, matchId: string) {
+    try {
+      const [user1, user2] = await Promise.all([
+        this.prisma.localUser.findUnique({ where: { id: userId1 }, select: { firstName: true } }),
+        this.prisma.localUser.findUnique({ where: { id: userId2 }, select: { firstName: true } }),
+      ]);
+
+      this.logger.log(
+        `MATCH_NOTIFICATION: match=${matchId} ` +
+        `user1=${userId1}(${user1?.firstName}) ` +
+        `user2=${userId2}(${user2?.firstName}) ` +
+        `— notification pending Notification model LocalUser support`,
+      );
+    } catch (error) {
+      this.logger.warn(`Failed to log match notification: ${error}`);
+    }
   }
 }
