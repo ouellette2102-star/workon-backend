@@ -41,13 +41,15 @@ export class DisputesController {
   @ApiOperation({ summary: 'Open a dispute on a mission' })
   @ApiResponse({ status: 201, description: 'Dispute created' })
   async createDispute(@Request() req: any, @Body() dto: CreateDisputeDto) {
+    const isLocalMission = !!dto.localMissionId;
+
     const dispute = await this.prisma.dispute.create({
       data: {
         id: `disp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         missionId: dto.missionId || undefined,
         localMissionId: dto.localMissionId || undefined,
-        openedById: req.user.sub,
-        localOpenedById: dto.localMissionId ? req.user.sub : undefined,
+        openedById: isLocalMission ? undefined : req.user.sub,
+        localOpenedById: isLocalMission ? req.user.sub : undefined,
         reason: dto.reason,
         updatedAt: new Date(),
       },
@@ -101,23 +103,21 @@ export class DisputesController {
 
     const evidence = await this.prisma.disputeEvidence.create({
       data: {
-        id: `ev_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         disputeId,
-        submittedById: req.user.sub,
-        type: dto.type,
-        content: dto.content,
-        fileUrl: dto.fileUrl,
-        updatedAt: new Date(),
+        uploadedBy: req.user.sub,
+        type: dto.type as any,
+        url: dto.fileUrl || '',
+        description: dto.content,
       },
     });
 
     // Add timeline entry
     await this.prisma.disputeTimeline.create({
       data: {
-        id: `tl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         disputeId,
         action: 'EVIDENCE_ADDED',
-        performedById: req.user.sub,
+        actorId: req.user.sub,
+        actorType: 'user',
         details: `Evidence submitted: ${dto.type}`,
       },
     });
@@ -142,10 +142,10 @@ export class DisputesController {
 
     await this.prisma.disputeTimeline.create({
       data: {
-        id: `tl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         disputeId: id,
         action: 'RESOLVED',
-        performedById: req.user.sub,
+        actorId: req.user.sub,
+        actorType: 'user',
         details: dto.resolution,
       },
     });

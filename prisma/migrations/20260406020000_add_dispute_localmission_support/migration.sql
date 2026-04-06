@@ -14,3 +14,6 @@ ALTER TABLE "disputes" ADD CONSTRAINT "disputes_localOpenedById_fkey" FOREIGN KE
 
 -- Index
 CREATE INDEX "disputes_localMissionId_idx" ON "disputes"("localMissionId");
+
+-- Make openedById optional (nullable) for LocalMission disputes
+ALTER TABLE "disputes" ALTER COLUMN "openedById" DROP NOT NULL;
