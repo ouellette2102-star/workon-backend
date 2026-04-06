@@ -39,6 +39,10 @@ export class SchedulingService {
     maxOccurrences?: number;
     validFrom?: Date;
     validUntil?: Date;
+    latitude?: number;
+    longitude?: number;
+    city?: string;
+    address?: string;
   }) {
     // Verify worker exists
     const worker = await this.prisma.workerProfile.findUnique({
@@ -72,6 +76,10 @@ export class SchedulingService {
         maxOccurrences: data.maxOccurrences,
         validFrom: data.validFrom,
         validUntil: data.validUntil,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        city: data.city,
+        address: data.address,
       },
       include: { category: true },
     });
@@ -170,9 +178,10 @@ export class SchedulingService {
           description: `${template.description} (récurrent)`,
           category: template.categoryId,
           price: template.price,
-          latitude: 0,
-          longitude: 0,
-          city: '',
+          latitude: template.latitude ?? 0,
+          longitude: template.longitude ?? 0,
+          city: template.city ?? '',
+          address: template.address,
           createdByUserId: workerId,
           status: 'open',
           updatedAt: new Date(),
