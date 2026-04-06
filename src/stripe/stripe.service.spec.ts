@@ -107,7 +107,7 @@ describe('StripeService', () => {
           id: 'payment-1',
           missionId: 'mission-1',
           amount: 100,
-          platformFeePct: 12,
+          platformFeePct: 15,
           currency: 'CAD',
           status: PaymentStatus.SUCCEEDED,
           createdAt: new Date(),
