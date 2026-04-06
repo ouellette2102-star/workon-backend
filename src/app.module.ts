@@ -50,6 +50,8 @@ import { LeadsModule } from './leads/leads.module';
 import { PublicModule } from './public/public.module';
 import { DisputesModule } from './disputes/disputes.module';
 import { SwipeModule } from './swipe/swipe.module';
+import { ChatModule } from './chat/chat.module';
+import { AppCacheModule } from './cache/cache.module';
 
 @Module({
   imports: [
@@ -221,6 +223,10 @@ import { SwipeModule } from './swipe/swipe.module';
     DisputesModule,
     // Swipe Discovery - Talent discovery (MAP = find work, SWIPE = find talent)
     SwipeModule,
+    // Real-time WebSocket chat
+    ChatModule,
+    // Cache layer (Redis in production, in-memory in dev)
+    AppCacheModule,
   ],
   controllers: [AppController],
   providers: [

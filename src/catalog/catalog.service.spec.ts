@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CatalogService } from './catalog.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService } from '../cache/cache.service';
 import { Logger } from '@nestjs/common';
 
 describe('CatalogService', () => {
@@ -29,6 +30,7 @@ describe('CatalogService', () => {
       providers: [
         CatalogService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CacheService, useValue: { getOrSet: jest.fn((_key: string, fn: () => any) => fn()), get: jest.fn(), set: jest.fn(), del: jest.fn() } },
       ],
     }).compile();
 
