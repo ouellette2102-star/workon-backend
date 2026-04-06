@@ -69,14 +69,33 @@ export class SwipeService {
         pictureUrl: true,
         trustTier: true,
         completionScore: true,
+        receivedReviews: {
+          select: { rating: true },
+          where: { moderation: 'OK' },
+        },
       },
-      take: 20,
+      take: 40, // Fetch more, then rank and trim
       orderBy: [{ completionScore: 'desc' }, { createdAt: 'desc' }],
     });
 
-    // If geo filter, compute distances and filter
+    // Compute average rating and enrich candidates
+    let enriched = candidates.map((c) => {
+      const reviews = c.receivedReviews || [];
+      const avgRating = reviews.length > 0
+        ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+        : 0;
+      const { receivedReviews, ...rest } = c;
+      return { ...rest, avgRating: Math.round(avgRating * 10) / 10, reviewCount: reviews.length };
+    });
+
+    // Filter by minimum rating
+    if (filters?.minRating) {
+      enriched = enriched.filter((c) => c.avgRating >= filters.minRating!);
+    }
+
+    // Filter by geo distance
     if (filters?.lat && filters?.lng && filters?.radiusKm) {
-      return candidates.filter((c) => {
+      enriched = enriched.filter((c) => {
         if (!c.latitude || !c.longitude) return false;
         const dist = this.haversineDistance(
           filters.lat!,
@@ -88,7 +107,14 @@ export class SwipeService {
       });
     }
 
-    return candidates;
+    // Sort by composite score: rating weight + completionScore
+    enriched.sort((a, b) => {
+      const scoreA = (a.avgRating * 20) + (a.completionScore || 0);
+      const scoreB = (b.avgRating * 20) + (b.completionScore || 0);
+      return scoreB - scoreA;
+    });
+
+    return enriched.slice(0, 20);
   }
 
   /**
