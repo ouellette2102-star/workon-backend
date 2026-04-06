@@ -165,6 +165,10 @@ export class SwipeService {
         });
 
         this.logger.log(`Match created: ${match.id} between ${userId1} and ${userId2}`);
+
+        // Notify both users of the match
+        await this.notifyMatch(swiperId, candidateId, match.id);
+
         return { action, matched: true, matchId: match.id };
       }
     }
@@ -240,5 +244,54 @@ export class SwipeService {
 
   private toRad(deg: number): number {
     return deg * (Math.PI / 180);
+  }
+
+  /**
+   * Create in-app notifications for both users on match
+   */
+  private async notifyMatch(userId1: string, userId2: string, matchId: string) {
+    try {
+      const [user1, user2] = await Promise.all([
+        this.prisma.localUser.findUnique({ where: { id: userId1 }, select: { firstName: true } }),
+        this.prisma.localUser.findUnique({ where: { id: userId2 }, select: { firstName: true } }),
+      ]);
+
+      // Notification for user1
+      await this.prisma.notification.create({
+        data: {
+          id: `notif_match_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+          userId: userId1,
+          type: 'swipe_match',
+          payloadJSON: JSON.stringify({
+            matchId,
+            matchedUserId: userId2,
+            matchedUserName: user2?.firstName || 'Quelqu\'un',
+            message: `Vous avez un match avec ${user2?.firstName || 'un utilisateur'}!`,
+          }),
+          updatedAt: new Date(),
+        },
+      });
+
+      // Notification for user2
+      await this.prisma.notification.create({
+        data: {
+          id: `notif_match_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+          userId: userId2,
+          type: 'swipe_match',
+          payloadJSON: JSON.stringify({
+            matchId,
+            matchedUserId: userId1,
+            matchedUserName: user1?.firstName || 'Quelqu\'un',
+            message: `Vous avez un match avec ${user1?.firstName || 'un utilisateur'}!`,
+          }),
+          updatedAt: new Date(),
+        },
+      });
+
+      this.logger.log(`Match notifications sent for match ${matchId}`);
+    } catch (error) {
+      // Don't fail the match if notifications fail
+      this.logger.warn(`Failed to send match notifications: ${error}`);
+    }
   }
 }
