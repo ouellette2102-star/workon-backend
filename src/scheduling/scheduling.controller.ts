@@ -110,7 +110,7 @@ export class SchedulingController {
   async blockTimeOff(@Request() req: any, @Body() dto: BlockTimeOffDto) {
     return this.schedulingService.blockTimeOff({
       workerId: req.user.sub,
-      specificDate: new Date(dto.specificDate),
+      date: new Date(dto.specificDate),
       startTime: dto.startTime,
       endTime: dto.endTime,
       timezone: dto.timezone,
