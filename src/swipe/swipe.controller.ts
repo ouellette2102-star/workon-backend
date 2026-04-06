@@ -16,6 +16,7 @@ import {
 import { SwipeService } from './swipe.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SwipeActionDto, SwipeCandidatesQueryDto } from './dto/swipe.dto';
+import { CreateMissionFromMatchDto } from './dto/create-mission-from-match.dto';
 
 /**
  * Swipe Discovery Controller
@@ -67,5 +68,20 @@ export class SwipeController {
   @ApiResponse({ status: 200, description: 'Matches list' })
   async getMatches(@Request() req: any) {
     return this.swipeService.getMatches(req.user.sub);
+  }
+
+  @Post('matches/mission')
+  @ApiOperation({
+    summary: 'Create a mission from a match',
+    description: 'Creates an assigned LocalMission from a swipe match. The matched user becomes the worker.',
+  })
+  @ApiResponse({ status: 201, description: 'Mission created from match' })
+  async createMissionFromMatch(@Request() req: any, @Body() dto: CreateMissionFromMatchDto) {
+    return this.swipeService.createMissionFromMatch(req.user.sub, dto.matchId, {
+      title: dto.title,
+      description: dto.description,
+      category: dto.category,
+      price: dto.price,
+    });
   }
 }

@@ -455,6 +455,22 @@ export class SchedulingService {
     // Create a linked LocalMission for this booking (Booking → Mission pipeline)
     const missionId = `lm_bk_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
+    // Fetch client geolocation if available
+    let clientLat = 0;
+    let clientLng = 0;
+    let clientCity = '';
+    if (booking.localClientId) {
+      const client = await this.prisma.localUser.findUnique({
+        where: { id: booking.localClientId },
+        select: { latitude: true, longitude: true, city: true },
+      });
+      if (client) {
+        clientLat = client.latitude ?? 0;
+        clientLng = client.longitude ?? 0;
+        clientCity = client.city ?? '';
+      }
+    }
+
     try {
       await this.prisma.localMission.create({
         data: {
@@ -463,10 +479,10 @@ export class SchedulingService {
           description: booking.description || `Booking confirmé: ${booking.title}`,
           category: 'booking',
           price: booking.price,
-          latitude: 0,
-          longitude: 0,
-          city: '',
-          createdByUserId: booking.clientId,
+          latitude: clientLat,
+          longitude: clientLng,
+          city: clientCity,
+          createdByUserId: booking.localClientId || booking.clientId,
           assignedToUserId: workerId,
           status: 'assigned',
           updatedAt: new Date(),
