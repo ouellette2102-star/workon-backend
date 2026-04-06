@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { SchedulingService } from './scheduling.service';
+import { SchedulingController } from './scheduling.controller';
 import { PrismaModule } from '../prisma/prisma.module';
+import { AuthModule } from '../auth/auth.module';
 
 /**
  * Scheduling Module
@@ -10,14 +12,10 @@ import { PrismaModule } from '../prisma/prisma.module';
  * - Recurring mission templates
  * - Worker availability management
  * - Booking system
- *
- * NOTE: No complex UI yet. This is the backend foundation for:
- * - Advance booking
- * - Recurring services
- * - Calendar integration (future)
  */
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, AuthModule],
+  controllers: [SchedulingController],
   providers: [SchedulingService],
   exports: [SchedulingService],
 })

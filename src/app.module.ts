@@ -48,6 +48,7 @@ import { GhlModule } from './ghl/ghl.module';
 import { ProsModule } from './pros/pros.module';
 import { LeadsModule } from './leads/leads.module';
 import { PublicModule } from './public/public.module';
+import { DisputesModule } from './disputes/disputes.module';
 
 @Module({
   imports: [
@@ -215,6 +216,8 @@ import { PublicModule } from './public/public.module';
     LeadsModule,
     // Public API - No-auth endpoints for frontend landing pages
     PublicModule,
+    // Disputes - Mission dispute management (evidence, resolution, timeline)
+    DisputesModule,
   ],
   controllers: [AppController],
   providers: [

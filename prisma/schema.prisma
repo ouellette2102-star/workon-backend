@@ -170,6 +170,11 @@ model LocalMission {
   offers                LocalOffer[]
   messages              LocalMessage[]
 
+  // Cross-system relations (Review, Booking, Contract)
+  reviews   Review[]
+  bookings  Booking[]
+  contracts Contract[]
+
   @@index([assignedToUserId])
   @@index([category])
   @@index([city])
@@ -293,6 +298,13 @@ model LocalUser {
   messages         LocalMessage[] // Chat messages sent by this user
   leads            Lead[]         // Leads received by this professional
   gallery          ProMedia[]     // Portfolio images
+
+  // Cross-system relations (Review, Booking, Contract support for LocalUser)
+  authoredReviews  Review[]       @relation("reviews_localAuthorId")
+  receivedReviews  Review[]       @relation("reviews_localTargetUserId")
+  bookingsAsClient Booking[]
+  contractsAsEmployer Contract[]  @relation("contracts_localEmployerId")
+  contractsAsWorker   Contract[]  @relation("contracts_localWorkerId")
 
   @@index([active])
   @@index([city])
@@ -447,7 +459,7 @@ model Payment {
   stripeConnectAccountId String?
   amount                 Float
   currency               String        @default("CAD")
-  platformFeePct         Float         @default(10)
+  platformFeePct         Float         @default(15)
   status                 PaymentStatus @default(CREATED)
   lastStripeEventId      String?
   createdAt              DateTime      @default(now())
@@ -473,9 +485,19 @@ model Review {
   mission      Mission?         @relation(fields: [missionId], references: [id])
   targetUser   User             @relation("reviews_targetUserIdTousers", fields: [targetUserId], references: [id], onDelete: Cascade)
 
+  // LocalUser support (optional — for native auth system)
+  localAuthorId     String?
+  localTargetUserId String?
+  localMissionId    String?
+  localAuthor       LocalUser?    @relation("reviews_localAuthorId", fields: [localAuthorId], references: [id], onDelete: SetNull)
+  localTargetUser   LocalUser?    @relation("reviews_localTargetUserId", fields: [localTargetUserId], references: [id], onDelete: SetNull)
+  localMission      LocalMission? @relation(fields: [localMissionId], references: [id], onDelete: SetNull)
+
   @@index([missionId])
   @@index([moderation])
   @@index([targetUserId])
+  @@index([localAuthorId])
+  @@index([localTargetUserId])
   @@map("reviews")
 }
 
@@ -764,9 +786,18 @@ model Contract {
   employer User    @relation("contracts_employerIdTousers", fields: [employerId], references: [id], onDelete: Cascade)
   worker   User    @relation("contracts_workerIdTousers", fields: [workerId], references: [id], onDelete: Cascade)
 
+  // LocalUser/LocalMission support (optional — for native auth system)
+  localMissionId  String?
+  localEmployerId String?
+  localWorkerId   String?
+  localMission    LocalMission? @relation(fields: [localMissionId], references: [id], onDelete: SetNull)
+  localEmployer   LocalUser?    @relation("contracts_localEmployerId", fields: [localEmployerId], references: [id], onDelete: SetNull)
+  localWorker     LocalUser?    @relation("contracts_localWorkerId", fields: [localWorkerId], references: [id], onDelete: SetNull)
+
   @@index([employerId])
   @@index([workerId])
   @@index([status])
+  @@index([localMissionId])
   @@map("contracts")
 }
 
@@ -1230,10 +1261,17 @@ model Booking {
   worker   WorkerProfile             @relation(fields: [workerId], references: [id], onDelete: Cascade)
   template RecurringMissionTemplate? @relation(fields: [templateId], references: [id])
 
+  // LocalUser support (optional — for native auth system)
+  localClientId   String?
+  localMissionId  String?
+  localClient     LocalUser?    @relation(fields: [localClientId], references: [id], onDelete: SetNull)
+  localMission    LocalMission? @relation(fields: [localMissionId], references: [id], onDelete: SetNull)
+
   @@index([clientId])
   @@index([workerId, scheduledAt])
   @@index([status])
   @@index([scheduledAt])
+  @@index([localClientId])
   @@map("bookings")
 }
 
