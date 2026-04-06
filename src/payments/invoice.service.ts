@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 // InvoiceStatus imported from Prisma but managed internally
 import Stripe from 'stripe';
+import { getAppConfig } from '../config/safe-defaults.config';
 
 /**
  * Invoice calculation result
@@ -20,6 +21,7 @@ export interface InvoiceCalculation {
   totalCents: number;
   currency: string;
   description: string;
+  platformFeeRate: number;
 }
 
 /**
@@ -36,11 +38,11 @@ export class InvoiceService {
   private readonly stripe?: Stripe;
   private readonly logger = new Logger(InvoiceService.name);
   
-  // Platform fee: 15% (marketplace model)
-  private readonly PLATFORM_FEE_RATE = 0.15;
-  
-  // Tax rates (Quebec example - TPS 5% + TVQ 9.975%)
-  private readonly TAX_ENABLED = false; // Set to true to enable taxes
+  // Platform fee from centralized config (default 15%)
+  private readonly PLATFORM_FEE_RATE: number;
+
+  // Tax rates (Quebec - TPS 5% + TVQ 9.975%)
+  private readonly TAX_ENABLED: boolean;
   private readonly TPS_RATE = 0.05;
   private readonly TVQ_RATE = 0.09975;
 
@@ -48,13 +50,21 @@ export class InvoiceService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
   ) {
+    const appConfig = getAppConfig();
+    this.PLATFORM_FEE_RATE = appConfig.payments.platformFeePercent / 100;
+    // Default: enabled in production, disabled in dev (override with TAX_ENABLED env var)
+    const taxEnvVar = this.configService.get<string>('TAX_ENABLED');
+    this.TAX_ENABLED = taxEnvVar !== undefined
+      ? taxEnvVar === 'true'
+      : process.env.NODE_ENV === 'production';
+
     const stripeSecretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!stripeSecretKey) {
       this.logger.warn('STRIPE_SECRET_KEY not configured - payment features disabled');
       this.stripe = undefined;
     } else {
       this.stripe = new Stripe(stripeSecretKey);
-      this.logger.log('✅ InvoiceService: Stripe initialized');
+      this.logger.log(`✅ InvoiceService: Stripe initialized (fee: ${this.PLATFORM_FEE_RATE * 100}%, tax: ${this.TAX_ENABLED ? 'ON' : 'OFF'})`);
     }
   }
 
@@ -93,6 +103,7 @@ export class InvoiceService {
       totalCents,
       currency: 'CAD',
       description,
+      platformFeeRate: this.PLATFORM_FEE_RATE,
     };
   }
 
@@ -198,33 +209,65 @@ export class InvoiceService {
     });
 
     // 8. Create Stripe Checkout Session
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+      {
+        price_data: {
+          currency: 'cad',
+          product_data: {
+            name: mission.title,
+            description: `Service: ${mission.category}`,
+          },
+          unit_amount: calculation.subtotalCents,
+        },
+        quantity: 1,
+      },
+      {
+        price_data: {
+          currency: 'cad',
+          product_data: {
+            name: 'WorkOn Platform Fee',
+            description: `Platform service fee (${this.PLATFORM_FEE_RATE * 100}%)`,
+          },
+          unit_amount: calculation.platformFeeCents,
+        },
+        quantity: 1,
+      },
+    ];
+
+    // Add tax line items if taxes are enabled (Quebec TPS/TVQ)
+    if (this.TAX_ENABLED && calculation.taxesCents > 0) {
+      const tpsCents = Math.ceil(calculation.subtotalCents * this.TPS_RATE);
+      const tvqCents = Math.ceil(calculation.subtotalCents * this.TVQ_RATE);
+      lineItems.push(
+        {
+          price_data: {
+            currency: 'cad',
+            product_data: {
+              name: 'TPS (GST)',
+              description: `Taxe sur les produits et services (${this.TPS_RATE * 100}%)`,
+            },
+            unit_amount: tpsCents,
+          },
+          quantity: 1,
+        },
+        {
+          price_data: {
+            currency: 'cad',
+            product_data: {
+              name: 'TVQ (QST)',
+              description: `Taxe de vente du Québec (${this.TVQ_RATE * 100}%)`,
+            },
+            unit_amount: tvqCents,
+          },
+          quantity: 1,
+        },
+      );
+    }
+
     const session = await this.stripe!.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
-      line_items: [
-        {
-          price_data: {
-            currency: 'cad',
-            product_data: {
-              name: mission.title,
-              description: `Service: ${mission.category}`,
-            },
-            unit_amount: calculation.subtotalCents,
-          },
-          quantity: 1,
-        },
-        {
-          price_data: {
-            currency: 'cad',
-            product_data: {
-              name: 'WorkOn Platform Fee',
-              description: `Platform service fee (${this.PLATFORM_FEE_RATE * 100}%)`,
-            },
-            unit_amount: calculation.platformFeeCents,
-          },
-          quantity: 1,
-        },
-      ],
+      line_items: lineItems,
       metadata: {
         invoiceId: invoice.id,
         localMissionId: mission.id,
@@ -336,18 +379,61 @@ export class InvoiceService {
 
     this.logger.log(`Invoice ${invoiceId} marked as PAID`);
 
-    // 4. Update mission status
+    // 4. Update mission status and trigger payout
     if (localMissionId) {
-      await this.prisma.localMission.update({
+      const mission = await this.prisma.localMission.update({
         where: { id: localMissionId },
         data: {
           status: 'paid',
           paidAt: new Date(),
           stripePaymentIntentId: session.payment_intent as string,
         },
+        include: {
+          assignedToUser: {
+            select: { id: true, stripeAccountId: true },
+          },
+        },
       });
 
       this.logger.log(`LocalMission ${localMissionId} status updated to "paid"`);
+
+      // 5. Auto-payout to worker via Stripe Connect (if configured)
+      if (
+        this.stripe &&
+        mission.assignedToUser?.stripeAccountId &&
+        session.payment_intent
+      ) {
+        try {
+          const paymentIntent = await this.stripe.paymentIntents.retrieve(
+            session.payment_intent as string,
+          );
+
+          const workerAmount = invoice.subtotalCents; // Worker gets subtotal (without platform fee)
+
+          await this.stripe.transfers.create({
+            amount: workerAmount,
+            currency: 'cad',
+            destination: mission.assignedToUser.stripeAccountId,
+            transfer_group: `mission_${localMissionId}`,
+            metadata: {
+              invoiceId: invoice.id,
+              missionId: localMissionId,
+              workerId: mission.assignedToUser.id,
+            },
+          });
+
+          this.logger.log(
+            `Payout of ${workerAmount / 100} CAD sent to worker ${mission.assignedToUser.id} ` +
+            `(Stripe account: ${mission.assignedToUser.stripeAccountId})`,
+          );
+        } catch (payoutErr) {
+          this.logger.error(
+            `Failed to create payout for mission ${localMissionId}: ` +
+            `${payoutErr instanceof Error ? payoutErr.message : String(payoutErr)}`,
+          );
+          // Don't fail the webhook — payout can be retried manually
+        }
+      }
     }
   }
 

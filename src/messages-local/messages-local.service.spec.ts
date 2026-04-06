@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { LocalMessageRole, LocalMessageStatus } from '@prisma/client';
 import { Logger } from '@nestjs/common';
+import { ContactFilterService } from '../common/security/contact-filter.service';
 
 describe('MessagesLocalService', () => {
   let service: MessagesLocalService;
@@ -48,6 +49,16 @@ describe('MessagesLocalService', () => {
       providers: [
         MessagesLocalService,
         { provide: PrismaService, useValue: mockPrisma },
+        {
+          provide: ContactFilterService,
+          useValue: {
+            filterMessage: jest.fn().mockReturnValue({
+              filtered: 'test',
+              wasFiltered: false,
+              detectedTypes: [],
+            }),
+          },
+        },
       ],
     }).compile();
 
@@ -69,8 +80,9 @@ describe('MessagesLocalService', () => {
 
       const result = await service.getMessagesForMission('mission_123', 'employer_1');
 
-      expect(result).toHaveLength(1);
-      expect(result[0].content).toBe('Hello!');
+      expect(result.messages).toHaveLength(1);
+      expect(result.messages[0].content).toBe('Hello!');
+      expect(result.hasMore).toBe(false);
     });
 
     it('should return messages for authorized user (worker)', async () => {
@@ -79,7 +91,7 @@ describe('MessagesLocalService', () => {
 
       const result = await service.getMessagesForMission('mission_123', 'worker_1');
 
-      expect(result).toHaveLength(1);
+      expect(result.messages).toHaveLength(1);
     });
 
     it('should throw ForbiddenException for unauthorized user', async () => {

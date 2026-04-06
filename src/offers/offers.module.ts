@@ -4,17 +4,18 @@ import { OffersService } from './offers.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { ComplianceModule } from '../compliance/compliance.module';
+import { IdentityVerificationGuard } from '../identity/guards/identity-verification.guard';
 
 /**
  * Offers Module
  *
  * PROTECTION LÉGALE: Importe ComplianceModule pour activer ConsentGuard.
- * Tous les endpoints d'offres sont protégés par @RequireConsent.
+ * IDENTITY: Workers must verify identity before creating offers.
  */
 @Module({
   imports: [PrismaModule, AuthModule, ComplianceModule],
   controllers: [OffersController],
-  providers: [OffersService],
+  providers: [OffersService, IdentityVerificationGuard],
   exports: [OffersService],
 })
 export class OffersModule {}

@@ -3,6 +3,7 @@ import { OffersController } from './offers.controller';
 import { OffersService } from './offers.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ConsentGuard } from '../compliance/guards/consent.guard';
+import { IdentityVerificationGuard } from '../identity/guards/identity-verification.guard';
 import { OfferStatus } from '@prisma/client';
 
 describe('OffersController', () => {
@@ -40,6 +41,8 @@ describe('OffersController', () => {
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: () => true })
       .overrideGuard(ConsentGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(IdentityVerificationGuard)
       .useValue({ canActivate: () => true })
       .compile();
 

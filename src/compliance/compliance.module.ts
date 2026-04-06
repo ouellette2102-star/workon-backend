@@ -3,6 +3,7 @@ import { ComplianceController } from './compliance.controller';
 import { ComplianceService } from './compliance.service';
 import { LegalComplianceService } from './legal-compliance.service';
 import { ConsentGuard } from './guards/consent.guard';
+import { DataRetentionService } from './data-retention.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule } from '@nestjs/config';
@@ -25,8 +26,8 @@ import { ConfigModule } from '@nestjs/config';
     JwtModule.register({}),
   ],
   controllers: [ComplianceController],
-  providers: [ComplianceService, LegalComplianceService, ConsentGuard],
-  exports: [ComplianceService, LegalComplianceService, ConsentGuard],
+  providers: [ComplianceService, LegalComplianceService, ConsentGuard, DataRetentionService],
+  exports: [ComplianceService, LegalComplianceService, ConsentGuard, DataRetentionService],
 })
 export class ComplianceModule {}
 

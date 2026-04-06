@@ -1,20 +1,20 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { GhlController } from './ghl.controller';
 import { GhlService } from './ghl.service';
+import { GhlWebhookGuard } from './guards/ghl-webhook.guard';
 import { PrismaModule } from '../prisma/prisma.module';
 
 /**
  * GHL Integration Module
  *
  * Handles GoHighLevel webhook integrations via N8N.
- * Provides public endpoints for:
- * - Mission creation from GHL forms
- * - Worker signup from GHL forms
+ * Protected by GhlWebhookGuard (API key or HMAC signature).
  */
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, ConfigModule],
   controllers: [GhlController],
-  providers: [GhlService],
+  providers: [GhlService, GhlWebhookGuard],
   exports: [GhlService],
 })
 export class GhlModule {}

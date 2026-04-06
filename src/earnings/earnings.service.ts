@@ -8,13 +8,13 @@ import {
   EarningStatus,
 } from './dto/earnings-history.dto';
 
+import { getAppConfig } from '../config/safe-defaults.config';
+
 /**
- * Commission rate applied to worker earnings.
- * 15% platform fee = worker gets 85% of mission price.
- *
- * This should eventually come from config/env.
+ * Commission rate from centralized config.
+ * Default: 15% platform fee = worker gets 85% of mission price.
  */
-const COMMISSION_RATE = 0.15;
+const COMMISSION_RATE = getAppConfig().payments.platformFeePercent / 100;
 const CURRENCY = 'CAD';
 
 /**

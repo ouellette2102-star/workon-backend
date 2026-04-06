@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Body,
   UseGuards,
   Req,
@@ -17,6 +18,7 @@ import {
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ComplianceService } from './compliance.service';
+import { DataRetentionService } from './data-retention.service';
 import {
   AcceptComplianceDto,
   AcceptComplianceResponseDto,
@@ -34,7 +36,10 @@ import {
 @ApiTags('Compliance')
 @Controller('api/v1/compliance')
 export class ComplianceController {
-  constructor(private readonly complianceService: ComplianceService) {}
+  constructor(
+    private readonly complianceService: ComplianceService,
+    private readonly dataRetentionService: DataRetentionService,
+  ) {}
 
   /**
    * POST /api/v1/compliance/accept
@@ -168,6 +173,62 @@ et vérifier si le consentement de l'utilisateur est à jour.
   })
   getVersions() {
     return this.complianceService.getActiveVersions();
+  }
+
+  // ========================================
+  // GDPR / Loi 25 — Droits de la personne
+  // ========================================
+
+  /**
+   * GET /api/v1/compliance/my-data
+   * Export all personal data (GDPR Art. 20 / Loi 25)
+   */
+  @Get('my-data')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT')
+  @ApiOperation({
+    summary: 'Exporter mes données personnelles',
+    description: 'Retourne toutes les données personnelles de l\'utilisateur (GDPR Art. 20 / Loi 25 Québec).',
+  })
+  @ApiResponse({ status: 200, description: 'Données exportées' })
+  async exportMyData(@Req() req: Request) {
+    const user = req.user as { sub: string; userId?: string };
+    return this.dataRetentionService.exportUserData(user.userId || user.sub);
+  }
+
+  /**
+   * POST /api/v1/compliance/delete-account
+   * Request account deletion (30-day grace period)
+   */
+  @Post('delete-account')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT')
+  @ApiOperation({
+    summary: 'Demander la suppression de mon compte',
+    description: 'Démarre une période de grâce de 30 jours. Annulable pendant ce délai.',
+  })
+  @ApiResponse({ status: 200, description: 'Suppression planifiée' })
+  async requestAccountDeletion(@Req() req: Request) {
+    const user = req.user as { sub: string; userId?: string };
+    return this.dataRetentionService.requestDeletion(user.userId || user.sub);
+  }
+
+  /**
+   * DELETE /api/v1/compliance/delete-account
+   * Cancel account deletion request
+   */
+  @Delete('delete-account')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT')
+  @ApiOperation({
+    summary: 'Annuler la suppression de mon compte',
+    description: 'Annule la demande de suppression si le délai de grâce n\'est pas expiré.',
+  })
+  @ApiResponse({ status: 200, description: 'Suppression annulée' })
+  async cancelAccountDeletion(@Req() req: Request) {
+    const user = req.user as { sub: string; userId?: string };
+    await this.dataRetentionService.cancelDeletion(user.userId || user.sub);
+    return { success: true, message: 'Suppression annulée' };
   }
 }
 

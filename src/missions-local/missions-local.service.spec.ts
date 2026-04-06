@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { MissionsLocalService } from './missions-local.service';
 import { MissionsLocalRepository } from './missions-local.repository';
+import { InvoiceService } from '../payments/invoice.service';
 
 describe('MissionsLocalService', () => {
   let service: MissionsLocalService;
@@ -78,6 +79,7 @@ describe('MissionsLocalService', () => {
       providers: [
         MissionsLocalService,
         { provide: MissionsLocalRepository, useValue: mockRepo },
+        { provide: InvoiceService, useValue: { calculateInvoice: jest.fn(), createCheckoutSession: jest.fn() } },
       ],
     }).compile();
 

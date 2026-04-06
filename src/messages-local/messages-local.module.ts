@@ -3,22 +3,18 @@ import { MessagesLocalController } from './messages-local.controller';
 import { MessagesLocalService } from './messages-local.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
+import { ContactFilterService } from '../common/security/contact-filter.service';
 
 /**
  * LocalMessages Module - Chat for LocalUser system
- * 
- * Provides messaging functionality for local missions.
- * Uses LocalMission and LocalUser models (not Clerk).
- * 
- * Imports AuthModule for JwtAuthGuard and JwtService (required for protected endpoints).
+ *
+ * Anti-disintermediation: ContactFilterService redacts personal
+ * contact info (phone, email, social handles) from messages.
  */
 @Module({
-  imports: [
-    PrismaModule,
-    AuthModule, // Provides JwtAuthGuard, JwtService for protected endpoints
-  ],
+  imports: [PrismaModule, AuthModule],
   controllers: [MessagesLocalController],
-  providers: [MessagesLocalService],
+  providers: [MessagesLocalService, ContactFilterService],
   exports: [MessagesLocalService],
 })
 export class MessagesLocalModule {}

@@ -3,6 +3,7 @@ import { BadRequestException } from '@nestjs/common';
 import { MissionsLocalService } from './missions-local.service';
 import { MissionsLocalRepository } from './missions-local.repository';
 import { MissionsMapQueryDto } from './dto/missions-map-query.dto';
+import { InvoiceService } from '../payments/invoice.service';
 
 describe('MissionsLocalService - Map Endpoint', () => {
   let service: MissionsLocalService;
@@ -26,6 +27,7 @@ describe('MissionsLocalService - Map Endpoint', () => {
           provide: MissionsLocalRepository,
           useValue: mockRepository,
         },
+        { provide: InvoiceService, useValue: { calculateInvoice: jest.fn(), createCheckoutSession: jest.fn() } },
       ],
     }).compile();
 

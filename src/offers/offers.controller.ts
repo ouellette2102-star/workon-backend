@@ -24,6 +24,7 @@ import { CreateOfferDto } from './dto/create-offer.dto';
 import { OfferResponseDto } from './dto/offer-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ConsentGuard, RequireConsent } from '../compliance/guards/consent.guard';
+import { IdentityVerificationGuard } from '../identity/guards/identity-verification.guard';
 
 /**
  * Offers Controller - Gestion des offres de mission
@@ -47,10 +48,11 @@ export class OffersController {
    * Create a new offer for a mission
    */
   @Post()
+  @UseGuards(IdentityVerificationGuard)
   @ApiOperation({
     summary: 'Create an offer',
     description:
-      'Submit an offer for a mission. Workers can only make one offer per mission.',
+      'Submit an offer for a mission. Workers must have verified identity. One offer per mission.',
   })
   @ApiResponse({
     status: 201,

@@ -4,6 +4,7 @@ import { ComplianceService } from './compliance.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { DataRetentionService } from './data-retention.service';
 import { ACTIVE_LEGAL_VERSIONS } from './compliance.constants';
 
 const mockComplianceService = {
@@ -22,6 +23,7 @@ describe('ComplianceController', () => {
       controllers: [ComplianceController],
       providers: [
         { provide: ComplianceService, useValue: mockComplianceService },
+        { provide: DataRetentionService, useValue: { exportUserData: jest.fn(), requestDeletion: jest.fn(), cancelDeletion: jest.fn() } },
         { provide: JwtService, useValue: { sign: jest.fn(), verify: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
       ],

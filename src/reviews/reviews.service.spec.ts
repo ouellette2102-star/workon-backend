@@ -38,7 +38,9 @@ describe('ReviewsService', () => {
   const mockMission = {
     id: 'mission_1',
     title: 'Test Mission',
-    status: 'completed',
+    status: 'COMPLETED',
+    authorClientId: 'author_1',
+    assigneeWorkerId: 'user_123',
   };
 
   const mockReview = {
@@ -139,20 +141,15 @@ describe('ReviewsService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it('should create review without mission', async () => {
+    it('should throw BadRequestException when missionId is not provided', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
-      mockPrisma.review.create.mockResolvedValue({
-        ...mockReview,
-        missionId: null,
-      });
 
-      const result = await service.create('author_1', {
-        toUserId: 'user_123',
-        rating: 4,
-      });
-
-      expect(result).toBeDefined();
-      expect(mockPrisma.mission.findUnique).not.toHaveBeenCalled();
+      await expect(
+        service.create('author_1', {
+          toUserId: 'user_123',
+          rating: 4,
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

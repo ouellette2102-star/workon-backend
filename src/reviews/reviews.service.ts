@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReviewDto } from './dto/create-review.dto';
@@ -40,30 +41,69 @@ export class ReviewsService {
       );
     }
 
-    // If missionId provided, verify mission exists and is completed
-    if (dto.missionId) {
-      const mission = await this.prisma.mission.findUnique({
-        where: { id: dto.missionId },
-      });
+    // Mission is required — only participants can leave reviews
+    if (!dto.missionId) {
+      throw new BadRequestException(
+        'Un missionId est requis. Seuls les participants de mission peuvent laisser un avis.',
+      );
+    }
 
-      if (!mission) {
-        throw new NotFoundException('Mission non trouvée');
-      }
+    const mission = await this.prisma.mission.findUnique({
+      where: { id: dto.missionId },
+      select: {
+        id: true,
+        status: true,
+        authorClientId: true,
+        assigneeWorkerId: true,
+      },
+    });
 
-      // Check for duplicate review on same mission
-      const existingReview = await this.prisma.review.findFirst({
-        where: {
-          authorId,
-          targetUserId: dto.toUserId,
-          missionId: dto.missionId,
-        },
-      });
+    if (!mission) {
+      throw new NotFoundException('Mission non trouvée');
+    }
 
-      if (existingReview) {
-        throw new ConflictException(
-          'Vous avez déjà laissé un avis pour cette mission',
-        );
-      }
+    // Mission must be completed
+    if (mission.status !== 'COMPLETED') {
+      throw new BadRequestException(
+        'Impossible de laisser un avis avant la complétion de la mission',
+      );
+    }
+
+    // Author must be a participant (employer or worker)
+    const isParticipant =
+      mission.authorClientId === authorId ||
+      mission.assigneeWorkerId === authorId;
+
+    if (!isParticipant) {
+      throw new ForbiddenException(
+        'Seuls les participants de la mission peuvent laisser un avis',
+      );
+    }
+
+    // Target must be the OTHER participant
+    const isTargetParticipant =
+      mission.authorClientId === dto.toUserId ||
+      mission.assigneeWorkerId === dto.toUserId;
+
+    if (!isTargetParticipant) {
+      throw new BadRequestException(
+        'Vous ne pouvez évaluer que l\'autre participant de la mission',
+      );
+    }
+
+    // Check for duplicate review on same mission
+    const existingReview = await this.prisma.review.findFirst({
+      where: {
+        authorId,
+        targetUserId: dto.toUserId,
+        missionId: dto.missionId,
+      },
+    });
+
+    if (existingReview) {
+      throw new ConflictException(
+        'Vous avez déjà laissé un avis pour cette mission',
+      );
     }
 
     const review = await this.prisma.review.create({

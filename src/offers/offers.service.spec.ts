@@ -24,6 +24,9 @@ describe('OffersService', () => {
       update: jest.fn(),
       updateMany: jest.fn(),
     },
+    contract: {
+      create: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
   
