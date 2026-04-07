@@ -17,8 +17,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS "local_users_slug_key" ON "local_users"("slug"
 -- CreateIndex: slug lookup (idempotent)
 CREATE INDEX IF NOT EXISTS "local_users_slug_idx" ON "local_users"("slug");
 
--- CreateTable: leads
-CREATE TABLE "leads" (
+-- CreateTable: leads (idempotent)
+CREATE TABLE IF NOT EXISTS "leads" (
     "id" TEXT NOT NULL,
     "professionalId" TEXT NOT NULL,
     "clientName" TEXT NOT NULL,
@@ -34,11 +34,14 @@ CREATE TABLE "leads" (
     CONSTRAINT "leads_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
-CREATE INDEX "leads_professionalId_idx" ON "leads"("professionalId");
-CREATE INDEX "leads_status_idx" ON "leads"("status");
-CREATE INDEX "leads_createdAt_idx" ON "leads"("createdAt");
-CREATE INDEX "leads_professionalId_clientPhone_createdAt_idx" ON "leads"("professionalId", "clientPhone", "createdAt");
+-- CreateIndex (idempotent)
+CREATE INDEX IF NOT EXISTS "leads_professionalId_idx" ON "leads"("professionalId");
+CREATE INDEX IF NOT EXISTS "leads_status_idx" ON "leads"("status");
+CREATE INDEX IF NOT EXISTS "leads_createdAt_idx" ON "leads"("createdAt");
+CREATE INDEX IF NOT EXISTS "leads_professionalId_clientPhone_createdAt_idx" ON "leads"("professionalId", "clientPhone", "createdAt");
 
--- AddForeignKey
-ALTER TABLE "leads" ADD CONSTRAINT "leads_professionalId_fkey" FOREIGN KEY ("professionalId") REFERENCES "local_users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- AddForeignKey (idempotent via DO block)
+DO $$ BEGIN
+  ALTER TABLE "leads" ADD CONSTRAINT "leads_professionalId_fkey" FOREIGN KEY ("professionalId") REFERENCES "local_users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
