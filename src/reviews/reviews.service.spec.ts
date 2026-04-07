@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ReviewsService } from './reviews.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ReputationService } from '../reputation/reputation.service';
 import {
   NotFoundException,
   ConflictException,
@@ -62,6 +63,10 @@ describe('ReviewsService', () => {
       providers: [
         ReviewsService,
         { provide: PrismaService, useValue: mockPrisma },
+        {
+          provide: ReputationService,
+          useValue: { recomputeForLocalUser: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 

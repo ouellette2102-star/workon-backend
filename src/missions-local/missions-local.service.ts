@@ -12,6 +12,7 @@ import { CreateMissionDto } from './dto/create-mission.dto';
 import { NearbyMissionsQueryDto } from './dto/nearby-missions-query.dto';
 import { MissionsMapQueryDto } from './dto/missions-map-query.dto';
 import { InvoiceService } from '../payments/invoice.service';
+import { ReputationService } from '../reputation/reputation.service';
 
 /**
  * Missions Service - Business logic for mission management
@@ -27,6 +28,7 @@ export class MissionsLocalService {
     private readonly missionsRepository: MissionsLocalRepository,
     @Inject(forwardRef(() => InvoiceService))
     private readonly invoiceService: InvoiceService,
+    private readonly reputationService: ReputationService,
   ) {}
 
   /**
@@ -220,6 +222,16 @@ export class MissionsLocalService {
     } catch (err) {
       // Don't fail mission completion if invoice creation fails (e.g. Stripe not configured)
       this.logger.warn(`Failed to auto-create invoice for mission ${missionId}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // Recompute reputation for both sides of the transaction. Failures must
+    // not block mission completion — reputation is eventually consistent.
+    for (const participantId of [mission.assignedToUserId, mission.createdByUserId].filter(Boolean) as string[]) {
+      try {
+        await this.reputationService.recomputeForLocalUser(participantId);
+      } catch (err) {
+        this.logger.warn(`Failed to recompute reputation for ${participantId}: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
 
     return updated;

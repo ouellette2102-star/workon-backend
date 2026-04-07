@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ConflictException,
   BadRequestException,
@@ -12,11 +13,17 @@ import {
   RatingSummaryDto,
   ReviewAuthorDto,
 } from './dto/review-response.dto';
+import { ReputationService } from '../reputation/reputation.service';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class ReviewsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(ReviewsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly reputationService: ReputationService,
+  ) {}
 
   /**
    * Creates a new review.
@@ -127,6 +134,16 @@ export class ReviewsService {
         },
       },
     });
+
+    // Recompute reputation for the target user. If the legacy review does
+    // not reference a LocalUser, the recompute will be a no-op.
+    try {
+      await this.reputationService.recomputeForLocalUser(dto.toUserId);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to recompute reputation for ${dto.toUserId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
 
     return this.mapToResponse(review);
   }

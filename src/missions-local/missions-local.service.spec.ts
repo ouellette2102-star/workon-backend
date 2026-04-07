@@ -7,6 +7,7 @@ import {
 import { MissionsLocalService } from './missions-local.service';
 import { MissionsLocalRepository } from './missions-local.repository';
 import { InvoiceService } from '../payments/invoice.service';
+import { ReputationService } from '../reputation/reputation.service';
 
 describe('MissionsLocalService', () => {
   let service: MissionsLocalService;
@@ -80,6 +81,7 @@ describe('MissionsLocalService', () => {
         MissionsLocalService,
         { provide: MissionsLocalRepository, useValue: mockRepo },
         { provide: InvoiceService, useValue: { calculateInvoice: jest.fn(), createCheckoutSession: jest.fn() } },
+        { provide: ReputationService, useValue: { recomputeForLocalUser: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
 

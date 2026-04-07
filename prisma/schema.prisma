@@ -286,6 +286,13 @@ model LocalUser {
   trustTier          TrustTier @default(BASIC)
   trustTierUpdatedAt DateTime?
 
+  // Reputation aggregates (materialized by ReputationService on review/mission events)
+  ratingAverage           Float?    // Mean rating across moderation=OK reviews
+  reviewCount             Int       @default(0)
+  completedMissionsCount  Int       @default(0)
+  trustScore              Float?    // Composite 0-100 computed from verif + ratings + completions
+  trustScoreUpdatedAt     DateTime?
+
   // PR-07: Legal Compliance - Terms & Consent
   termsAcceptedAt    DateTime? // When user accepted current terms
   termsVersion       String? // Version of terms accepted (e.g., "1.0.0")
@@ -336,6 +343,7 @@ model LocalUser {
   @@index([slug])
   @@index([deletedAt])
   @@index([trustTier])
+  @@index([trustScore])
   @@index([phoneVerified])
   @@index([idVerificationStatus])
   @@index([deletionScheduledFor])

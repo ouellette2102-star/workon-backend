@@ -52,6 +52,7 @@ import { DisputesModule } from './disputes/disputes.module';
 import { SwipeModule } from './swipe/swipe.module';
 import { ChatModule } from './chat/chat.module';
 import { AppCacheModule } from './cache/cache.module';
+import { ReputationModule } from './reputation/reputation.module';
 
 @Module({
   imports: [
@@ -227,6 +228,8 @@ import { AppCacheModule } from './cache/cache.module';
     ChatModule,
     // Cache layer (Redis in production, in-memory in dev)
     AppCacheModule,
+    // Reputation & trust score aggregates (Sprint 2)
+    ReputationModule,
   ],
   controllers: [AppController],
   providers: [
