@@ -343,7 +343,7 @@ export class PublicService {
       .filter(Boolean)
       .join('\n');
 
-    let missionData: any = {
+    const missionData: any = {
       id: missionId,
       title: dto.title,
       description,
