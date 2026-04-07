@@ -1,12 +1,24 @@
 import {
+  Body,
   Controller,
   Get,
+  HttpCode,
   Param,
+  Post,
   Query,
   Logger,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiQuery,
+  ApiBody,
+} from '@nestjs/swagger';
 import { PublicService } from './public.service';
+import { CreatePublicMissionDto } from './dto/create-public-mission.dto';
 
 @ApiTags('Public')
 @Controller('api/v1/public')
@@ -120,6 +132,35 @@ export class PublicController {
       page: parsedPage,
       limit: parsedLimit,
     });
+  }
+
+  /**
+   * POST /api/v1/public/missions
+   * Create a public mission from the landing page (no auth).
+   *
+   * Rate-limited to 5 requests / minute per IP to prevent spam.
+   * Use `POST /api/v1/leads` instead when the request targets a
+   * specific pro (pro profile page form).
+   */
+  @Post('missions')
+  @HttpCode(201)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Create a public mission from landing',
+    description:
+      'Public endpoint (no auth) that creates an open LocalMission from a ' +
+      'landing-page form submission. Visible in the marketplace immediately. ' +
+      'Rate-limited to 5 requests/minute per IP.',
+  })
+  @ApiBody({ type: CreatePublicMissionDto })
+  @ApiResponse({ status: 201, description: 'Mission created' })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
+  async createPublicMission(@Body() dto: CreatePublicMissionDto) {
+    this.logger.log(
+      `New public mission: "${dto.title}" (${dto.category}) from ${dto.source ?? 'landing'}`,
+    );
+    return this.publicService.createPublicMission(dto);
   }
 
   /**
