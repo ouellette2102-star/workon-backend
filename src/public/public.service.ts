@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CreatePublicMissionDto } from './dto/create-public-mission.dto';
 
 @Injectable()
 export class PublicService {
@@ -259,6 +260,134 @@ export class PublicService {
       })),
       total,
       page: params.page,
+    };
+  }
+
+  // ── Create Public Mission (landing page) ────────────────
+
+  /**
+   * QC city → coordinates lookup for geo-defaulting when the client
+   * does not provide explicit lat/lng. Keep in sync with
+   * LeadsService.QC_CITY_COORDS.
+   */
+  private static readonly QC_CITY_COORDS: Record<
+    string,
+    { lat: number; lng: number }
+  > = {
+    'montréal': { lat: 45.5017, lng: -73.5673 },
+    'montreal': { lat: 45.5017, lng: -73.5673 },
+    'québec': { lat: 46.8139, lng: -71.208 },
+    'quebec': { lat: 46.8139, lng: -71.208 },
+    'laval': { lat: 45.6066, lng: -73.7124 },
+    'gatineau': { lat: 45.4765, lng: -75.7013 },
+    'longueuil': { lat: 45.5312, lng: -73.5185 },
+    'sherbrooke': { lat: 45.4042, lng: -71.8929 },
+    'trois-rivières': { lat: 46.3432, lng: -72.5432 },
+    'trois-rivieres': { lat: 46.3432, lng: -72.5432 },
+    'lévis': { lat: 46.8032, lng: -71.1827 },
+    'levis': { lat: 46.8032, lng: -71.1827 },
+    'terrebonne': { lat: 45.696, lng: -73.6473 },
+    'saint-jean-sur-richelieu': { lat: 45.3073, lng: -73.2628 },
+    'repentigny': { lat: 45.7421, lng: -73.4596 },
+  };
+
+  private normalizeCityKey(city: string): string {
+    return city
+      .toLowerCase()
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+  }
+
+  async createPublicMission(dto: CreatePublicMissionDto) {
+    // Geo-default from city if lat/lng not provided
+    const cityKey = this.normalizeCityKey(dto.city);
+    const coords =
+      dto.latitude != null && dto.longitude != null
+        ? { lat: dto.latitude, lng: dto.longitude }
+        : PublicService.QC_CITY_COORDS[cityKey] ??
+          PublicService.QC_CITY_COORDS['montreal'];
+
+    // Ensure system user exists for landing-originated missions
+    const systemUserId = 'system_public_landing';
+    await this.prisma.localUser.upsert({
+      where: { id: systemUserId },
+      create: {
+        id: systemUserId,
+        firstName: 'WorkOn',
+        lastName: 'Landing',
+        email: 'landing@workon.ca',
+        hashedPassword: 'SYSTEM_ACCOUNT_NO_LOGIN',
+        role: 'employer',
+        active: true,
+        updatedAt: new Date(),
+      },
+      update: {},
+    });
+
+    // Generate mission id
+    const missionId = `lm_public_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
+
+    // Build mission data. Include client contact fields when available
+    // (these columns may or may not exist depending on migration state).
+    const description = [
+      dto.description,
+      '',
+      `Contact: ${dto.clientName} — ${dto.clientPhone}${
+        dto.clientEmail ? ` (${dto.clientEmail})` : ''
+      }`,
+      dto.source ? `Source: ${dto.source}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const missionData: any = {
+      id: missionId,
+      title: dto.title,
+      description,
+      category: dto.category,
+      price: dto.budget ?? 0,
+      latitude: coords.lat,
+      longitude: coords.lng,
+      city: dto.city,
+      address: dto.address,
+      createdByUserId: systemUserId,
+      status: 'open',
+      updatedAt: new Date(),
+    };
+
+    // Attempt to include bridge contact columns; fall back gracefully.
+    try {
+      await this.prisma.localMission.create({
+        data: {
+          ...missionData,
+          clientName: dto.clientName,
+          clientPhone: dto.clientPhone,
+          clientEmail: dto.clientEmail ?? null,
+        },
+      });
+    } catch (err) {
+      this.logger.debug(
+        `Bridge columns failed on public mission create — falling back. err=${
+          (err as Error).message
+        }`,
+      );
+      await this.prisma.localMission.create({ data: missionData });
+    }
+
+    this.logger.log(
+      `Public mission created: ${missionId} (${dto.category}, ${dto.city})`,
+    );
+
+    return {
+      id: missionId,
+      title: dto.title,
+      category: dto.category,
+      city: dto.city,
+      status: 'open',
+      createdAt: new Date().toISOString(),
     };
   }
 
