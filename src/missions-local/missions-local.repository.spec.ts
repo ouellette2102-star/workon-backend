@@ -123,9 +123,15 @@ describe('MissionsLocalRepository', () => {
       expect(result).toHaveLength(1);
     });
 
-    // Helper: concat all Prisma.Sql fragment strings + scalar values from a $queryRaw call
+    // Helper: concat the tagged-template strings AND all Prisma.Sql fragment
+    // strings + scalar values from a $queryRaw call.
     const serializeCall = (call: any[]) => {
       const parts: string[] = [];
+      // First arg is the TemplateStringsArray — include its static SQL chunks.
+      const strings = call[0];
+      if (Array.isArray(strings) || (strings && typeof strings.length === 'number')) {
+        for (const s of strings) parts.push(String(s));
+      }
       for (const v of call.slice(1)) {
         if (v && typeof v === 'object' && 'sql' in v) {
           parts.push(v.sql);
@@ -176,6 +182,25 @@ describe('MissionsLocalRepository', () => {
 
       const serialized = serializeCall(prisma.$queryRaw.mock.calls[0]);
       expect(serialized).toContain('"createdAt" DESC');
+    });
+
+    it('orders by creator trust score when sort=trust', async () => {
+      prisma.$queryRaw.mockResolvedValue([]);
+
+      await repository.findNearby(45.5, -73.6, 10, { sort: 'trust' });
+
+      const serialized = serializeCall(prisma.$queryRaw.mock.calls[0]);
+      expect(serialized).toContain('"creatorTrustScore" DESC NULLS LAST');
+    });
+
+    it('left-joins local_users to expose creator trust columns', async () => {
+      prisma.$queryRaw.mockResolvedValue([]);
+
+      await repository.findNearby(45.5, -73.6, 10);
+
+      const serialized = serializeCall(prisma.$queryRaw.mock.calls[0]);
+      expect(serialized).toContain('LEFT JOIN local_users');
+      expect(serialized).toContain('creatorTrustScore');
     });
 
     it('combines category + query + sort in a single query', async () => {
