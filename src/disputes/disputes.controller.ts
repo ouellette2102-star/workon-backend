@@ -61,6 +61,8 @@ export class DisputesController {
 
   @Get('mission/:missionId')
   @ApiOperation({ summary: 'Get dispute for a mission' })
+  @ApiResponse({ status: 200, description: 'Dispute found' })
+  @ApiResponse({ status: 404, description: 'No dispute for this mission' })
   async getDisputeByMission(@Param('missionId') missionId: string) {
     const dispute = await this.prisma.dispute.findUnique({
       where: { missionId },
@@ -79,6 +81,8 @@ export class DisputesController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get dispute by ID' })
+  @ApiResponse({ status: 200, description: 'Dispute found' })
+  @ApiResponse({ status: 404, description: 'Dispute not found' })
   async getDispute(@Param('id') id: string) {
     const dispute = await this.prisma.dispute.findUnique({
       where: { id },
@@ -97,6 +101,8 @@ export class DisputesController {
 
   @Post(':id/evidence')
   @ApiOperation({ summary: 'Add evidence to a dispute' })
+  @ApiResponse({ status: 201, description: 'Evidence added' })
+  @ApiResponse({ status: 404, description: 'Dispute not found' })
   async addEvidence(@Request() req: any, @Param('id') disputeId: string, @Body() dto: AddEvidenceDto) {
     const dispute = await this.prisma.dispute.findUnique({ where: { id: disputeId } });
     if (!dispute) throw new NotFoundException('Dispute not found');
@@ -127,6 +133,8 @@ export class DisputesController {
 
   @Patch(':id/resolve')
   @ApiOperation({ summary: 'Resolve a dispute' })
+  @ApiResponse({ status: 200, description: 'Dispute resolved' })
+  @ApiResponse({ status: 404, description: 'Dispute not found' })
   async resolveDispute(@Request() req: any, @Param('id') id: string, @Body() dto: ResolveDisputeDto) {
     const dispute = await this.prisma.dispute.findUnique({ where: { id } });
     if (!dispute) throw new NotFoundException('Dispute not found');
