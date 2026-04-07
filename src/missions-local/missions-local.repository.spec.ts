@@ -122,6 +122,78 @@ describe('MissionsLocalRepository', () => {
       expect(prisma.$queryRaw).toHaveBeenCalled();
       expect(result).toHaveLength(1);
     });
+
+    // Helper: concat all Prisma.Sql fragment strings + scalar values from a $queryRaw call
+    const serializeCall = (call: any[]) => {
+      const parts: string[] = [];
+      for (const v of call.slice(1)) {
+        if (v && typeof v === 'object' && 'sql' in v) {
+          parts.push(v.sql);
+          for (const inner of v.values ?? []) {
+            parts.push(String(inner));
+          }
+        } else {
+          parts.push(String(v));
+        }
+      }
+      return parts.join(' ');
+    };
+
+    it('injects category filter into WHERE clause', async () => {
+      prisma.$queryRaw.mockResolvedValue([]);
+
+      await repository.findNearby(45.5, -73.6, 10, { category: 'cleaning' });
+
+      const serialized = serializeCall(prisma.$queryRaw.mock.calls[0]);
+      expect(serialized).toContain('category =');
+      expect(serialized).toContain('cleaning');
+    });
+
+    it('injects text search on title and description', async () => {
+      prisma.$queryRaw.mockResolvedValue([]);
+
+      await repository.findNearby(45.5, -73.6, 10, { query: 'plumber' });
+
+      const serialized = serializeCall(prisma.$queryRaw.mock.calls[0]);
+      expect(serialized).toContain('title ILIKE');
+      expect(serialized).toContain('description ILIKE');
+      expect(serialized).toContain('%plumber%');
+    });
+
+    it('orders by price when sort=price', async () => {
+      prisma.$queryRaw.mockResolvedValue([]);
+
+      await repository.findNearby(45.5, -73.6, 10, { sort: 'price' });
+
+      const serialized = serializeCall(prisma.$queryRaw.mock.calls[0]);
+      expect(serialized).toContain('price DESC');
+    });
+
+    it('orders by createdAt when sort=date', async () => {
+      prisma.$queryRaw.mockResolvedValue([]);
+
+      await repository.findNearby(45.5, -73.6, 10, { sort: 'date' });
+
+      const serialized = serializeCall(prisma.$queryRaw.mock.calls[0]);
+      expect(serialized).toContain('"createdAt" DESC');
+    });
+
+    it('combines category + query + sort in a single query', async () => {
+      prisma.$queryRaw.mockResolvedValue([]);
+
+      await repository.findNearby(45.5, -73.6, 10, {
+        category: 'cleaning',
+        query: 'urgent',
+        sort: 'price',
+      });
+
+      const serialized = serializeCall(prisma.$queryRaw.mock.calls[0]);
+      expect(serialized).toContain('category =');
+      expect(serialized).toContain('cleaning');
+      expect(serialized).toContain('title ILIKE');
+      expect(serialized).toContain('%urgent%');
+      expect(serialized).toContain('price DESC');
+    });
   });
 
   describe('updateStatus', () => {

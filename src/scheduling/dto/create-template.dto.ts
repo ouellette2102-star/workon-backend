@@ -51,4 +51,24 @@ export class CreateTemplateDto {
   @IsDateString()
   @IsOptional()
   validUntil?: string;
+
+  @ApiPropertyOptional({ example: 45.5017, description: 'Default latitude for generated missions' })
+  @IsNumber()
+  @IsOptional()
+  latitude?: number;
+
+  @ApiPropertyOptional({ example: -73.5673, description: 'Default longitude for generated missions' })
+  @IsNumber()
+  @IsOptional()
+  longitude?: number;
+
+  @ApiPropertyOptional({ example: 'Montréal', description: 'Default city for generated missions' })
+  @IsString()
+  @IsOptional()
+  city?: string;
+
+  @ApiPropertyOptional({ example: '1234 Rue Saint-Denis' })
+  @IsString()
+  @IsOptional()
+  address?: string;
 }

@@ -56,6 +56,10 @@ export class SchedulingController {
       maxOccurrences: dto.maxOccurrences,
       validFrom: dto.validFrom ? new Date(dto.validFrom) : undefined,
       validUntil: dto.validUntil ? new Date(dto.validUntil) : undefined,
+      latitude: dto.latitude,
+      longitude: dto.longitude,
+      city: dto.city,
+      address: dto.address,
     });
   }
 

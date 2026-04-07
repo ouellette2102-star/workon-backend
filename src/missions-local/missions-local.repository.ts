@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMissionDto } from './dto/create-mission.dto';
 
@@ -60,9 +61,40 @@ export class MissionsLocalRepository {
     radiusKm: number,
     options?: { sort?: string; category?: string; query?: string; priceMin?: number; priceMax?: number },
   ) {
-    // Build dynamic WHERE conditions for the CTE
     const priceMin = options?.priceMin ?? 0;
     const priceMax = options?.priceMax ?? 999999;
+
+    // Compose WHERE filters dynamically while keeping values parameterized.
+    const conditions: Prisma.Sql[] = [
+      Prisma.sql`status = 'open'`,
+      Prisma.sql`price >= ${priceMin}`,
+      Prisma.sql`price <= ${priceMax}`,
+    ];
+
+    if (options?.category) {
+      conditions.push(Prisma.sql`category = ${options.category}`);
+    }
+    if (options?.query) {
+      const searchPattern = `%${options.query}%`;
+      conditions.push(
+        Prisma.sql`(title ILIKE ${searchPattern} OR description ILIKE ${searchPattern})`,
+      );
+    }
+    const whereClause = Prisma.join(conditions, ' AND ');
+
+    // Dynamic ORDER BY — only whitelisted sort keys reach SQL.
+    let orderBy: Prisma.Sql;
+    switch (options?.sort) {
+      case 'price':
+        orderBy = Prisma.sql`price DESC`;
+        break;
+      case 'date':
+        orderBy = Prisma.sql`"createdAt" DESC`;
+        break;
+      case 'distance':
+      default:
+        orderBy = Prisma.sql`"distanceKm" ASC`;
+    }
 
     const missions = await this.prisma.$queryRaw<any[]>`
       WITH distances AS (
@@ -91,13 +123,11 @@ export class MissionsLocalRepository {
             )
           ) AS "distanceKm"
         FROM local_missions
-        WHERE status = 'open'
-          AND price >= ${priceMin}
-          AND price <= ${priceMax}
+        WHERE ${whereClause}
       )
       SELECT * FROM distances
       WHERE "distanceKm" <= ${radiusKm}
-      ORDER BY "distanceKm" ASC
+      ORDER BY ${orderBy}
       LIMIT 50
     `;
 
