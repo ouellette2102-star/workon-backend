@@ -296,6 +296,9 @@ info "Step 3: Protected Endpoints"
 test_endpoint "Current user (/auth/me)" "GET" "/api/v1/auth/me" "" "200" "true"
 test_endpoint "User profile (/profile)" "GET" "/api/v1/profile" "" "200,404" "true"
 
+# Sprint 2 — reputation endpoint should be wired and return 404 for unknown ids.
+test_endpoint "Reputation 404 (/reputation/users/:id)" "GET" "/api/v1/reputation/users/nonexistent-smoke-id" "" "404" "false"
+
 # --------------------------------------------
 # STEP 4: CLEANUP
 # --------------------------------------------

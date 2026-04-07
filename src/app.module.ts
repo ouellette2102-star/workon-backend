@@ -18,7 +18,6 @@ import { ProfileModule } from './profile/profile.module';
 import { MessagesModule } from './messages/messages.module';
 import { MessagesLocalModule } from './messages-local/messages-local.module';
 import { NotificationsModule } from './notifications/notifications.module';
-// import { MissionTimeLogsModule } from './mission-time-logs/mission-time-logs.module';
 import { StripeModule } from './stripe/stripe.module';
 import { validate } from './config/env.validation';
 import { UsersModule } from './users/users.module';
@@ -172,7 +171,6 @@ import { ReputationModule } from './reputation/reputation.module';
     StripeModule,
     AdminModule,
     ProfileModule,
-    // MissionTimeLogsModule,
     // Health check
     HealthModule,
     // ============================================================

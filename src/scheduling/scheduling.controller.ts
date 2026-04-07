@@ -65,12 +65,15 @@ export class SchedulingController {
 
   @Get('templates')
   @ApiOperation({ summary: 'Get worker recurring templates' })
+  @ApiResponse({ status: 200, description: 'List of templates' })
   async getTemplates(@Request() req: any) {
     return this.schedulingService.getWorkerTemplates(req.user.sub);
   }
 
   @Patch('templates/:id/deactivate')
   @ApiOperation({ summary: 'Deactivate a recurring template' })
+  @ApiResponse({ status: 200, description: 'Template deactivated' })
+  @ApiResponse({ status: 404, description: 'Template not found' })
   async deactivateTemplate(@Request() req: any, @Param('id') id: string) {
     return this.schedulingService.deactivateTemplate(id, req.user.sub);
   }
@@ -96,6 +99,7 @@ export class SchedulingController {
 
   @Post('availability')
   @ApiOperation({ summary: 'Set worker availability slots' })
+  @ApiResponse({ status: 201, description: 'Availability slots persisted' })
   async setAvailability(@Request() req: any, @Body() dto: SetAvailabilityDto) {
     return this.schedulingService.setAvailability({
       workerId: req.user.sub,
@@ -105,12 +109,14 @@ export class SchedulingController {
 
   @Get('availability')
   @ApiOperation({ summary: 'Get worker availability' })
+  @ApiResponse({ status: 200, description: 'Weekly availability slots' })
   async getAvailability(@Request() req: any) {
     return this.schedulingService.getWorkerAvailability(req.user.sub);
   }
 
   @Post('availability/block')
   @ApiOperation({ summary: 'Block a time slot (time off)' })
+  @ApiResponse({ status: 201, description: 'Time off block persisted' })
   async blockTimeOff(@Request() req: any, @Body() dto: BlockTimeOffDto) {
     return this.schedulingService.blockTimeOff({
       workerId: req.user.sub,
@@ -145,12 +151,16 @@ export class SchedulingController {
 
   @Patch('bookings/:id/confirm')
   @ApiOperation({ summary: 'Confirm a booking (worker)' })
+  @ApiResponse({ status: 200, description: 'Booking confirmed' })
+  @ApiResponse({ status: 404, description: 'Booking not found' })
   async confirmBooking(@Request() req: any, @Param('id') id: string) {
     return this.schedulingService.confirmBooking(id, req.user.sub);
   }
 
   @Patch('bookings/:id/cancel')
   @ApiOperation({ summary: 'Cancel a booking' })
+  @ApiResponse({ status: 200, description: 'Booking cancelled' })
+  @ApiResponse({ status: 404, description: 'Booking not found' })
   async cancelBooking(@Request() req: any, @Param('id') id: string, @Body() body: {
     reason?: string;
   }) {
@@ -159,12 +169,15 @@ export class SchedulingController {
 
   @Patch('bookings/:id/complete')
   @ApiOperation({ summary: 'Complete a booking (worker)' })
+  @ApiResponse({ status: 200, description: 'Booking completed' })
+  @ApiResponse({ status: 404, description: 'Booking not found' })
   async completeBooking(@Request() req: any, @Param('id') id: string) {
     return this.schedulingService.completeBooking(id, req.user.sub);
   }
 
   @Get('bookings/mine')
   @ApiOperation({ summary: 'Get my bookings (as client)' })
+  @ApiResponse({ status: 200, description: 'Bookings where caller is the client' })
   async getMyBookings(
     @Request() req: any,
     @Query('status') status?: BookingStatus,
@@ -178,6 +191,7 @@ export class SchedulingController {
 
   @Get('bookings/worker')
   @ApiOperation({ summary: 'Get my bookings (as worker)' })
+  @ApiResponse({ status: 200, description: 'Bookings where caller is the worker' })
   async getWorkerBookings(
     @Request() req: any,
     @Query('status') status?: BookingStatus,
