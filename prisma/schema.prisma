@@ -191,6 +191,10 @@ model LocalMission {
   @@index([status])
   @@index([stripePaymentIntentId])
   @@index([leadId])
+  // Sprint 3 — hot-path composite indexes for bbox/feed + worker history.
+  @@index([status, createdAt])
+  @@index([assignedToUserId, updatedAt])
+  @@index([price])
   @@map("local_missions")
 }
 

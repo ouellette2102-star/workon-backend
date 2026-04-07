@@ -74,6 +74,7 @@ export class SwipeService {
         bio: true,
         pictureUrl: true,
         trustTier: true,
+        trustScore: true,
         completionScore: true,
         receivedReviews: {
           select: { rating: true },
@@ -113,10 +114,14 @@ export class SwipeService {
       });
     }
 
-    // Sort by composite score: rating weight + completionScore
+    // Sort by composite score: rating (0-100) + completionScore + trustScore.
+    // trustScore (0-100) reflects verification depth + volume and prevents
+    // unverified high-rated accounts from dominating brand-new users.
     enriched.sort((a, b) => {
-      const scoreA = (a.avgRating * 20) + (a.completionScore || 0);
-      const scoreB = (b.avgRating * 20) + (b.completionScore || 0);
+      const scoreA =
+        a.avgRating * 20 + (a.completionScore || 0) + (a.trustScore || 0);
+      const scoreB =
+        b.avgRating * 20 + (b.completionScore || 0) + (b.trustScore || 0);
       return scoreB - scoreA;
     });
 
