@@ -45,6 +45,13 @@ import { SchedulingModule } from './scheduling/scheduling.module';
 import { ProductionConfigModule } from './config/production-config.module';
 import { MessagesLocalModule } from './messages-local/messages-local.module';
 import { ChatModule } from './chat/chat.module';
+import { PublicModule } from './public/public.module';
+import { DisputesModule } from './disputes/disputes.module';
+import { LeadsModule } from './leads/leads.module';
+import { ProsModule } from './pros/pros.module';
+import { SwipeModule } from './swipe/swipe.module';
+import { MissionsMapModule } from './missions-map/missions-map.module';
+import { GhlModule } from './ghl/ghl.module';
 
 @Module({
   imports: [
@@ -204,6 +211,20 @@ import { ChatModule } from './chat/chat.module';
     MessagesLocalModule,
     // Chat module - Socket.IO WebSocket gateway for real-time chat (PR-98)
     ChatModule,
+    // Public read-only endpoints (public mission listings)
+    PublicModule,
+    // Disputes module - Mission dispute resolution
+    DisputesModule,
+    // Leads module - Lead tracking & management
+    LeadsModule,
+    // Pros module - Professional worker registration
+    ProsModule,
+    // Swipe module - Tinder-style talent discovery
+    SwipeModule,
+    // Missions map module - Geo-based mission discovery
+    MissionsMapModule,
+    // GHL module - GoHighLevel webhook integration
+    GhlModule,
   ],
   controllers: [AppController],
   providers: [
