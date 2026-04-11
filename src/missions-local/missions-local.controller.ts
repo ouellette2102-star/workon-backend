@@ -15,7 +15,7 @@ import {
   ApiBearerAuth,
   ApiQuery,
 } from '@nestjs/swagger';
-import { MissionsLocalService } from './missions-local.service';
+import { MissionsLocalService, type ExpressDispatchDto } from './missions-local.service';
 import { CreateMissionDto } from './dto/create-mission.dto';
 import { NearbyMissionsQueryDto } from './dto/nearby-missions-query.dto';
 import { MissionsMapQueryDto } from './dto/missions-map-query.dto';
@@ -30,6 +30,28 @@ import { plainToInstance } from 'class-transformer';
 @ApiBearerAuth()
 export class MissionsLocalController {
   constructor(private readonly missionsService: MissionsLocalService) {}
+
+  @Post('express')
+  @ApiOperation({
+    summary: 'Express Dispatch — create mission + notify nearby workers',
+    description:
+      'Creates an open mission and notifies nearby workers (25km radius). ' +
+      'First worker to accept gets the mission (Uber model).',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Mission created, workers notified',
+  })
+  async expressDispatch(
+    @Body() dto: { category: string; description: string; city: string; budget: number; latitude: number; longitude: number },
+    @Request() req: any,
+  ) {
+    return this.missionsService.expressDispatch(
+      dto as ExpressDispatchDto,
+      req.user.sub,
+      req.user.role,
+    );
+  }
 
   @Post()
   @ApiOperation({
