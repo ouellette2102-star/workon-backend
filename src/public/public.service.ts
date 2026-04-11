@@ -126,10 +126,7 @@ export class PublicService {
         trustTier: true,
         createdAt: true,
         active: true,
-        gallery: {
-          orderBy: { sortOrder: 'asc' },
-          select: { imageUrl: true },
-        },
+        gallery: true,
       },
     });
 
@@ -161,7 +158,7 @@ export class PublicService {
       sectors: worker.category ? [worker.category] : [],
       memberSince: worker.createdAt.toISOString(),
       reviews: [],
-      portfolioPhotos: worker.gallery.map((g) => g.imageUrl),
+      portfolioPhotos: worker.gallery,
     };
   }
 

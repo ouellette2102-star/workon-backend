@@ -160,7 +160,7 @@ export class DataRetentionService {
         createdMissions: { select: { id: true, title: true, status: true, createdAt: true } },
         assignedMissions: { select: { id: true, title: true, status: true, createdAt: true } },
         offers: { select: { id: true, missionId: true, price: true, status: true, createdAt: true } },
-        messages: { select: { id: true, content: true, createdAt: true } },
+        sentMessages: { select: { id: true, content: true, createdAt: true } },
         devices: { select: { id: true, platform: true, createdAt: true } },
       },
     });
@@ -205,7 +205,7 @@ export class DataRetentionService {
         assigned: user.assignedMissions,
       },
       offers: user.offers,
-      messages: user.messages,
+      messages: user.sentMessages,
       devices: user.devices,
     };
   }

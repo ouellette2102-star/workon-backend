@@ -126,11 +126,11 @@ export class ProsService {
       phoneVerified: true,
       createdAt: true,
       active: true,
-      gallery: {
+      proMedia: {
         orderBy: { sortOrder: 'asc' as const },
         select: {
           id: true,
-          imageUrl: true,
+          url: true,
           caption: true,
           type: true,
         },
@@ -155,7 +155,7 @@ export class ProsService {
     }
 
     const leadCount = await this.prisma.lead.count({
-      where: { professionalId: pro.id },
+      where: { userId: pro.id },
     });
 
     return {
@@ -173,7 +173,7 @@ export class ProsService {
       verified: pro.phoneVerified || pro.trustTier !== 'BASIC',
       memberSince: pro.createdAt,
       demandCount: leadCount,
-      gallery: pro.gallery,
+      gallery: pro.proMedia,
     };
   }
 
@@ -185,17 +185,17 @@ export class ProsService {
     if (!pro) throw new NotFoundException('Professionnel introuvable');
 
     const maxSort = await this.prisma.proMedia.aggregate({
-      where: { professionalId: proId },
+      where: { userId: proId },
       _max: { sortOrder: true },
     });
 
     return this.prisma.proMedia.create({
       data: {
-        professionalId: proId,
-        imageUrl,
+        userId: proId,
+        url: imageUrl,
         caption: caption || null,
         type,
-        sortOrder: (maxSort._max.sortOrder ?? -1) + 1,
+        sortOrder: ((maxSort._max?.sortOrder) ?? -1) + 1,
       },
     });
   }

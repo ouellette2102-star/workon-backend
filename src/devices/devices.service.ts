@@ -68,29 +68,27 @@ export class DevicesService {
 
     const device = await this.prisma.localDevice.upsert({
       where: {
-        userId_deviceId: {
+        userId_token: {
           userId,
-          deviceId: dto.deviceId,
+          token: dto.pushToken ?? '',
         },
       },
       update: {
         platform: dto.platform,
-        pushToken: dto.pushToken,
-        appVersion: dto.appVersion,
-        lastSeenAt: new Date(),
+        token: dto.pushToken ?? '',
+        name: dto.appVersion,
+        updatedAt: new Date(),
         active: true,
       },
       create: {
         userId,
-        deviceId: dto.deviceId,
         platform: dto.platform,
-        pushToken: dto.pushToken,
-        appVersion: dto.appVersion,
-        lastSeenAt: new Date(),
+        token: dto.pushToken ?? '',
+        name: dto.appVersion,
       },
     });
 
-    return this.mapToResponse(device);
+    return this.mapLocalToResponse(device);
   }
 
   /**
@@ -104,9 +102,9 @@ export class DevicesService {
           userId,
           active: true,
         },
-        orderBy: { lastSeenAt: 'desc' },
+        orderBy: { updatedAt: 'desc' },
       });
-      return devices.map((d) => this.mapToResponse(d));
+      return devices.map((d) => this.mapLocalToResponse(d));
     }
 
     const devices = await this.prisma.device.findMany({
@@ -174,7 +172,7 @@ export class DevicesService {
       const device = await this.prisma.localDevice.findFirst({
         where: {
           userId,
-          deviceId,
+          id: deviceId,
           active: true,
         },
       });
@@ -186,12 +184,12 @@ export class DevicesService {
       const updated = await this.prisma.localDevice.update({
         where: { id: device.id },
         data: {
-          pushToken,
-          lastSeenAt: new Date(),
+          token: pushToken,
+          updatedAt: new Date(),
         },
       });
 
-      return this.mapToResponse(updated);
+      return this.mapLocalToResponse(updated);
     }
 
     const device = await this.prisma.device.findFirst({
@@ -227,14 +225,14 @@ export class DevicesService {
         where: {
           userId,
           active: true,
-          pushToken: { not: null },
+          token: { not: '' },
         },
-        select: { pushToken: true },
+        select: { token: true },
       });
 
       return devices
-        .map((d) => d.pushToken)
-        .filter((token): token is string => token !== null);
+        .map((d) => d.token)
+        .filter((t): t is string => t !== null && t !== '');
     }
 
     const devices = await this.prisma.device.findMany({
@@ -249,6 +247,29 @@ export class DevicesService {
     return devices
       .map((d) => d.pushToken)
       .filter((token): token is string => token !== null);
+  }
+
+  private mapLocalToResponse(device: {
+    id: string;
+    userId: string;
+    platform: string;
+    token: string;
+    name: string | null;
+    active: boolean;
+    updatedAt: Date;
+    createdAt: Date;
+  }): DeviceResponseDto {
+    return {
+      id: device.id,
+      userId: device.userId,
+      deviceId: device.id,
+      platform: device.platform,
+      pushToken: device.token || undefined,
+      appVersion: device.name ?? undefined,
+      active: device.active,
+      lastSeenAt: device.updatedAt,
+      createdAt: device.createdAt,
+    };
   }
 
   private mapToResponse(device: {

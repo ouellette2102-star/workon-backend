@@ -60,8 +60,8 @@ export class LeadsService {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const duplicate = await this.prisma.lead.findFirst({
       where: {
-        professionalId: dto.professionalId,
-        clientPhone: normalizedPhone,
+        userId: dto.professionalId,
+        phone: normalizedPhone,
         createdAt: { gte: sevenDaysAgo },
       },
     });
@@ -75,12 +75,12 @@ export class LeadsService {
     // 4. Create lead
     const lead = await this.prisma.lead.create({
       data: {
-        professionalId: dto.professionalId,
-        clientName: dto.clientName.trim(),
-        clientPhone: normalizedPhone,
-        clientEmail: dto.clientEmail?.toLowerCase().trim() || null,
-        serviceRequested: dto.serviceRequested.trim(),
-        message: dto.message?.trim() || null,
+        userId: dto.professionalId,
+        name: dto.clientName.trim(),
+        phone: normalizedPhone,
+        email: dto.clientEmail?.toLowerCase().trim() || null,
+        category: dto.serviceRequested.trim(),
+        description: dto.message?.trim() || null,
         source: dto.source || 'organic',
         status: LeadStatus.NEW,
       },
@@ -106,7 +106,7 @@ export class LeadsService {
     this.sendProNotificationEmail(lead, pro).catch((err) =>
       this.logger.warn(`Pro notification email failed: ${err.message}`),
     );
-    if (lead.clientEmail) {
+    if (lead.email) {
       this.sendClientConfirmationEmail(lead, pro).catch((err) =>
         this.logger.warn(`Client confirmation email failed: ${err.message}`),
       );
@@ -135,16 +135,16 @@ export class LeadsService {
         skip: offset,
         select: {
           id: true,
-          clientName: true,
-          clientPhone: true,
-          clientEmail: true,
-          serviceRequested: true,
-          message: true,
+          name: true,
+          phone: true,
+          email: true,
+          category: true,
+          description: true,
           status: true,
           source: true,
           createdAt: true,
-          professionalId: true,
-          professional: {
+          userId: true,
+          user: {
             select: {
               firstName: true,
               lastName: true,
@@ -163,7 +163,7 @@ export class LeadsService {
    * Get all leads for a professional
    */
   async getLeadsByPro(proId: string, status?: LeadStatus) {
-    const where: Record<string, unknown> = { professionalId: proId };
+    const where: Record<string, unknown> = { userId: proId };
     if (status) where.status = status;
 
     const leads = await this.prisma.lead.findMany({
@@ -171,11 +171,11 @@ export class LeadsService {
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
-        clientName: true,
-        clientPhone: true,
-        clientEmail: true,
-        serviceRequested: true,
-        message: true,
+        name: true,
+        phone: true,
+        email: true,
+        category: true,
+        description: true,
         status: true,
         source: true,
         createdAt: true,
@@ -239,11 +239,11 @@ export class LeadsService {
   private async autoConvertLeadToMission(
     lead: {
       id: string;
-      clientName: string;
-      clientPhone: string;
-      clientEmail: string | null;
-      serviceRequested: string;
-      message: string | null;
+      name: string;
+      phone: string | null;
+      email: string | null;
+      category: string | null;
+      description: string | null;
     },
     pro: {
       id: string;
@@ -255,7 +255,7 @@ export class LeadsService {
   ): Promise<void> {
     // Check if this lead was already converted (graceful if leadId column not yet migrated)
     try {
-      const existingMission = await this.prisma.localMission.findUnique({
+      const existingMission = await this.prisma.localMission.findFirst({
         where: { leadId: lead.id },
       });
       if (existingMission) {
@@ -274,13 +274,13 @@ export class LeadsService {
       || LeadsService.QC_CITY_COORDS['montreal'];
 
     // Map serviceRequested to a category
-    const category = this.mapServiceToCategory(lead.serviceRequested, pro.category);
+    const category = this.mapServiceToCategory(lead.category ?? '', pro.category ?? '');
 
     // Build mission title and description
-    const title = `${lead.serviceRequested} — ${city}`;
-    const description = [
-      `Demande de ${lead.clientName} pour : ${lead.serviceRequested}.`,
-      lead.message ? `\nDétails : ${lead.message}` : '',
+    const title = `${lead.category} — ${city}`;
+    const missionDescription = [
+      `Demande de ${lead.name} pour : ${lead.category}.`,
+      lead.description ? `\nDétails : ${lead.description}` : '',
       `\nCréée automatiquement à partir d'une demande client via WorkOn.`,
     ].filter(Boolean).join('');
 
@@ -307,7 +307,7 @@ export class LeadsService {
     let missionData: any = {
       id: missionId,
       title,
-      description,
+      description: missionDescription,
       category,
       price: 0, // Price TBD — pro will quote
       latitude: coords.lat,
@@ -323,15 +323,15 @@ export class LeadsService {
       missionData = {
         ...missionData,
         leadId: lead.id,
-        clientName: lead.clientName,
-        clientPhone: lead.clientPhone,
-        clientEmail: lead.clientEmail,
+        clientName: lead.name,
+        clientPhone: lead.phone,
+        clientEmail: lead.email,
       };
       await this.prisma.localMission.create({ data: missionData });
     } catch (err) {
       // Fallback: create without bridge fields, append contact info to description
       this.logger.debug('Bridge fields failed, falling back to description-only');
-      const fallbackDescription = `${description}\n\nContact: ${lead.clientName} — ${lead.clientPhone}${lead.clientEmail ? ` (${lead.clientEmail})` : ''}`;
+      const fallbackDescription = `${missionDescription}\n\nContact: ${lead.name} — ${lead.phone}${lead.email ? ` (${lead.email})` : ''}`;
       missionData = {
         id: missionId,
         title,
@@ -378,7 +378,7 @@ export class LeadsService {
     const lead = await this.prisma.lead.findUnique({
       where: { id: leadId },
       include: {
-        professional: {
+        user: {
           select: { id: true, firstName: true, lastName: true, city: true, category: true },
         },
       },
@@ -387,21 +387,21 @@ export class LeadsService {
     if (!lead) throw new NotFoundException('Demande introuvable');
 
     // Check if already converted
-    const existingMission = await this.prisma.localMission.findUnique({
+    const existingMission = await this.prisma.localMission.findFirst({
       where: { leadId },
     });
     if (existingMission) {
       throw new ConflictException('Cette demande a déjà été convertie en mission');
     }
 
-    const city = params.city || lead.professional.city || 'Montréal';
+    const city = params.city || lead.user?.city || 'Montréal';
     const normalizedCity = city.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const coords = params.latitude && params.longitude
       ? { lat: params.latitude, lng: params.longitude }
       : LeadsService.QC_CITY_COORDS[normalizedCity] || LeadsService.QC_CITY_COORDS['montreal'];
 
-    const category = params.category || this.mapServiceToCategory(lead.serviceRequested, lead.professional.category);
-    const title = params.title || `${lead.serviceRequested} — ${city}`;
+    const category = params.category || this.mapServiceToCategory(lead.category ?? '', lead.user?.category ?? '');
+    const title = params.title || `${lead.category} — ${city}`;
 
     const systemUserId = 'system_lead_bridge';
     await this.prisma.localUser.upsert({
@@ -426,8 +426,8 @@ export class LeadsService {
         id: missionId,
         title,
         description: [
-          `Demande de ${lead.clientName} pour : ${lead.serviceRequested}.`,
-          lead.message ? `\nDétails : ${lead.message}` : '',
+          `Demande de ${lead.name} pour : ${lead.category}.`,
+          lead.description ? `\nDétails : ${lead.description}` : '',
         ].filter(Boolean).join(''),
         category,
         price: params.price ?? 0,
@@ -437,9 +437,9 @@ export class LeadsService {
         address: params.address || null,
         createdByUserId: systemUserId,
         leadId: lead.id,
-        clientName: lead.clientName,
-        clientPhone: lead.clientPhone,
-        clientEmail: lead.clientEmail,
+        clientName: lead.name,
+        clientPhone: lead.phone,
+        clientEmail: lead.email,
         status: 'open',
         updatedAt: new Date(),
       },
@@ -495,7 +495,7 @@ export class LeadsService {
   // ── Webhooks (non-blocking) ──────────────────────────────
 
   private async fireGhlWebhook(
-    lead: { id: string; clientName: string; clientPhone: string; clientEmail: string | null; serviceRequested: string; message: string | null },
+    lead: { id: string; name: string; phone: string | null; email: string | null; category: string | null; description: string | null },
     pro: { id: string; firstName: string; lastName: string; email: string; phone: string | null },
   ): Promise<void> {
     if (!GHL_WEBHOOK_URL) {
@@ -507,11 +507,11 @@ export class LeadsService {
       type: 'new_lead',
       lead: {
         id: lead.id,
-        clientName: lead.clientName,
-        clientPhone: lead.clientPhone,
-        clientEmail: lead.clientEmail,
-        serviceRequested: lead.serviceRequested,
-        message: lead.message,
+        clientName: lead.name,
+        clientPhone: lead.phone,
+        clientEmail: lead.email,
+        serviceRequested: lead.category,
+        message: lead.description,
       },
       professional: {
         id: pro.id,
@@ -532,7 +532,7 @@ export class LeadsService {
   }
 
   private async fireN8nLeadWebhook(
-    lead: { id: string; clientName: string; clientPhone: string; serviceRequested: string },
+    lead: { id: string; name: string; phone: string | null; category: string | null },
     pro: { id: string; firstName: string; lastName: string; email: string; phone: string | null },
   ): Promise<void> {
     if (!N8N_WEBHOOK_BASE) return;
@@ -542,9 +542,9 @@ export class LeadsService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         leadId: lead.id,
-        clientName: lead.clientName,
-        clientPhone: lead.clientPhone,
-        serviceRequested: lead.serviceRequested,
+        clientName: lead.name,
+        clientPhone: lead.phone,
+        serviceRequested: lead.category,
         proId: pro.id,
         proName: `${pro.firstName} ${pro.lastName}`,
         proEmail: pro.email,
@@ -558,7 +558,7 @@ export class LeadsService {
   // ── Email Notifications (SendGrid) ──────────────────────
 
   private async sendProNotificationEmail(
-    lead: { id: string; clientName: string; clientPhone: string; serviceRequested: string; message: string | null },
+    lead: { id: string; name: string; phone: string | null; category: string | null; description: string | null },
     pro: { id: string; firstName: string; lastName: string; email: string },
   ): Promise<void> {
     if (!SENDGRID_API_KEY) {
@@ -569,16 +569,16 @@ export class LeadsService {
     await sgMail.send({
       to: pro.email,
       from: { email: SENDGRID_FROM_EMAIL, name: 'WorkOn' },
-      subject: `Nouvelle demande : ${lead.clientName} cherche ${lead.serviceRequested}`,
+      subject: `Nouvelle demande : ${lead.name} cherche ${lead.category}`,
       text: [
         `Bonjour ${pro.firstName},`,
         '',
         `Vous avez reçu une nouvelle demande via WorkOn.`,
         '',
-        `Client : ${lead.clientName}`,
-        `Téléphone : ${lead.clientPhone}`,
-        `Service : ${lead.serviceRequested}`,
-        lead.message ? `Message : ${lead.message}` : '',
+        `Client : ${lead.name}`,
+        `Téléphone : ${lead.phone}`,
+        `Service : ${lead.category}`,
+        lead.description ? `Message : ${lead.description}` : '',
         '',
         `Contactez ce client le plus rapidement possible pour maximiser vos chances.`,
         '',
@@ -594,12 +594,12 @@ export class LeadsService {
         `<p>Bonjour ${pro.firstName},</p>`,
         `<p>Vous avez reçu une nouvelle demande :</p>`,
         `<table style="width: 100%; border-collapse: collapse;">`,
-        `<tr><td style="padding: 8px 0; color: #666;">Client</td><td style="padding: 8px 0; font-weight: 600;">${lead.clientName}</td></tr>`,
-        `<tr><td style="padding: 8px 0; color: #666;">Téléphone</td><td style="padding: 8px 0; font-weight: 600;"><a href="tel:${lead.clientPhone}" style="color: #FF4D1C;">${lead.clientPhone}</a></td></tr>`,
-        `<tr><td style="padding: 8px 0; color: #666;">Service</td><td style="padding: 8px 0; font-weight: 600;">${lead.serviceRequested}</td></tr>`,
-        lead.message ? `<tr><td style="padding: 8px 0; color: #666;">Message</td><td style="padding: 8px 0;">${lead.message}</td></tr>` : '',
+        `<tr><td style="padding: 8px 0; color: #666;">Client</td><td style="padding: 8px 0; font-weight: 600;">${lead.name}</td></tr>`,
+        `<tr><td style="padding: 8px 0; color: #666;">Téléphone</td><td style="padding: 8px 0; font-weight: 600;"><a href="tel:${lead.phone}" style="color: #FF4D1C;">${lead.phone}</a></td></tr>`,
+        `<tr><td style="padding: 8px 0; color: #666;">Service</td><td style="padding: 8px 0; font-weight: 600;">${lead.category}</td></tr>`,
+        lead.description ? `<tr><td style="padding: 8px 0; color: #666;">Message</td><td style="padding: 8px 0;">${lead.description}</td></tr>` : '',
         `</table>`,
-        `<p style="margin-top: 24px;"><a href="tel:${lead.clientPhone}" style="display: inline-block; background: #FF4D1C; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">Appeler le client</a></p>`,
+        `<p style="margin-top: 24px;"><a href="tel:${lead.phone}" style="display: inline-block; background: #FF4D1C; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">Appeler le client</a></p>`,
         `</div></div>`,
       ].filter(Boolean).join(''),
     });
@@ -608,19 +608,19 @@ export class LeadsService {
   }
 
   private async sendClientConfirmationEmail(
-    lead: { id: string; clientName: string; clientEmail: string | null; serviceRequested: string },
+    lead: { id: string; name: string; email: string | null; category: string | null },
     pro: { firstName: string; lastName: string },
   ): Promise<void> {
-    if (!SENDGRID_API_KEY || !lead.clientEmail) return;
+    if (!SENDGRID_API_KEY || !lead.email) return;
 
     await sgMail.send({
-      to: lead.clientEmail,
+      to: lead.email,
       from: { email: SENDGRID_FROM_EMAIL, name: 'WorkOn' },
       subject: `Votre demande a été envoyée à ${pro.firstName} ${pro.lastName}`,
       text: [
-        `Bonjour ${lead.clientName},`,
+        `Bonjour ${lead.name},`,
         '',
-        `Votre demande pour "${lead.serviceRequested}" a bien été envoyée à ${pro.firstName} ${pro.lastName}.`,
+        `Votre demande pour "${lead.category}" a bien été envoyée à ${pro.firstName} ${pro.lastName}.`,
         '',
         `Le professionnel vous contactera dans les prochaines heures.`,
         '',
@@ -632,14 +632,14 @@ export class LeadsService {
         `<h2 style="margin: 0; color: #FF4D1C;">Demande envoyée</h2>`,
         `</div>`,
         `<div style="background: white; padding: 24px; border: 1px solid #eee; border-top: none; border-radius: 0 0 12px 12px;">`,
-        `<p>Bonjour ${lead.clientName},</p>`,
-        `<p>Votre demande pour <strong>${lead.serviceRequested}</strong> a bien été envoyée à <strong>${pro.firstName} ${pro.lastName}</strong>.</p>`,
+        `<p>Bonjour ${lead.name},</p>`,
+        `<p>Votre demande pour <strong>${lead.category}</strong> a bien été envoyée à <strong>${pro.firstName} ${pro.lastName}</strong>.</p>`,
         `<p>Le professionnel vous contactera dans les prochaines heures.</p>`,
         `<p style="color: #666; font-size: 14px; margin-top: 24px;">— L'équipe WorkOn</p>`,
         `</div></div>`,
       ].join(''),
     });
 
-    this.logger.log(`Client confirmation email sent to ${lead.clientEmail} for lead ${lead.id}`);
+    this.logger.log(`Client confirmation email sent to ${lead.email} for lead ${lead.id}`);
   }
 }

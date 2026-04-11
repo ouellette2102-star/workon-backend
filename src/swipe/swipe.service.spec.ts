@@ -191,8 +191,9 @@ describe('SwipeService', () => {
       const result = await service.getMatches('user_1');
 
       expect(result).toHaveLength(1);
-      expect(result[0].otherUser.id).toBe('worker_1');
-      expect(result[0].matchId).toBe('sm_1');
+      const first = result[0] as any;
+      expect(first.otherUser.id).toBe('worker_1');
+      expect(first.matchId).toBe('sm_1');
     });
   });
 });

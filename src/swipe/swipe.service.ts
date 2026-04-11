@@ -41,10 +41,10 @@ export class SwipeService {
   ) {
     // Get IDs already swiped by this user
     const alreadySwiped = await this.prisma.swipeAction.findMany({
-      where: { swiperId: userId },
-      select: { candidateId: true },
+      where: { userId },
+      select: { targetId: true },
     });
-    const excludeIds = [userId, ...alreadySwiped.map((s) => s.candidateId)];
+    const excludeIds = [userId, ...alreadySwiped.map((s) => s.targetId)];
 
     // Build where clause
     const where: any = {
@@ -140,11 +140,11 @@ export class SwipeService {
     // Upsert swipe action (prevent duplicates)
     await this.prisma.swipeAction.upsert({
       where: {
-        swiperId_candidateId: { swiperId, candidateId },
+        userId_targetId: { userId: swiperId, targetId: candidateId },
       },
       create: {
-        swiperId,
-        candidateId,
+        userId: swiperId,
+        targetId: candidateId,
         action: action as any,
       },
       update: {
@@ -156,26 +156,26 @@ export class SwipeService {
     if (action === 'LIKE' || action === 'SUPERLIKE') {
       const reciprocal = await this.prisma.swipeAction.findUnique({
         where: {
-          swiperId_candidateId: {
-            swiperId: candidateId,
-            candidateId: swiperId,
+          userId_targetId: {
+            userId: candidateId,
+            targetId: swiperId,
           },
         },
       });
 
       if (reciprocal && (reciprocal.action === 'LIKE' || reciprocal.action === 'SUPERLIKE')) {
         // Mutual match! Create or find existing match
-        const [userId1, userId2] = [swiperId, candidateId].sort();
+        const [userAId, userBId] = [swiperId, candidateId].sort();
 
         const match = await this.prisma.swipeMatch.upsert({
           where: {
-            userId1_userId2: { userId1, userId2 },
+            userAId_userBId: { userAId, userBId },
           },
-          create: { userId1, userId2 },
+          create: { userAId, userBId },
           update: {},
         });
 
-        this.logger.log(`Match created: ${match.id} between ${userId1} and ${userId2}`);
+        this.logger.log(`Match created: ${match.id} between ${userAId} and ${userBId}`);
 
         // Notify both users of the match
         await this.notifyMatch(swiperId, candidateId, match.id);
@@ -193,43 +193,42 @@ export class SwipeService {
   async getMatches(userId: string) {
     const matches = await this.prisma.swipeMatch.findMany({
       where: {
-        OR: [{ userId1: userId }, { userId2: userId }],
-        status: 'ACTIVE',
-      },
-      include: {
-        user1: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            city: true,
-            pictureUrl: true,
-            role: true,
-            category: true,
-          },
-        },
-        user2: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            city: true,
-            pictureUrl: true,
-            role: true,
-            category: true,
-          },
-        },
+        OR: [{ userAId: userId }, { userBId: userId }],
+        status: 'active',
       },
       orderBy: { matchedAt: 'desc' },
     });
 
+    // Collect other-user IDs and fetch their profiles
+    const otherUserIds = matches.map((m) =>
+      m.userAId === userId ? m.userBId : m.userAId,
+    );
+
+    const users = await this.prisma.localUser.findMany({
+      where: { id: { in: otherUserIds } },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        city: true,
+        pictureUrl: true,
+        role: true,
+        category: true,
+      },
+    });
+
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
     // Return the "other" user for each match
-    return matches.map((m) => ({
-      matchId: m.id,
-      matchedAt: m.matchedAt,
-      status: m.status,
-      otherUser: m.userId1 === userId ? m.user2 : m.user1,
-    }));
+    return matches.map((m) => {
+      const otherId = m.userAId === userId ? m.userBId : m.userAId;
+      return {
+        matchId: m.id,
+        matchedAt: m.matchedAt,
+        status: m.status,
+        otherUser: userMap.get(otherId) || null,
+      };
+    });
   }
 
   /**
@@ -246,15 +245,15 @@ export class SwipeService {
       where: { id: matchId },
     });
 
-    if (!match || (match.userId1 !== userId && match.userId2 !== userId)) {
+    if (!match || (match.userAId !== userId && match.userBId !== userId)) {
       throw new NotFoundException('Match not found');
     }
 
-    if (match.status !== 'ACTIVE') {
+    if (match.status !== 'active') {
       throw new BadRequestException('Match is no longer active');
     }
 
-    const workerId = match.userId1 === userId ? match.userId2 : match.userId1;
+    const workerId = match.userAId === userId ? match.userBId : match.userAId;
 
     // Fetch employer geolocation
     const employer = await this.prisma.localUser.findUnique({
@@ -284,7 +283,7 @@ export class SwipeService {
     // Mark match as converted
     await this.prisma.swipeMatch.update({
       where: { id: matchId },
-      data: { status: 'CONVERTED' },
+      data: { status: 'converted' },
     });
 
     this.logger.log(`Mission ${missionId} created from match ${matchId} (${userId} → ${workerId})`);
@@ -324,7 +323,7 @@ export class SwipeService {
 
   /**
    * Create in-app notifications for both users on match.
-   * Uses localUserId FK on Notification model.
+   * Uses userId FK on Notification model (references User table).
    */
   private async notifyMatch(userId1: string, userId2: string, matchId: string) {
     try {
@@ -336,8 +335,7 @@ export class SwipeService {
       const notifications = [
         {
           id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          userId: userId1, // Required by schema (will reference a placeholder or be the same)
-          localUserId: userId1,
+          userId: userId1,
           type: 'swipe_match',
           payloadJSON: {
             matchId,
@@ -349,7 +347,6 @@ export class SwipeService {
         {
           id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 6)}a`,
           userId: userId2,
-          localUserId: userId2,
           type: 'swipe_match',
           payloadJSON: {
             matchId,
@@ -364,7 +361,7 @@ export class SwipeService {
         await this.prisma.notification.create({ data: notif }).catch(() => {
           // FK constraint may fail if userId doesn't exist in User table
           // In that case, log and continue
-          this.logger.warn(`Notification FK failed for ${notif.localUserId}, logging instead`);
+          this.logger.warn(`Notification FK failed for ${notif.userId}, logging instead`);
         });
       }
 
