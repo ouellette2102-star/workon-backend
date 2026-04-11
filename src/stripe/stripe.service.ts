@@ -290,20 +290,20 @@ export class StripeService {
     // Notifier le Worker
     if (payment.mission.assigneeWorker) {
       await this.notificationsService.createForMissionStatusChange(
-        payment.mission.assigneeWorker.clerkId,
         payment.mission.id,
         'COMPLETED',
         'COMPLETED', // Pas de changement de statut, juste notification de paiement
+        payment.mission.assigneeWorker.clerkId,
       );
     }
 
     // Notifier l'Employer
     if (payment.mission.authorClient) {
       await this.notificationsService.createForMissionStatusChange(
-        payment.mission.authorClient.clerkId,
         payment.mission.id,
         'COMPLETED',
         'COMPLETED',
+        payment.mission.authorClient.clerkId,
       );
     }
   }
@@ -324,7 +324,7 @@ export class StripeService {
 
     await this.prisma.payment.update({
       where: { id: payment.id },
-      data: { status: PaymentStatus.DISPUTED },
+      data: { status: PaymentStatus.FAILED },
     });
 
     this.logger.error(
