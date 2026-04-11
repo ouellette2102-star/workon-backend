@@ -229,11 +229,13 @@ export class OffersService {
       await tx.contract.create({
         data: {
           id: contractId,
+          missionId: offer.missionId,
           localMissionId: offer.missionId,
-          localEmployerId: offer.mission.createdByUserId,
-          localWorkerId: offer.workerId,
+          employerId: offer.mission.createdByUserId,
+          workerId: offer.workerId,
           amount: offer.price,
           status: 'DRAFT',
+          updatedAt: new Date(),
         },
       });
 
