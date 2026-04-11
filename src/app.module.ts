@@ -16,8 +16,8 @@ import { AdminModule } from './admin/admin.module';
 import { LoggerModule } from './logger/logger.module';
 import { ProfileModule } from './profile/profile.module';
 import { MessagesModule } from './messages/messages.module';
-import { MessagesLocalModule } from './messages-local/messages-local.module';
 import { NotificationsModule } from './notifications/notifications.module';
+// import { MissionTimeLogsModule } from './mission-time-logs/mission-time-logs.module';
 import { StripeModule } from './stripe/stripe.module';
 import { validate } from './config/env.validation';
 import { UsersModule } from './users/users.module';
@@ -43,15 +43,8 @@ import { IdentityModule } from './identity/identity.module';
 import { SecurityModule } from './common/security/security.module';
 import { SchedulingModule } from './scheduling/scheduling.module';
 import { ProductionConfigModule } from './config/production-config.module';
-import { GhlModule } from './ghl/ghl.module';
-import { ProsModule } from './pros/pros.module';
-import { LeadsModule } from './leads/leads.module';
-import { PublicModule } from './public/public.module';
-import { DisputesModule } from './disputes/disputes.module';
-import { SwipeModule } from './swipe/swipe.module';
+import { MessagesLocalModule } from './messages-local/messages-local.module';
 import { ChatModule } from './chat/chat.module';
-import { AppCacheModule } from './cache/cache.module';
-import { ReputationModule } from './reputation/reputation.module';
 
 @Module({
   imports: [
@@ -159,11 +152,7 @@ import { ReputationModule } from './reputation/reputation.module';
     // ============================================================
     // Notifications module (needed by MissionsModule and MessagesModule)
     NotificationsModule,
-    // GHL Integration — imported before MissionsModule so GhlController
-    // handles POST /api/v1/missions/webhook-ghl with validated DTO,
-    // deduplication, real client creation, and N8N callout.
-    GhlModule,
-    // Legacy modules (kept active — webhook-ghl route now shadowed by GhlController)
+    // Legacy modules (kept active)
     MissionsModule,
     MessagesModule,
     ContractsModule,
@@ -171,14 +160,13 @@ import { ReputationModule } from './reputation/reputation.module';
     StripeModule,
     AdminModule,
     ProfileModule,
+    // MissionTimeLogsModule,
     // Health check
     HealthModule,
     // ============================================================
     // NATIVE (LocalUser/LocalMission) MODULES - ACTIVE IN PRODUCTION
     // ============================================================
     MissionsLocalModule,
-    // Messages module for LocalMission chat (was missing — frontend calls these routes)
-    MessagesLocalModule,
     MetricsModule,
     PaymentsLocalModule,
     // Public read-only catalog API (categories + skills)
@@ -212,22 +200,10 @@ import { ReputationModule } from './reputation/reputation.module';
     SchedulingModule,
     // Production configuration - Feature flags, secrets validation, safe defaults (PR-11)
     ProductionConfigModule,
-    // GHL hors-app webhooks - Pro registration + Mission creation
-    ProsModule,
-    // Demand Capture System - Lead capture + routing
-    LeadsModule,
-    // Public API - No-auth endpoints for frontend landing pages
-    PublicModule,
-    // Disputes - Mission dispute management (evidence, resolution, timeline)
-    DisputesModule,
-    // Swipe Discovery - Talent discovery (MAP = find work, SWIPE = find talent)
-    SwipeModule,
-    // Real-time WebSocket chat
+    // Messages-local module - Chat REST API for LocalUser system (PR-98)
+    MessagesLocalModule,
+    // Chat module - Socket.IO WebSocket gateway for real-time chat (PR-98)
     ChatModule,
-    // Cache layer (Redis in production, in-memory in dev)
-    AppCacheModule,
-    // Reputation & trust score aggregates (Sprint 2)
-    ReputationModule,
   ],
   controllers: [AppController],
   providers: [

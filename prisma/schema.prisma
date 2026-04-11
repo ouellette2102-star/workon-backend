@@ -122,29 +122,22 @@ enum ConsentType {
 }
 
 model Dispute {
-  id              String        @id
-  missionId       String?       @unique
-  localMissionId  String?       @unique
-  openedById      String?
-  localOpenedById String?
-  reason          String
-  status          DisputeStatus @default(OPEN)
-  resolution      String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime
-
-  // Relations
-  mission       Mission?      @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  openedBy      User?         @relation(fields: [openedById], references: [id], onDelete: Cascade)
-  localMission  LocalMission? @relation(fields: [localMissionId], references: [id], onDelete: Cascade)
-  localOpenedBy LocalUser?    @relation(fields: [localOpenedById], references: [id], onDelete: SetNull)
+  id         String        @id
+  missionId  String        @unique
+  openedById String
+  reason     String
+  status     DisputeStatus @default(OPEN)
+  resolution String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime
+  mission    Mission       @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  openedBy   User          @relation(fields: [openedById], references: [id], onDelete: Cascade)
 
   // PR-00: Trust foundation relations
   evidence DisputeEvidence[]
   timeline DisputeTimeline[]
 
   @@index([status])
-  @@index([localMissionId])
   @@map("disputes")
 }
 
@@ -166,22 +159,10 @@ model LocalMission {
   // PR-6: Payment fields
   paidAt                DateTime?
   stripePaymentIntentId String?
-  // Lead → Mission bridge fields
-  leadId                String?            @unique
-  clientName            String?
-  clientPhone           String?
-  clientEmail           String?
-  lead                  Lead?              @relation(fields: [leadId], references: [id])
   assignedToUser        LocalUser?         @relation("local_missions_assignedToUserIdTolocal_users", fields: [assignedToUserId], references: [id])
   createdByUser         LocalUser          @relation("local_missions_createdByUserIdTolocal_users", fields: [createdByUserId], references: [id], onDelete: Cascade)
   offers                LocalOffer[]
   messages              LocalMessage[]
-  contract              Contract?
-  disputes              Dispute[]
-
-  // Cross-system relations (Review, Booking)
-  reviews  Review[]
-  bookings Booking[]
 
   @@index([assignedToUserId])
   @@index([category])
@@ -190,12 +171,40 @@ model LocalMission {
   @@index([latitude, longitude])
   @@index([status])
   @@index([stripePaymentIntentId])
-  @@index([leadId])
-  // Sprint 3 — hot-path composite indexes for bbox/feed + worker history.
-  @@index([status, createdAt])
-  @@index([assignedToUserId, updatedAt])
-  @@index([price])
   @@map("local_missions")
+}
+
+// ============================================
+// LOCAL MESSAGES - Chat for LocalUser system
+// ============================================
+
+enum LocalMessageRole {
+  WORKER
+  EMPLOYER
+}
+
+enum LocalMessageStatus {
+  SENT
+  DELIVERED
+  READ
+}
+
+model LocalMessage {
+  id         String             @id
+  missionId  String
+  senderId   String
+  senderRole LocalMessageRole
+  content    String
+  status     LocalMessageStatus @default(SENT)
+  createdAt  DateTime           @default(now())
+
+  mission LocalMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  sender  LocalUser    @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([missionId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@map("local_messages")
 }
 
 // ============================================
@@ -254,8 +263,6 @@ model LocalUser {
   lastName       String
   phone          String?
   city           String?
-  latitude       Float? // Worker geolocation for Map/Swipe discovery
-  longitude      Float? // Worker geolocation for Map/Swipe discovery
   pictureUrl     String? // Profile picture URL
   role           LocalUserRole @default(worker)
   active         Boolean       @default(true)
@@ -279,23 +286,9 @@ model LocalUser {
   bankVerifiedAt  DateTime?
   stripeAccountId String? // Stripe Connect account ID
 
-  // Insurance verification
-  insuranceVerified   Boolean   @default(false)
-  insuranceVerifiedAt DateTime?
-  insuranceProvider   String? // e.g., "CSST", "Desjardins"
-  insuranceProofUrl   String? // Upload URL of insurance certificate
-  insuranceExpiresAt  DateTime? // Expiry date
-
   // Trust tier (computed from verifications)
   trustTier          TrustTier @default(BASIC)
   trustTierUpdatedAt DateTime?
-
-  // Reputation aggregates (materialized by ReputationService on review/mission events)
-  ratingAverage           Float?    // Mean rating across moderation=OK reviews
-  reviewCount             Int       @default(0)
-  completedMissionsCount  Int       @default(0)
-  trustScore              Float?    // Composite 0-100 computed from verif + ratings + completions
-  trustScoreUpdatedAt     DateTime?
 
   // PR-07: Legal Compliance - Terms & Consent
   termsAcceptedAt    DateTime? // When user accepted current terms
@@ -312,100 +305,21 @@ model LocalUser {
   deletionRequestedAt   DateTime? // When deletion was requested
   deletionScheduledFor  DateTime? // When data will be deleted (30-day grace)
 
-  // Demand Capture System
-  slug            String? @unique // URL slug for /pro/{slug}
-  bio             String? // Professional bio/description
-  category        String? // Service category (menage, paysagement, etc.)
-  serviceRadiusKm Int?    @default(25) // Service area radius
-  completionScore Int?    @default(0) // Profile completion percentage
-
-  assignedMissions    LocalMission[] @relation("local_missions_assignedToUserIdTolocal_users")
-  createdMissions     LocalMission[] @relation("local_missions_createdByUserIdTolocal_users")
-  offers              LocalOffer[]
-  devices             LocalDevice[] // Push notification devices
-  messages            LocalMessage[] // Chat messages sent by this user
-  leads               Lead[] // Leads received by this professional
-  gallery             ProMedia[] // Portfolio images
-  // Cross-system relations (Review, Booking, Contract, Dispute support for LocalUser)
-  authoredReviews     Review[]       @relation("reviews_localAuthorId")
-  receivedReviews     Review[]       @relation("reviews_localTargetUserId")
-  openedDisputes      Dispute[]
-  bookingsAsClient    Booking[]
-  contractsAsEmployer Contract[]     @relation("contracts_localEmployerId")
-  contractsAsWorker   Contract[]     @relation("contracts_localWorkerId")
-  swipesSent          SwipeAction[]  @relation("swipe_swiperId")
-  swipesReceived      SwipeAction[]  @relation("swipe_candidateId")
-  matchesAsUser1      SwipeMatch[]   @relation("swipe_match_user1")
-  matchesAsUser2      SwipeMatch[]   @relation("swipe_match_user2")
-  notifications       Notification[]
+  assignedMissions LocalMission[] @relation("local_missions_assignedToUserIdTolocal_users")
+  createdMissions  LocalMission[] @relation("local_missions_createdByUserIdTolocal_users")
+  offers           LocalOffer[]
+  sentMessages     LocalMessage[]
 
   @@index([active])
   @@index([city])
-  @@index([latitude, longitude])
   @@index([email])
   @@index([role])
-  @@index([slug])
   @@index([deletedAt])
   @@index([trustTier])
-  @@index([trustScore])
   @@index([phoneVerified])
   @@index([idVerificationStatus])
   @@index([deletionScheduledFor])
   @@map("local_users")
-}
-
-/// Device registration for push notifications (LocalUser system)
-model LocalDevice {
-  id         String    @id @default(uuid())
-  userId     String
-  deviceId   String // Unique device identifier (vendor ID, etc.)
-  platform   String // ios, android, web
-  pushToken  String? // FCM/APNs token
-  appVersion String?
-  active     Boolean   @default(true)
-  lastSeenAt DateTime  @default(now())
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  user       LocalUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, deviceId])
-  @@index([userId])
-  @@index([active])
-  @@map("local_devices")
-}
-
-// ============================================
-// LOCAL MESSAGES - Chat for LocalUser system
-// ============================================
-/// Chat messages for local missions (LocalUser system)
-model LocalMessage {
-  id         String             @id
-  missionId  String
-  senderId   String
-  senderRole LocalMessageRole
-  content    String
-  status     LocalMessageStatus @default(SENT)
-  createdAt  DateTime           @default(now())
-
-  // Relations
-  mission LocalMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  sender  LocalUser    @relation(fields: [senderId], references: [id], onDelete: Cascade)
-
-  @@index([missionId])
-  @@index([senderId])
-  @@index([createdAt])
-  @@map("local_messages")
-}
-
-enum LocalMessageRole {
-  WORKER
-  EMPLOYER
-}
-
-enum LocalMessageStatus {
-  SENT
-  DELIVERED
-  READ
 }
 
 model Mission {
@@ -463,13 +377,8 @@ model Notification {
   createdAt   DateTime  @default(now())
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // LocalUser support (optional — for native auth system notifications)
-  localUserId String?
-  localUser   LocalUser? @relation(fields: [localUserId], references: [id], onDelete: Cascade)
-
   @@index([readAt])
   @@index([userId])
-  @@index([localUserId])
   @@map("notifications")
 }
 
@@ -499,7 +408,7 @@ model Payment {
   stripeConnectAccountId String?
   amount                 Float
   currency               String        @default("CAD")
-  platformFeePct         Float         @default(15)
+  platformFeePct         Float         @default(10)
   status                 PaymentStatus @default(CREATED)
   lastStripeEventId      String?
   createdAt              DateTime      @default(now())
@@ -525,19 +434,9 @@ model Review {
   mission      Mission?         @relation(fields: [missionId], references: [id])
   targetUser   User             @relation("reviews_targetUserIdTousers", fields: [targetUserId], references: [id], onDelete: Cascade)
 
-  // LocalUser support (optional — for native auth system)
-  localAuthorId     String?
-  localTargetUserId String?
-  localMissionId    String?
-  localAuthor       LocalUser?    @relation("reviews_localAuthorId", fields: [localAuthorId], references: [id], onDelete: SetNull)
-  localTargetUser   LocalUser?    @relation("reviews_localTargetUserId", fields: [localTargetUserId], references: [id], onDelete: SetNull)
-  localMission      LocalMission? @relation(fields: [localMissionId], references: [id], onDelete: SetNull)
-
   @@index([missionId])
   @@index([moderation])
   @@index([targetUserId])
-  @@index([localAuthorId])
-  @@index([localTargetUserId])
   @@map("reviews")
 }
 
@@ -806,12 +705,9 @@ enum MessageStatus {
 
 model Contract {
   id               String         @id
-  missionId        String?        @unique
-  localMissionId   String?        @unique
-  employerId       String?
-  workerId         String?
-  localEmployerId  String?
-  localWorkerId    String?
+  missionId        String         @unique
+  employerId       String
+  workerId         String
   status           ContractStatus @default(DRAFT)
   amount           Float
   hourlyRate       Float?
@@ -824,21 +720,13 @@ model Contract {
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
-  // Relations (Clerk system)
-  mission  Mission? @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  employer User?    @relation("contracts_employerIdTousers", fields: [employerId], references: [id], onDelete: Cascade)
-  worker   User?    @relation("contracts_workerIdTousers", fields: [workerId], references: [id], onDelete: Cascade)
-
-  // Relations (Local system)
-  localMission  LocalMission? @relation(fields: [localMissionId], references: [id], onDelete: Cascade)
-  localEmployer LocalUser?    @relation("contracts_localEmployerId", fields: [localEmployerId], references: [id], onDelete: SetNull)
-  localWorker   LocalUser?    @relation("contracts_localWorkerId", fields: [localWorkerId], references: [id], onDelete: SetNull)
+  // Relations
+  mission  Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  employer User    @relation("contracts_employerIdTousers", fields: [employerId], references: [id], onDelete: Cascade)
+  worker   User    @relation("contracts_workerIdTousers", fields: [workerId], references: [id], onDelete: Cascade)
 
   @@index([employerId])
   @@index([workerId])
-  @@index([localEmployerId])
-  @@index([localWorkerId])
-  @@index([localMissionId])
   @@index([status])
   @@map("contracts")
 }
@@ -1216,11 +1104,6 @@ model RecurringMissionTemplate {
   maxOccurrences Int? // Max times this can be booked
   validFrom      DateTime? // When template becomes active
   validUntil     DateTime? // When template expires
-  // Location propagated to generated LocalMissions so they appear in geo-search
-  latitude       Float?
-  longitude      Float?
-  city           String?
-  address        String?
   isActive       Boolean        @default(true)
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -1308,17 +1191,10 @@ model Booking {
   worker   WorkerProfile             @relation(fields: [workerId], references: [id], onDelete: Cascade)
   template RecurringMissionTemplate? @relation(fields: [templateId], references: [id])
 
-  // LocalUser support (optional — for native auth system)
-  localClientId  String?
-  localMissionId String?
-  localClient    LocalUser?    @relation(fields: [localClientId], references: [id], onDelete: SetNull)
-  localMission   LocalMission? @relation(fields: [localMissionId], references: [id], onDelete: SetNull)
-
   @@index([clientId])
   @@index([workerId, scheduledAt])
   @@index([status])
   @@index([scheduledAt])
-  @@index([localClientId])
   @@map("bookings")
 }
 
@@ -1529,98 +1405,4 @@ enum DeliveryStatus {
   FAILED // Delivery failed
   BOUNCED // Email bounced
   UNSUBSCRIBED // User unsubscribed
-}
-
-// ── WorkOn Demand Capture System ──────────────────────────────
-
-enum LeadStatus {
-  NEW
-  CONTACTED
-  QUALIFIED
-  CONVERTED
-  LOST
-}
-
-model Lead {
-  id               String        @id @default(uuid())
-  professionalId   String
-  professional     LocalUser     @relation(fields: [professionalId], references: [id])
-  clientName       String
-  clientPhone      String
-  clientEmail      String?
-  serviceRequested String
-  message          String?
-  status           LeadStatus    @default(NEW)
-  source           String? // "organic", "facebook_ad", "google_ad", "referral"
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  mission          LocalMission? // Back-relation: mission created from this lead
-
-  @@index([professionalId])
-  @@index([status])
-  @@index([createdAt])
-  @@index([professionalId, clientPhone, createdAt])
-  @@map("leads")
-}
-
-model ProMedia {
-  id             String    @id @default(uuid())
-  professionalId String
-  professional   LocalUser @relation(fields: [professionalId], references: [id])
-  imageUrl       String
-  caption        String?
-  type           String    @default("portfolio") // "portfolio", "logo", "cover"
-  sortOrder      Int       @default(0)
-  createdAt      DateTime  @default(now())
-
-  @@index([professionalId])
-  @@index([professionalId, sortOrder])
-  @@map("pro_media")
-}
-
-// ── WorkOn Swipe Discovery System ──────────────────────────────
-
-model SwipeAction {
-  id          String          @id @default(cuid())
-  swiperId    String
-  candidateId String
-  action      SwipeActionType
-  createdAt   DateTime        @default(now())
-
-  swiper    LocalUser @relation("swipe_swiperId", fields: [swiperId], references: [id], onDelete: Cascade)
-  candidate LocalUser @relation("swipe_candidateId", fields: [candidateId], references: [id], onDelete: Cascade)
-
-  @@unique([swiperId, candidateId])
-  @@index([swiperId])
-  @@index([candidateId])
-  @@map("swipe_actions")
-}
-
-model SwipeMatch {
-  id        String           @id @default(cuid())
-  userId1   String
-  userId2   String
-  matchedAt DateTime         @default(now())
-  status    SwipeMatchStatus @default(ACTIVE)
-
-  user1 LocalUser @relation("swipe_match_user1", fields: [userId1], references: [id], onDelete: Cascade)
-  user2 LocalUser @relation("swipe_match_user2", fields: [userId2], references: [id], onDelete: Cascade)
-
-  @@unique([userId1, userId2])
-  @@index([userId1])
-  @@index([userId2])
-  @@index([status])
-  @@map("swipe_matches")
-}
-
-enum SwipeActionType {
-  LIKE
-  PASS
-  SUPERLIKE
-}
-
-enum SwipeMatchStatus {
-  ACTIVE
-  EXPIRED
-  CONVERTED // Converted to mission or contract
 }
