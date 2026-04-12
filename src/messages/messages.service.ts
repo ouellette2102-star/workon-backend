@@ -6,6 +6,7 @@ import {
   Inject,
   forwardRef,
 } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { MessageSenderRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMessageDto } from './dto/create-message.dto';
@@ -158,7 +159,7 @@ export class MessagesService {
 
     const message = await this.prisma.message.create({
       data: {
-        id: `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        id: `msg_${crypto.randomUUID().replace(/-/g, '')}`,
         missionId,
         senderId: clerkUserId,
         senderRole,

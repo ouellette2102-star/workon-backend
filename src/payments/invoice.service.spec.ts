@@ -35,7 +35,10 @@ describe('InvoiceService', () => {
       findUnique: jest.fn(),
       upsert: jest.fn(),
     },
+    $transaction: jest.fn(),
   };
+  // Wire up $transaction to execute the callback with mockPrismaService as tx
+  mockPrismaService.$transaction.mockImplementation((cb: any) => cb(mockPrismaService));
 
   const mockConfigService = {
     get: jest.fn(),

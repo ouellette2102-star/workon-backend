@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaymentStatus, UserRole } from '@prisma/client';
@@ -155,10 +156,10 @@ export class StripeService {
     // Créer l'entrée Payment dans la DB
     await this.prisma.payment.create({
       data: {
-        id: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: `pay_${crypto.randomUUID().replace(/-/g, '')}`,
         missionId: mission.id,
         stripePaymentIntentId: paymentIntent.id,
-        amount: amountDollars,
+        amountCents: amountCents,
         currency: 'CAD',
         platformFeePct: this.PLATFORM_FEE_PERCENT * 100, // Convertir en %
         status: PaymentStatus.REQUIRES_ACTION,
@@ -371,9 +372,9 @@ export class StripeService {
       missionId: p.missionId,
       missionTitle: p.mission.title,
       missionCategory: p.mission.categoryId,
-      amount: p.amount,
+      amountCents: p.amountCents,
       platformFeePct: p.platformFeePct,
-      netAmount: p.amount * (1 - p.platformFeePct / 100),
+      netAmountCents: p.amountCents * (1 - p.platformFeePct / 100),
       currency: p.currency,
       status: p.status,
       createdAt: p.createdAt,

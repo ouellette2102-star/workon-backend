@@ -15,6 +15,7 @@ import { InvoiceService } from '../payments/invoice.service';
 import { ReputationService } from '../reputation/reputation.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ContractsService } from '../contracts/contracts.service';
 
 export interface ExpressDispatchDto {
   category: string;
@@ -47,6 +48,7 @@ export class MissionsLocalService {
     private readonly reputationService: ReputationService,
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly contractsService: ContractsService,
   ) {}
 
   /**
@@ -123,31 +125,60 @@ export class MissionsLocalService {
       throw new ForbiddenException('Only workers can accept missions');
     }
 
-    const mission = await this.missionsRepository.findById(missionId);
+    // Atomic check-and-update: only succeeds if mission is still open and unassigned
+    const result = await this.prisma.localMission.updateMany({
+      where: {
+        id: missionId,
+        status: 'open',
+        assignedToUserId: null,
+      },
+      data: {
+        status: 'assigned',
+        assignedToUserId: userId,
+        updatedAt: new Date(),
+      },
+    });
 
-    if (!mission) {
-      throw new NotFoundException('Mission not found');
+    if (result.count === 0) {
+      // Either mission doesn't exist, or it's not open, or already assigned
+      const mission = await this.missionsRepository.findById(missionId);
+      if (!mission) {
+        throw new NotFoundException('Mission not found');
+      }
+      if (mission.status !== 'open') {
+        throw new BadRequestException(
+          `Mission is not available (current status: ${mission.status})`,
+        );
+      }
+      if (mission.assignedToUserId) {
+        throw new BadRequestException('Mission is already assigned to a worker');
+      }
+      // Fallback — shouldn't reach here
+      throw new BadRequestException('Unable to accept mission');
     }
-
-    if (mission.status !== 'open') {
-      throw new BadRequestException(
-        `Mission is not available (current status: ${mission.status})`,
-      );
-    }
-
-    if (mission.assignedToUserId) {
-      throw new BadRequestException('Mission is already assigned to a worker');
-    }
-
-    const updated = await this.missionsRepository.updateStatus(
-      missionId,
-      'assigned',
-      userId,
-    );
 
     this.logger.log(`Mission ${missionId} accepted by worker ${userId}`);
 
-    return updated;
+    // Auto-create contract for worker protection
+    try {
+      const mission = await this.missionsRepository.findById(missionId);
+      if (mission) {
+        await this.contractsService.createLocalContract(
+          missionId,
+          mission.createdByUserId,
+          userId,
+          mission.price,
+        );
+      }
+    } catch (err) {
+      // Don't fail mission acceptance if contract creation fails
+      this.logger.warn(
+        `Failed to auto-create contract for mission ${missionId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    // Fetch and return the updated mission
+    return this.missionsRepository.findById(missionId);
   }
 
   /**

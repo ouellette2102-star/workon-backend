@@ -7,6 +7,7 @@ import { AuthModule } from '../auth/auth.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { ReputationModule } from '../reputation/reputation.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { ContractsModule } from '../contracts/contracts.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     forwardRef(() => PaymentsModule),
     ReputationModule,
     NotificationsModule,
+    ContractsModule,
   ],
   controllers: [MissionsLocalController],
   providers: [MissionsLocalService, MissionsLocalRepository],

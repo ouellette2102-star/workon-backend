@@ -1,4 +1,5 @@
 import { Controller, Post, Body, UseGuards, Get, Delete, Request, HttpCode, HttpStatus, Logger } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiTags,
   ApiOperation,
@@ -32,6 +33,7 @@ export class AuthController {
   // REGISTRATION & LOGIN
   // ============================================
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('register')
   @ApiOperation({
     summary: 'Register a new user',
@@ -48,6 +50,7 @@ export class AuthController {
     return this.localAuthService.register(registerDto);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -96,6 +99,7 @@ export class AuthController {
   // TOKEN REFRESH
   // ============================================
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -116,6 +120,7 @@ export class AuthController {
   // PASSWORD RESET
   // ============================================
 
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

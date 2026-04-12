@@ -317,6 +317,66 @@ export class UsersRepository {
   }
 
   /**
+   * Fetch fields needed to compute profile completion score
+   */
+  async findCompletionFields(id: string) {
+    return this.prisma.localUser.findUnique({
+      where: { id },
+      select: {
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        city: true,
+        bio: true,
+        pictureUrl: true,
+        category: true,
+        skills: true,
+        latitude: true,
+        longitude: true,
+      },
+    });
+  }
+
+  /**
+   * Update the completion score
+   */
+  async updateCompletionScore(id: string, score: number) {
+    return this.prisma.localUser.update({
+      where: { id },
+      data: { completionScore: score },
+    });
+  }
+
+  /**
+   * Fetch fields needed to compute trust tier
+   */
+  async findTrustTierFields(id: string) {
+    return this.prisma.localUser.findUnique({
+      where: { id },
+      select: {
+        phoneVerified: true,
+        idVerificationStatus: true,
+        bankVerified: true,
+        trustTier: true,
+      },
+    });
+  }
+
+  /**
+   * Update the trust tier
+   */
+  async updateTrustTier(id: string, trustTier: string) {
+    return this.prisma.localUser.update({
+      where: { id },
+      data: {
+        trustTier: trustTier as any,
+        trustTierUpdatedAt: new Date(),
+      },
+    });
+  }
+
+  /**
    * Check if user is already deleted
    */
   async isDeleted(id: string): Promise<boolean> {

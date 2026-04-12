@@ -10,6 +10,7 @@ import { InvoiceService } from '../payments/invoice.service';
 import { ReputationService } from '../reputation/reputation.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ContractsService } from '../contracts/contracts.service';
 
 describe('MissionsLocalService', () => {
   let service: MissionsLocalService;
@@ -36,6 +37,7 @@ describe('MissionsLocalService', () => {
     clientEmail: null,
     createdAt: new Date(),
     updatedAt: new Date(),
+    contract: null,
   };
 
   const mockMissionAssigned = {
@@ -84,8 +86,9 @@ describe('MissionsLocalService', () => {
         { provide: MissionsLocalRepository, useValue: mockRepo },
         { provide: InvoiceService, useValue: { calculateInvoice: jest.fn(), createCheckoutSession: jest.fn() } },
         { provide: ReputationService, useValue: { recomputeForLocalUser: jest.fn().mockResolvedValue(undefined) } },
-        { provide: PrismaService, useValue: { $queryRaw: jest.fn().mockResolvedValue([]) } },
+        { provide: PrismaService, useValue: { $queryRaw: jest.fn().mockResolvedValue([]), localMission: { updateMany: jest.fn() } } },
         { provide: NotificationsService, useValue: { createLocalNotification: jest.fn().mockResolvedValue(undefined) } },
+        { provide: ContractsService, useValue: { createLocalContract: jest.fn().mockResolvedValue({ id: 'contract_mock' }) } },
       ],
     }).compile();
 
@@ -259,8 +262,11 @@ describe('MissionsLocalService', () => {
   // ===========================================
   describe('accept', () => {
     it('should accept open mission for worker', async () => {
-      repository.findById.mockResolvedValue(mockMissionOpen);
-      repository.updateStatus.mockResolvedValue({
+      // Mock the atomic updateMany (race-condition-safe)
+      const prisma = (service as any).prisma;
+      prisma.localMission.updateMany.mockResolvedValue({ count: 1 });
+      // Mock findById to return the updated mission
+      repository.findById.mockResolvedValue({
         ...mockMissionOpen,
         status: 'assigned',
         assignedToUserId: 'user-worker-1',
@@ -272,13 +278,19 @@ describe('MissionsLocalService', () => {
         'worker',
       );
 
-      expect(result.status).toBe('assigned');
-      expect(result.assignedToUserId).toBe('user-worker-1');
-      expect(repository.updateStatus).toHaveBeenCalledWith(
-        'mission-1',
-        'assigned',
-        'user-worker-1',
-      );
+      expect(result!.status).toBe('assigned');
+      expect(result!.assignedToUserId).toBe('user-worker-1');
+      expect(prisma.localMission.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 'mission-1',
+          status: 'open',
+          assignedToUserId: null,
+        },
+        data: expect.objectContaining({
+          status: 'assigned',
+          assignedToUserId: 'user-worker-1',
+        }),
+      });
     });
 
     it('should throw ForbiddenException for employer', async () => {
@@ -288,6 +300,8 @@ describe('MissionsLocalService', () => {
     });
 
     it('should throw NotFoundException for non-existent mission', async () => {
+      const prisma = (service as any).prisma;
+      prisma.localMission.updateMany.mockResolvedValue({ count: 0 });
       repository.findById.mockResolvedValue(null);
 
       await expect(
@@ -296,6 +310,8 @@ describe('MissionsLocalService', () => {
     });
 
     it('should throw BadRequestException for already assigned mission', async () => {
+      const prisma = (service as any).prisma;
+      prisma.localMission.updateMany.mockResolvedValue({ count: 0 });
       repository.findById.mockResolvedValue(mockMissionAssigned);
 
       await expect(
@@ -304,6 +320,8 @@ describe('MissionsLocalService', () => {
     });
 
     it('should throw BadRequestException for non-open status', async () => {
+      const prisma = (service as any).prisma;
+      prisma.localMission.updateMany.mockResolvedValue({ count: 0 });
       repository.findById.mockResolvedValue(mockMissionInProgress);
 
       await expect(
