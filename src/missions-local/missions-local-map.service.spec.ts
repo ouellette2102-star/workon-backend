@@ -6,6 +6,7 @@ import { MissionsMapQueryDto } from './dto/missions-map-query.dto';
 import { InvoiceService } from '../payments/invoice.service';
 import { ReputationService } from '../reputation/reputation.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('MissionsLocalService - Map Endpoint', () => {
   let service: MissionsLocalService;
@@ -32,6 +33,7 @@ describe('MissionsLocalService - Map Endpoint', () => {
         { provide: InvoiceService, useValue: { calculateInvoice: jest.fn(), createCheckoutSession: jest.fn() } },
         { provide: ReputationService, useValue: { recomputeForLocalUser: jest.fn().mockResolvedValue(undefined) } },
         { provide: PrismaService, useValue: { $queryRaw: jest.fn().mockResolvedValue([]) } },
+        { provide: NotificationsService, useValue: { createLocalNotification: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
 
