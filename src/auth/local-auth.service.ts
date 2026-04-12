@@ -11,6 +11,8 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { plainToInstance } from 'class-transformer';
 import { UserResponseDto } from '../users/dto/user-response.dto';
+import { ComplianceService } from '../compliance/compliance.service';
+import { ACTIVE_LEGAL_VERSIONS } from '../compliance/compliance.constants';
 
 /**
  * Local Authentication Service
@@ -31,6 +33,7 @@ export class LocalAuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly complianceService: ComplianceService,
   ) {}
 
   /**
@@ -42,6 +45,30 @@ export class LocalAuthService {
 
     // Create user (UsersService handles validation + hashing)
     const user = await this.usersService.create(registerDto);
+
+    // If user explicitly accepted terms at registration, create consent records
+    if (registerDto.acceptTerms) {
+      try {
+        await this.complianceService.acceptDocument(
+          user.id,
+          { documentType: 'TERMS', version: ACTIVE_LEGAL_VERSIONS.TERMS },
+          null, // IP not available here — controller can pass it
+          null, // userAgent not available here
+        );
+        await this.complianceService.acceptDocument(
+          user.id,
+          { documentType: 'PRIVACY', version: ACTIVE_LEGAL_VERSIONS.PRIVACY },
+          null,
+          null,
+        );
+        this.logger.log(`Consent records created for user: ${user.id}`);
+      } catch (err) {
+        // Don't fail registration if consent recording fails
+        this.logger.warn(
+          `Failed to record consent for user ${user.id}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
 
     // Generate tokens
     const accessToken = this.generateAccessToken(user.id, user.role);

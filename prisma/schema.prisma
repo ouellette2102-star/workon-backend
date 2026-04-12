@@ -460,7 +460,26 @@ model LocalUser {
   @@index([phoneVerified])
   @@index([idVerificationStatus])
   @@index([deletionScheduledFor])
+  notifications LocalNotification[]
+
   @@map("local_users")
+}
+
+model LocalNotification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String // "mission_accepted", "new_offer", "payment_received", "new_message", etc.
+  title     String
+  body      String
+  data      Json? // arbitrary payload (missionId, offerId, etc.)
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user LocalUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+  @@map("local_notifications")
 }
 
 model Mission {

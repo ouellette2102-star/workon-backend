@@ -23,11 +23,13 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LocalAuthService } from './local-auth.service';
 import { JwtLocalStrategy } from './strategies/jwt-local.strategy';
 import { UsersModule } from '../users/users.module';
+import { ComplianceModule } from '../compliance/compliance.module';
 
 @Module({
   imports: [
     PrismaModule,
     forwardRef(() => UsersModule), // Use forwardRef to break circular dependency
+    ComplianceModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
