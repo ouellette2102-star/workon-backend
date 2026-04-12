@@ -52,6 +52,7 @@ import { ProsModule } from './pros/pros.module';
 import { SwipeModule } from './swipe/swipe.module';
 import { MissionsMapModule } from './missions-map/missions-map.module';
 import { GhlModule } from './ghl/ghl.module';
+import { AppCacheModule } from './cache/cache.module';
 
 @Module({
   imports: [
@@ -144,6 +145,8 @@ import { GhlModule } from './ghl/ghl.module';
     // CORE INFRASTRUCTURE (no behavior change)
     // ============================================================
     PrismaModule,
+    // Global cache module (Redis or in-memory fallback)
+    AppCacheModule,
     LoggerModule,
     // Audit logging for critical business events (PR-I2)
     AuditModule,
