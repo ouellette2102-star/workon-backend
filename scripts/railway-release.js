@@ -73,29 +73,53 @@ async function main() {
   const statusOutput = (statusResult.stdout || '') + (statusResult.stderr || '');
   log(`Migration status:\n${statusOutput.substring(0, 500)}`);
 
-  // Step 2: If P3009 detected, resolve the failed migration
+  // Step 2: If P3009 detected, resolve ALL failed migrations
   if (statusOutput.includes('P3009') || statusOutput.includes('failed migration')) {
-    log('⚠️  P3009 detected: Failed migration blocking deploy');
-    log('Attempting to resolve migration 20251202201222_add_messages_contracts...');
-    
-    const resolveApplied = run(
-      'npx',
-      ['prisma', 'migrate', 'resolve', '--applied', '20251202201222_add_messages_contracts'],
-      'Resolve migration as applied',
-      { cwd: PROJECT_ROOT }
-    );
-    
-    if (!resolveApplied) {
-      log('--applied failed, trying --rolled-back...');
+    log('⚠️  P3009 detected: Failed migration(s) blocking deploy');
+
+    // Extract failed migration names from status output
+    const failedMigrations = [];
+    const lines = statusOutput.split('\n');
+    for (const line of lines) {
+      // Prisma outputs lines like: "20260412200000_contract_local_mission_support Failed"
+      const match = line.match(/(\d{14}_\S+).*(?:failed|Failed)/i);
+      if (match) {
+        failedMigrations.push(match[1]);
+      }
+    }
+
+    // Fallback: known migrations that have caused issues
+    if (failedMigrations.length === 0) {
+      failedMigrations.push(
+        '20251202201222_add_messages_contracts',
+        '20260412200000_contract_local_mission_support'
+      );
+      log('Could not parse failed migration names, trying known problematic ones...');
+    }
+
+    for (const migrationName of failedMigrations) {
+      log(`Resolving failed migration: ${migrationName}`);
+
+      // First try --rolled-back so it re-runs with our idempotent SQL
       const resolveRolledBack = run(
         'npx',
-        ['prisma', 'migrate', 'resolve', '--rolled-back', '20251202201222_add_messages_contracts'],
-        'Resolve migration as rolled-back',
+        ['prisma', 'migrate', 'resolve', '--rolled-back', migrationName],
+        `Resolve ${migrationName} as rolled-back`,
         { cwd: PROJECT_ROOT }
       );
-      
+
       if (!resolveRolledBack) {
-        log('❌ Failed to resolve migration. Continuing anyway...');
+        log('--rolled-back failed, trying --applied...');
+        const resolveApplied = run(
+          'npx',
+          ['prisma', 'migrate', 'resolve', '--applied', migrationName],
+          `Resolve ${migrationName} as applied`,
+          { cwd: PROJECT_ROOT }
+        );
+
+        if (!resolveApplied) {
+          log(`❌ Failed to resolve migration ${migrationName}. Continuing...`);
+        }
       }
     }
   }
