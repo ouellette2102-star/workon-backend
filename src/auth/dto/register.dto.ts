@@ -1,5 +1,6 @@
 import { CreateUserDto } from '../../users/dto/create-user.dto';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsBoolean, IsOptional } from 'class-validator';
 
 /**
  * Registration DTO - extends CreateUserDto
@@ -18,5 +19,14 @@ export class RegisterDto extends CreateUserDto {
     minLength: 8,
   })
   password: string;
+
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Whether the user explicitly accepted Terms of Service and Privacy Policy at registration',
+    default: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  acceptTerms?: boolean;
 }
 

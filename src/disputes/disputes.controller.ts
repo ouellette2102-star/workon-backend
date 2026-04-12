@@ -58,6 +58,73 @@ export class DisputesController {
     return dispute;
   }
 
+  @Get('mine')
+  @ApiOperation({ summary: 'Get all disputes opened by or involving the authenticated user' })
+  @ApiResponse({ status: 200, description: 'List of disputes' })
+  async getMyDisputes(@Request() req: any) {
+    const userId = req.user.sub;
+
+    // Find disputes where user opened it OR is party to the associated mission
+    // Check both Clerk Mission and LocalMission relations
+    const disputes = await this.prisma.dispute.findMany({
+      where: {
+        OR: [
+          { openedById: userId },
+          {
+            mission: {
+              OR: [
+                { authorClientId: userId },
+                { assigneeWorkerId: userId },
+              ],
+            },
+          },
+          {
+            localMissionId: { not: null },
+          },
+        ],
+      },
+      include: {
+        evidence: true,
+        timeline: { orderBy: { createdAt: 'asc' } },
+        mission: {
+          select: { id: true, title: true, status: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // For disputes linked to local missions, filter by participation
+    // (Prisma can't do nested OR across optional relations in a single query easily)
+    const localMissionIds = disputes
+      .filter((d) => d.localMissionId && d.openedById !== userId && !d.missionId)
+      .map((d) => d.localMissionId as string);
+
+    let participatingLocalMissionIds = new Set<string>();
+    if (localMissionIds.length > 0) {
+      const localMissions = await this.prisma.localMission.findMany({
+        where: {
+          id: { in: localMissionIds },
+          OR: [
+            { createdByUserId: userId },
+            { assignedToUserId: userId },
+          ],
+        },
+        select: { id: true },
+      });
+      participatingLocalMissionIds = new Set(localMissions.map((m) => m.id));
+    }
+
+    // Filter: keep disputes where user is opener, or party to mission/localMission
+    const filtered = disputes.filter((d) => {
+      if (d.openedById === userId) return true;
+      if (d.missionId) return true; // already filtered by Prisma OR on mission
+      if (d.localMissionId) return participatingLocalMissionIds.has(d.localMissionId);
+      return false;
+    });
+
+    return filtered;
+  }
+
   @Get('mission/:missionId')
   @ApiOperation({ summary: 'Get dispute for a mission' })
   @ApiResponse({ status: 200, description: 'Dispute found' })

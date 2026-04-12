@@ -14,6 +14,7 @@ import { MissionsMapQueryDto } from './dto/missions-map-query.dto';
 import { InvoiceService } from '../payments/invoice.service';
 import { ReputationService } from '../reputation/reputation.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export interface ExpressDispatchDto {
   category: string;
@@ -45,6 +46,7 @@ export class MissionsLocalService {
     private readonly invoiceService: InvoiceService,
     private readonly reputationService: ReputationService,
     private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -435,13 +437,25 @@ export class MissionsLocalService {
       `Express dispatch: found ${nearbyWorkers.length} workers within ${radiusKm}km`,
     );
 
-    // 3. In-app notifications for nearby workers
-    // TODO: Notification model has FK to legacy User (Clerk), not LocalUser.
-    //       Once auth is consolidated, wire push notifications here.
-    //       For now workers discover express missions via map/nearby endpoints.
+    // 3. In-app notifications for nearby workers via LocalNotification
     if (nearbyWorkers.length > 0) {
+      const notifTitle = `Nouvelle mission Express`;
+      const notifBody = `${dto.category || 'Service urgent'} à ${dto.city || 'proximité'} — ${dto.budget || 50}$`;
+
+      await Promise.allSettled(
+        nearbyWorkers.map((w) =>
+          this.notificationsService.createLocalNotification(
+            w.id,
+            'express_dispatch',
+            notifTitle,
+            notifBody,
+            { missionId: mission.id, category: dto.category, budget: dto.budget },
+          ),
+        ),
+      );
+
       this.logger.log(
-        `Express dispatch: ${nearbyWorkers.length} nearby workers found (notifications deferred — FK mismatch)`,
+        `Express dispatch: ${nearbyWorkers.length} nearby workers notified`,
       );
     }
 

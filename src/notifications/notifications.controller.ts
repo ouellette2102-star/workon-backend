@@ -18,28 +18,50 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
+  /**
+   * Detect if the authenticated user is a LocalUser (native JWT auth).
+   * Local JWT tokens include `provider: 'local'`.
+   */
+  private isLocalUser(req: any): boolean {
+    return req.user?.provider === 'local';
+  }
+
   @Get()
   async getNotifications(
     @Request() req: any,
     @Query('unreadOnly') unreadOnly?: string,
   ) {
-    // req.user.userId contient l'id interne User (ou sub pour clerkId si pas mappé)
     const userId = req.user.userId || req.user.sub;
     const onlyUnread = unreadOnly === 'true';
+
+    if (this.isLocalUser(req)) {
+      return this.notificationsService.getLocalNotifications(userId, onlyUnread);
+    }
+
     return this.notificationsService.getNotifications(userId, onlyUnread);
   }
 
   @Get('unread-count')
   async getUnreadCount(@Request() req: any) {
     const userId = req.user.userId || req.user.sub;
+
+    if (this.isLocalUser(req)) {
+      const count = await this.notificationsService.countLocalUnread(userId);
+      return { count };
+    }
+
     const count = await this.notificationsService.countUnread(userId);
     return { count };
   }
 
   @Patch(':id/read')
-  async markAsRead(@Param('id') id: string, @Request() _req: any) {
+  async markAsRead(@Param('id') id: string, @Request() req: any) {
     try {
-      await this.notificationsService.markAsRead(id);
+      if (this.isLocalUser(req)) {
+        await this.notificationsService.markLocalAsRead(id);
+      } else {
+        await this.notificationsService.markAsRead(id);
+      }
       return { success: true };
     } catch (error) {
       throw new NotFoundException('Notification not found or access denied');
@@ -49,8 +71,13 @@ export class NotificationsController {
   @Patch('read-all')
   async markAllAsRead(@Request() req: any) {
     const userId = req.user.userId || req.user.sub;
-    await this.notificationsService.markAllAsRead(userId);
+
+    if (this.isLocalUser(req)) {
+      await this.notificationsService.markAllLocalAsRead(userId);
+    } else {
+      await this.notificationsService.markAllAsRead(userId);
+    }
+
     return { success: true };
   }
 }
-
