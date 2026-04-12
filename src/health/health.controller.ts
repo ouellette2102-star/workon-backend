@@ -23,6 +23,7 @@ export interface HealthResponse {
   status: 'ok' | 'degraded' | 'error';
   timestamp: string;
   version: string;
+  deployVersion?: string;
   environment: string;
   uptime: number;
   system?: SystemMetrics;
