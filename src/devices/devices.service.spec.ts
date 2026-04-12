@@ -37,9 +37,14 @@ describe('DevicesService', () => {
   };
 
   const mockLocalDevice = {
-    ...mockDevice,
     id: 'local_device_1',
     userId: 'local_user_1',
+    token: 'fcm_token_123',
+    name: '1.0.0',
+    platform: 'android',
+    active: true,
+    updatedAt: new Date('2026-01-30'),
+    createdAt: new Date('2026-01-01'),
   };
 
   beforeEach(async () => {
@@ -198,7 +203,7 @@ describe('DevicesService', () => {
       mockPrismaService.localDevice.findFirst.mockResolvedValue(mockLocalDevice);
       mockPrismaService.localDevice.update.mockResolvedValue({
         ...mockLocalDevice,
-        pushToken: 'new_local_token',
+        token: 'new_local_token',
       });
 
       const result = await service.updatePushToken(
@@ -233,9 +238,9 @@ describe('DevicesService', () => {
 
     it('should return push tokens for local user', async () => {
       mockPrismaService.localDevice.findMany.mockResolvedValue([
-        { pushToken: 'local_token_1' },
-        { pushToken: null },
-        { pushToken: 'local_token_2' },
+        { token: 'local_token_1' },
+        { token: null },
+        { token: 'local_token_2' },
       ]);
 
       const result = await service.getPushTokensForUser('local_user_1');
