@@ -37,7 +37,18 @@ interface AuthenticatedSocket extends Socket {
  */
 @WebSocketGateway({
   cors: {
-    origin: process.env.FRONTEND_URL || '*',
+    origin: (() => {
+      const frontendUrl = process.env.FRONTEND_URL;
+      const corsOrigin = process.env.CORS_ORIGIN;
+      if (process.env.NODE_ENV === 'production') {
+        if (!frontendUrl && !corsOrigin) {
+          // Fail-closed in production — same as HTTP CORS in main.ts
+          return 'https://workon.ca';
+        }
+        return frontendUrl || corsOrigin;
+      }
+      return frontendUrl || 'http://localhost:3000';
+    })(),
     credentials: true,
   },
   namespace: '/chat',

@@ -7,6 +7,7 @@ import { InvoiceService } from '../payments/invoice.service';
 import { ReputationService } from '../reputation/reputation.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ContractsService } from '../contracts/contracts.service';
 
 describe('MissionsLocalService - Map Endpoint', () => {
   let service: MissionsLocalService;
@@ -34,6 +35,7 @@ describe('MissionsLocalService - Map Endpoint', () => {
         { provide: ReputationService, useValue: { recomputeForLocalUser: jest.fn().mockResolvedValue(undefined) } },
         { provide: PrismaService, useValue: { $queryRaw: jest.fn().mockResolvedValue([]) } },
         { provide: NotificationsService, useValue: { createLocalNotification: jest.fn().mockResolvedValue(undefined) } },
+        { provide: ContractsService, useValue: { createLocalContract: jest.fn().mockResolvedValue({ id: 'contract_mock' }) } },
       ],
     }).compile();
 

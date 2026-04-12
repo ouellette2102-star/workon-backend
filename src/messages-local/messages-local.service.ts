@@ -5,6 +5,7 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { LocalMessageRole, LocalMessageStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ContactFilterService } from '../common/security/contact-filter.service';
@@ -169,7 +170,7 @@ export class MessagesLocalService {
 
     const message = await this.prisma.localMessage.create({
       data: {
-        id: `lmsg_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        id: `lmsg_${crypto.randomUUID().replace(/-/g, '')}`,
         missionId,
         senderId: userId,
         senderRole,

@@ -95,6 +95,11 @@ export class UsersService {
 
     this.logger.log(`User profile updated: ${id}`);
 
+    // Fire-and-forget: recompute completion score after profile update
+    this.computeCompletionScore(id).catch((err) =>
+      this.logger.error(`Failed to recompute completion score for ${id}: ${err.message}`),
+    );
+
     return updatedUser;
   }
 
@@ -188,8 +193,43 @@ export class UsersService {
   }
 
   /**
+   * Update profile picture via URL (no file upload)
+   *
+   * @param userId - User ID
+   * @param pictureUrl - URL of the profile picture
+   * @returns Updated user with pictureUrl
+   * @throws NotFoundException if user not found
+   * @throws BadRequestException if URL is invalid
+   */
+  async updateAvatarUrl(userId: string, pictureUrl: string) {
+    // Verify user exists
+    await this.findById(userId);
+
+    // Basic URL validation
+    if (!pictureUrl || typeof pictureUrl !== 'string') {
+      throw new BadRequestException('pictureUrl is required');
+    }
+
+    try {
+      new URL(pictureUrl);
+    } catch {
+      throw new BadRequestException('pictureUrl must be a valid URL');
+    }
+
+    // Update database
+    const updatedUser = await this.usersRepository.updatePictureUrl(
+      userId,
+      pictureUrl,
+    );
+
+    this.logger.log(`Avatar URL updated for user: ${userId}`);
+
+    return updatedUser;
+  }
+
+  /**
    * Upload profile picture
-   * 
+   *
    * @param userId - User ID
    * @param file - Uploaded file (from Multer)
    * @param baseUrl - Base URL for constructing the picture URL
@@ -254,7 +294,109 @@ export class UsersService {
 
     this.logger.log(`Profile picture uploaded for user: ${userId}`);
 
+    // Fire-and-forget: recompute completion score after picture upload
+    this.computeCompletionScore(userId).catch((err) =>
+      this.logger.error(`Failed to recompute completion score for ${userId}: ${err.message}`),
+    );
+
     return updatedUser;
+  }
+
+  /**
+   * Compute profile completion score (0-100)
+   *
+   * Each field is worth 10 points. Updated in DB.
+   */
+  async computeCompletionScore(userId: string): Promise<number> {
+    const user = await this.usersRepository.findCompletionFields(userId);
+
+    if (!user) return 0;
+
+    const weights = {
+      firstName: 10,
+      lastName: 10,
+      email: 10,
+      phone: 10,
+      city: 10,
+      bio: 10,
+      pictureUrl: 10,
+      category: 10,
+      skills: 10,
+      location: 10,
+    };
+
+    let score = 0;
+    if (user.firstName?.trim()) score += weights.firstName;
+    if (user.lastName?.trim()) score += weights.lastName;
+    if (user.email) score += weights.email;
+    if (user.phone?.trim()) score += weights.phone;
+    if (user.city?.trim()) score += weights.city;
+    if (user.bio?.trim()) score += weights.bio;
+    if (user.pictureUrl) score += weights.pictureUrl;
+    if (user.category?.trim()) score += weights.category;
+    if (user.skills?.length > 0) score += weights.skills;
+    if (user.latitude && user.longitude) score += weights.location;
+
+    await this.usersRepository.updateCompletionScore(userId, score);
+
+    return score;
+  }
+
+  /**
+   * Compute and auto-update trust tier based on verifications
+   *
+   * BASIC → VERIFIED (phone) → TRUSTED (phone + ID) → PREMIUM (phone + ID + bank)
+   */
+  async recomputeTrustTier(userId: string): Promise<string> {
+    const user = await this.usersRepository.findTrustTierFields(userId);
+
+    if (!user) return 'BASIC';
+
+    let newTier: 'BASIC' | 'VERIFIED' | 'TRUSTED' | 'PREMIUM' = 'BASIC';
+
+    if (user.phoneVerified) newTier = 'VERIFIED';
+    if (user.phoneVerified && user.idVerificationStatus === 'VERIFIED') newTier = 'TRUSTED';
+    if (user.phoneVerified && user.idVerificationStatus === 'VERIFIED' && user.bankVerified) newTier = 'PREMIUM';
+
+    if (newTier !== user.trustTier) {
+      await this.usersRepository.updateTrustTier(userId, newTier);
+      this.logger.log(`Trust tier updated for user ${userId}: ${user.trustTier} → ${newTier}`);
+    }
+
+    return newTier;
+  }
+
+  /**
+   * Get completion details for the current user
+   *
+   * Returns score, tier, and list of missing fields.
+   */
+  async getCompletionDetails(userId: string): Promise<{
+    score: number;
+    tier: string;
+    missingFields: string[];
+  }> {
+    const user = await this.usersRepository.findCompletionFields(userId);
+    if (!user) throw new NotFoundException('User not found');
+
+    const tierData = await this.usersRepository.findTrustTierFields(userId);
+    const tier = tierData?.trustTier ?? 'BASIC';
+
+    const score = await this.computeCompletionScore(userId);
+
+    const missingFields: string[] = [];
+    if (!user.firstName?.trim()) missingFields.push('firstName');
+    if (!user.lastName?.trim()) missingFields.push('lastName');
+    if (!user.email) missingFields.push('email');
+    if (!user.phone?.trim()) missingFields.push('phone');
+    if (!user.city?.trim()) missingFields.push('city');
+    if (!user.bio?.trim()) missingFields.push('bio');
+    if (!user.pictureUrl) missingFields.push('pictureUrl');
+    if (!user.category?.trim()) missingFields.push('category');
+    if (!(user.skills?.length > 0)) missingFields.push('skills');
+    if (!user.latitude || !user.longitude) missingFields.push('location');
+
+    return { score, tier, missingFields };
   }
 
   /**

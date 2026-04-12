@@ -107,7 +107,7 @@ describe('PaymentsService', () => {
       const mockPayment = {
         id: 'pay-1',
         status: PaymentStatus.AUTHORIZED,
-        amount: 100,
+        amountCents: 10000,
         currency: 'CAD',
         stripePaymentIntentId: 'pi_123',
         createdAt: new Date(),
@@ -124,7 +124,7 @@ describe('PaymentsService', () => {
         select: {
           id: true,
           status: true,
-          amount: true,
+          amountCents: true,
           currency: true,
           stripePaymentIntentId: true,
           createdAt: true,

@@ -87,6 +87,18 @@ describe('MissionsLocalRepository', () => {
 
       expect(prisma.localMission.findUnique).toHaveBeenCalledWith({
         where: { id: 'lm_123_abc' },
+        include: {
+          contract: {
+            select: {
+              id: true,
+              status: true,
+              amount: true,
+              signedByWorker: true,
+              signedByEmployer: true,
+              createdAt: true,
+            },
+          },
+        },
       });
       expect(result?.id).toBe('lm_123_abc');
     });
