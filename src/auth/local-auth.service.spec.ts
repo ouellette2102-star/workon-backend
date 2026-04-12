@@ -5,6 +5,7 @@ import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { LocalUserRole } from '@prisma/client';
 import { LocalAuthService } from './local-auth.service';
 import { UsersService } from '../users/users.service';
+import { ComplianceService } from '../compliance/compliance.service';
 
 describe('LocalAuthService', () => {
   let service: LocalAuthService;
@@ -59,6 +60,12 @@ describe('LocalAuthService', () => {
               };
               return config[key];
             }),
+          },
+        },
+        {
+          provide: ComplianceService,
+          useValue: {
+            recordConsent: jest.fn().mockResolvedValue(undefined),
           },
         },
       ],
