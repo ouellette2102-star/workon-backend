@@ -33,7 +33,7 @@ describe('SwipeService', () => {
       },
       swipeMatch: {
         findMany: jest.fn().mockResolvedValue([]),
-        upsert: jest.fn().mockResolvedValue({ id: 'sm_1', userId1: 'user_1', userId2: 'worker_1' }),
+        upsert: jest.fn().mockResolvedValue({ id: 'sm_1', userAId: 'user_1', userBId: 'worker_1' }),
       },
       localUser: {
         findMany: jest.fn().mockResolvedValue([{ ...mockCandidate, receivedReviews: [{ rating: 5 }] }]),
@@ -64,8 +64,8 @@ describe('SwipeService', () => {
       const result = await service.getCandidates('user_1');
 
       expect(prisma.swipeAction.findMany).toHaveBeenCalledWith({
-        where: { swiperId: 'user_1' },
-        select: { candidateId: true },
+        where: { userId: 'user_1' },
+        select: { targetId: true },
       });
       expect(prisma.localUser.findMany).toHaveBeenCalled();
       expect(result).toHaveLength(1);
@@ -128,8 +128,8 @@ describe('SwipeService', () => {
       // Simulate reciprocal LIKE exists
       prisma.swipeAction.findUnique.mockResolvedValue({
         id: 'sa_2',
-        swiperId: 'worker_1',
-        candidateId: 'user_1',
+        userId: 'worker_1',
+        targetId: 'user_1',
         action: 'LIKE',
       });
 
@@ -150,8 +150,8 @@ describe('SwipeService', () => {
     it('should not create match if other user PASSed', async () => {
       prisma.swipeAction.findUnique.mockResolvedValue({
         id: 'sa_2',
-        swiperId: 'worker_1',
-        candidateId: 'user_1',
+        userId: 'worker_1',
+        targetId: 'user_1',
         action: 'PASS',
       });
 
@@ -163,8 +163,8 @@ describe('SwipeService', () => {
     it('should create match on mutual SUPERLIKE', async () => {
       prisma.swipeAction.findUnique.mockResolvedValue({
         id: 'sa_2',
-        swiperId: 'worker_1',
-        candidateId: 'user_1',
+        userId: 'worker_1',
+        targetId: 'user_1',
         action: 'SUPERLIKE',
       });
 
@@ -179,12 +179,10 @@ describe('SwipeService', () => {
       prisma.swipeMatch.findMany.mockResolvedValue([
         {
           id: 'sm_1',
-          userId1: 'user_1',
-          userId2: 'worker_1',
+          userAId: 'user_1',
+          userBId: 'worker_1',
           matchedAt: new Date(),
-          status: 'ACTIVE',
-          user1: { id: 'user_1', firstName: 'Client', lastName: 'Test', city: 'Montréal', pictureUrl: null, role: 'employer', category: null },
-          user2: { id: 'worker_1', firstName: 'Jean', lastName: 'Worker', city: 'Montréal', pictureUrl: null, role: 'worker', category: 'plumbing' },
+          status: 'active',
         },
       ]);
 

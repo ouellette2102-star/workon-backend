@@ -69,7 +69,7 @@ describe('LeadsService', () => {
       mockPrisma.lead.create.mockResolvedValue({
         id: 'lead_abc',
         ...validDto,
-        clientPhone: '5145551234',
+        phone: '5145551234',
         status: 'NEW',
         createdAt: new Date(),
       });
@@ -81,8 +81,8 @@ describe('LeadsService', () => {
       expect(mockPrisma.lead.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            clientPhone: '5145551234', // normalized
-            clientEmail: 'jean@test.com',
+            phone: '5145551234', // normalized
+            email: 'jean@test.com',
             status: 'NEW',
           }),
         }),
@@ -132,7 +132,7 @@ describe('LeadsService', () => {
       expect(mockPrisma.lead.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            clientPhone: '5145551234',
+            phone: '5145551234',
           }),
         }),
       );
@@ -142,8 +142,8 @@ describe('LeadsService', () => {
   describe('getLeadsByPro', () => {
     it('should return leads for a professional', async () => {
       const mockLeads = [
-        { id: 'lead_1', clientName: 'Jean', status: 'NEW' },
-        { id: 'lead_2', clientName: 'Marie', status: 'CONTACTED' },
+        { id: 'lead_1', name: 'Jean', status: 'NEW' },
+        { id: 'lead_2', name: 'Marie', status: 'CONTACTED' },
       ];
       mockPrisma.lead.findMany.mockResolvedValue(mockLeads);
 
@@ -160,7 +160,7 @@ describe('LeadsService', () => {
 
       expect(mockPrisma.lead.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { professionalId: 'pro_123', status: 'NEW' },
+          where: { userId: 'pro_123', status: 'NEW' },
         }),
       );
     });
@@ -169,7 +169,7 @@ describe('LeadsService', () => {
   describe('getAllLeads', () => {
     it('should return paginated leads with total count', async () => {
       const mockLeads = [
-        { id: 'lead_1', clientName: 'Jean', status: 'NEW', professional: { firstName: 'Marc', lastName: 'Dubois', email: 'marc@test.com' } },
+        { id: 'lead_1', name: 'Jean', status: 'NEW', user: { firstName: 'Marc', lastName: 'Dubois', email: 'marc@test.com' } },
       ];
       mockPrisma.lead.findMany.mockResolvedValue(mockLeads);
       mockPrisma.lead.count.mockResolvedValue(1);
