@@ -76,6 +76,8 @@ async function bootstrap() {
 
   let allowedOrigins: string[] | boolean;
 
+  const DEFAULT_PROD_ORIGINS = 'https://workon.ca,https://www.workon.ca';
+
   if (isProd) {
     // PRODUCTION: Mode strict, fail-closed
     if (corsOrigin === '*') {
@@ -90,10 +92,9 @@ async function bootstrap() {
       allowedOrigins = corsOrigin.split(',').map((o) => o.trim()).filter(Boolean);
       console.log(`🔒 CORS: Allowing origins: ${allowedOrigins.join(', ')}`);
     } else {
-      throw new Error(
-        '❌ SECURITY: CORS_ORIGIN or FRONTEND_URL must be set in production. ' +
-          'Refusing to boot with wildcard fallback.',
-      );
+      // Default to workon.ca domains when no explicit origin is configured
+      allowedOrigins = DEFAULT_PROD_ORIGINS.split(',').map((o) => o.trim());
+      console.log(`🔒 CORS: No CORS_ORIGIN or FRONTEND_URL set, defaulting to: ${allowedOrigins.join(', ')}`);
     }
   } else {
     // DEVELOPMENT: Plus permissif
