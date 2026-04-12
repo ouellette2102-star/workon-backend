@@ -170,7 +170,7 @@ model LocalMission {
   createdByUser         LocalUser          @relation("local_missions_createdByUserIdTolocal_users", fields: [createdByUserId], references: [id], onDelete: Cascade)
   offers                LocalOffer[]
   messages              LocalMessage[]
-  localContracts        Contract[]         @relation("local_contracts")
+  contract              Contract?          @relation("local_contracts")
 
   @@index([assignedToUserId])
   @@index([category])
@@ -431,6 +431,7 @@ model LocalUser {
   latitude          Float? // GPS location
   longitude         Float? // GPS location
   gallery           String[] @default([]) // Portfolio image URLs
+  skills            String[] @default([]) // Selected skill IDs from catalog
   trustScore           Float?    // Computed trust score
   trustScoreUpdatedAt  DateTime? // Last trust score recalculation
   ratingAverage        Float?    // Average review rating
@@ -461,6 +462,8 @@ model LocalUser {
   @@index([idVerificationStatus])
   @@index([deletionScheduledFor])
   notifications LocalNotification[]
+  contractsAsEmployer Contract[] @relation("contracts_localEmployer")
+  contractsAsWorker   Contract[] @relation("contracts_localWorker")
 
   @@map("local_users")
 }
@@ -566,9 +569,9 @@ model Payment {
   missionId              String        @unique
   stripePaymentIntentId  String?       @unique
   stripeConnectAccountId String?
-  amount                 Float
+  amountCents            Int
   currency               String        @default("CAD")
-  platformFeePct         Float         @default(10)
+  platformFeePct         Float         @default(15)
   status                 PaymentStatus @default(CREATED)
   lastStripeEventId      String?
   createdAt              DateTime      @default(now())
@@ -868,10 +871,12 @@ enum MessageStatus {
 
 model Contract {
   id               String         @id
-  missionId        String         @unique
-  localMissionId   String? // Link to native LocalMission
-  employerId       String
-  workerId         String
+  missionId        String?        @unique
+  localMissionId   String?        @unique // Link to native LocalMission (one contract per mission)
+  employerId       String?        // User ID (legacy) — null for local contracts
+  workerId         String?        // User ID (legacy) — null for local contracts
+  localEmployerId  String?        // LocalUser ID — for local contracts
+  localWorkerId    String?        // LocalUser ID — for local contracts
   status           ContractStatus @default(DRAFT)
   amount           Float
   hourlyRate       Float?
@@ -885,15 +890,19 @@ model Contract {
   updatedAt        DateTime       @updatedAt
 
   // Relations
-  mission      Mission       @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  localMission LocalMission? @relation("local_contracts", fields: [localMissionId], references: [id])
-  employer     User          @relation("contracts_employerIdTousers", fields: [employerId], references: [id], onDelete: Cascade)
-  worker       User          @relation("contracts_workerIdTousers", fields: [workerId], references: [id], onDelete: Cascade)
+  mission       Mission?      @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  localMission  LocalMission? @relation("local_contracts", fields: [localMissionId], references: [id])
+  employer      User?         @relation("contracts_employerIdTousers", fields: [employerId], references: [id], onDelete: Cascade)
+  worker        User?         @relation("contracts_workerIdTousers", fields: [workerId], references: [id], onDelete: Cascade)
+  localEmployer LocalUser?    @relation("contracts_localEmployer", fields: [localEmployerId], references: [id])
+  localWorker   LocalUser?    @relation("contracts_localWorker", fields: [localWorkerId], references: [id])
 
   @@index([employerId])
   @@index([workerId])
   @@index([status])
   @@index([localMissionId])
+  @@index([localEmployerId])
+  @@index([localWorkerId])
   @@map("contracts")
 }
 

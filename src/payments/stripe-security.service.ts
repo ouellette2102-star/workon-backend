@@ -130,10 +130,10 @@ export class StripeSecurityService {
         createdAt: { gte: oneDayAgo },
         status: { not: PaymentStatus.FAILED },
       },
-      _sum: { amount: true },
+      _sum: { amountCents: true },
     });
 
-    const totalAmountCents = ((amountLastDay._sum.amount || 0) * 100) + amountCents;
+    const totalAmountCents = (amountLastDay._sum.amountCents || 0) + amountCents;
     if (totalAmountCents > this.limits.maxAmountPerDay) {
       this.logSecurityEvent('VELOCITY_BLOCKED', userId, {
         reason: 'max_amount_per_day',

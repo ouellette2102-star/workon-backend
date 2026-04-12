@@ -40,11 +40,23 @@ export class MissionsLocalRepository {
   }
 
   /**
-   * Find mission by ID
+   * Find mission by ID (includes contract if exists)
    */
   async findById(id: string) {
     return this.prisma.localMission.findUnique({
       where: { id },
+      include: {
+        contract: {
+          select: {
+            id: true,
+            status: true,
+            amount: true,
+            signedByWorker: true,
+            signedByEmployer: true,
+            createdAt: true,
+          },
+        },
+      },
     });
   }
 

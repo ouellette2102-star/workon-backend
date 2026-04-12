@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from '../push/push.service';
 import { DevicesService } from '../devices/devices.service';
@@ -50,7 +51,7 @@ export class NotificationsService {
       // Create in-app notification
       await this.prisma.notification.create({
         data: {
-          id: `notif_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+          id: `notif_${crypto.randomUUID().replace(/-/g, '')}`,
           userId: user.id,
           type: 'NEW_MESSAGE',
           payloadJSON: {
@@ -130,7 +131,7 @@ export class NotificationsService {
 
       await this.prisma.notification.create({
         data: {
-          id: `notif_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+          id: `notif_${crypto.randomUUID().replace(/-/g, '')}`,
           userId: user.id,
           type: 'MISSION_STATUS_CHANGED',
           payloadJSON: {
@@ -167,7 +168,7 @@ export class NotificationsService {
 
       await this.prisma.notification.create({
         data: {
-          id: `notif_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+          id: `notif_${crypto.randomUUID().replace(/-/g, '')}`,
           userId: user.id,
           type: 'MISSION_TIME_EVENT',
           payloadJSON: {

@@ -367,27 +367,37 @@ export class InvoiceService {
       },
     });
 
-    // 3. Update invoice status
-    const invoice = await this.prisma.invoice.update({
-      where: { id: invoiceId },
-      data: {
-        status: 'PAID',
-        paidAt: new Date(),
-        stripePaymentIntentId: session.payment_intent as string,
-      },
-    });
-
-    this.logger.log(`Invoice ${invoiceId} marked as PAID`);
-
-    // 4. Update mission status and trigger payout
-    if (localMissionId) {
-      const mission = await this.prisma.localMission.update({
-        where: { id: localMissionId },
+    // 3. Use transaction for invoice + mission update
+    const invoice = await this.prisma.$transaction(async (tx) => {
+      const inv = await tx.invoice.update({
+        where: { id: invoiceId },
         data: {
-          status: 'paid',
+          status: 'PAID',
           paidAt: new Date(),
           stripePaymentIntentId: session.payment_intent as string,
         },
+      });
+
+      if (localMissionId) {
+        await tx.localMission.update({
+          where: { id: localMissionId },
+          data: {
+            status: 'paid',
+            paidAt: new Date(),
+            stripePaymentIntentId: session.payment_intent as string,
+          },
+        });
+      }
+
+      return inv;
+    });
+
+    this.logger.log(`Invoice ${invoiceId} marked as PAID (transaction committed)`);
+
+    // 4. Auto-payout to worker via Stripe Connect (outside transaction — external call)
+    if (localMissionId && this.stripe && session.payment_intent) {
+      const mission = await this.prisma.localMission.findUnique({
+        where: { id: localMissionId },
         include: {
           assignedToUser: {
             select: { id: true, stripeAccountId: true },
@@ -395,20 +405,22 @@ export class InvoiceService {
         },
       });
 
-      this.logger.log(`LocalMission ${localMissionId} status updated to "paid"`);
-
-      // 5. Auto-payout to worker via Stripe Connect (if configured)
-      if (
-        this.stripe &&
-        mission.assignedToUser?.stripeAccountId &&
-        session.payment_intent
-      ) {
+      if (mission?.assignedToUser?.stripeAccountId) {
         try {
-          const paymentIntent = await this.stripe.paymentIntents.retrieve(
-            session.payment_intent as string,
+          // Check payoutsEnabled before transferring
+          const account = await this.stripe.accounts.retrieve(
+            mission.assignedToUser.stripeAccountId,
           );
 
-          const workerAmount = invoice.subtotalCents; // Worker gets subtotal (without platform fee)
+          if (!account.payouts_enabled) {
+            this.logger.error(
+              `Worker ${mission.assignedToUser.id} Stripe account payouts not enabled. ` +
+              `Transfer deferred for mission ${localMissionId}. Manual payout required.`,
+            );
+            return;
+          }
+
+          const workerAmount = invoice.subtotalCents;
 
           await this.stripe.transfers.create({
             amount: workerAmount,
@@ -428,8 +440,10 @@ export class InvoiceService {
           );
         } catch (payoutErr) {
           this.logger.error(
-            `Failed to create payout for mission ${localMissionId}: ` +
-            `${payoutErr instanceof Error ? payoutErr.message : String(payoutErr)}`,
+            `CRITICAL: Failed to create payout for mission ${localMissionId}. ` +
+            `Invoice ${invoice.id} is PAID but worker transfer failed. ` +
+            `Error: ${payoutErr instanceof Error ? payoutErr.message : String(payoutErr)}. ` +
+            `MANUAL PAYOUT REQUIRED.`,
           );
           // Don't fail the webhook — payout can be retried manually
         }

@@ -66,7 +66,7 @@ describe('StripeSecurityService', () => {
   describe('checkVelocityLimits', () => {
     it('should allow payment within limits', async () => {
       mockPrismaService.payment.count.mockResolvedValue(0);
-      mockPrismaService.payment.aggregate.mockResolvedValue({ _sum: { amount: 0 } });
+      mockPrismaService.payment.aggregate.mockResolvedValue({ _sum: { amountCents: 0 } });
 
       const result = await service.checkVelocityLimits('user-1', 10000);
 
@@ -104,7 +104,7 @@ describe('StripeSecurityService', () => {
         .mockResolvedValueOnce(5) // hourly ok
         .mockResolvedValueOnce(10); // daily ok
       mockPrismaService.payment.aggregate.mockResolvedValue({
-        _sum: { amount: 4900 }, // $4900 already spent, $5000 limit
+        _sum: { amountCents: 490000 }, // 490000 cents already spent, 500000 cents limit
       });
 
       await expect(

@@ -33,6 +33,31 @@ import { plainToInstance } from 'class-transformer';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  @Get('me/completion')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get profile completion score and trust tier' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns completion score, trust tier, and missing fields',
+    schema: {
+      type: 'object',
+      properties: {
+        score: { type: 'number', example: 70 },
+        tier: { type: 'string', example: 'VERIFIED' },
+        missingFields: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['bio', 'pictureUrl', 'skills'],
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getMyCompletion(@Request() req: any) {
+    return this.usersService.getCompletionDetails(req.user.sub);
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -131,8 +156,55 @@ export class UsersController {
   }
 
   /**
+   * PATCH /api/v1/users/me/avatar
+   *
+   * Update profile picture via URL (no file upload needed).
+   * For MVP: accepts a pictureUrl string and stores it directly.
+   */
+  @Patch('me/avatar')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Update profile picture URL',
+    description: 'Set or update the profile picture by providing a URL. For MVP use; file upload available via POST /me/picture.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        pictureUrl: {
+          type: 'string',
+          description: 'URL of the profile picture',
+          example: 'https://example.com/photo.jpg',
+        },
+      },
+      required: ['pictureUrl'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Avatar URL updated successfully',
+    type: UserResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid URL' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async updateAvatar(
+    @Request() req: any,
+    @Body() body: { pictureUrl: string },
+  ) {
+    const user = await this.usersService.updateAvatarUrl(
+      req.user.sub,
+      body.pictureUrl,
+    );
+    return plainToInstance(UserResponseDto, user, {
+      excludeExtraneousValues: true,
+    });
+  }
+
+  /**
    * DELETE /api/v1/users/me
-   * 
+   *
    * GDPR-compliant account deletion.
    * Anonymizes PII and marks account as deleted.
    * User will be logged out and unable to login again.

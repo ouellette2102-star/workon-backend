@@ -53,6 +53,7 @@ import { SwipeModule } from './swipe/swipe.module';
 import { MissionsMapModule } from './missions-map/missions-map.module';
 import { GhlModule } from './ghl/ghl.module';
 import { AppCacheModule } from './cache/cache.module';
+import { WorkerSkillsModule } from './worker-skills/worker-skills.module';
 
 @Module({
   imports: [
@@ -228,6 +229,8 @@ import { AppCacheModule } from './cache/cache.module';
     MissionsMapModule,
     // GHL module - GoHighLevel webhook integration
     GhlModule,
+    // Worker skills management (select skills from catalog)
+    WorkerSkillsModule,
   ],
   controllers: [AppController],
   providers: [

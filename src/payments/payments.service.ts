@@ -155,15 +155,15 @@ export class PaymentsService {
       where: { missionId },
       update: {
         stripePaymentIntentId: paymentIntent.id,
-        amount,
+        amountCents,
         status: PaymentStatus.CREATED,
         updatedAt: new Date(),
       },
       create: {
-        id: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: `pay_${crypto.randomUUID().replace(/-/g, '')}`,
         missionId: mission.id,
         stripePaymentIntentId: paymentIntent.id,
-        amount,
+        amountCents,
         currency: 'CAD',
         platformFeePct: this.platformFeePercent,
         status: PaymentStatus.CREATED,
@@ -309,7 +309,7 @@ export class PaymentsService {
       select: {
         id: true,
         status: true,
-        amount: true,
+        amountCents: true,
         currency: true,
         stripePaymentIntentId: true,
         createdAt: true,
