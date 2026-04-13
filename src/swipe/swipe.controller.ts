@@ -40,14 +40,19 @@ export class SwipeController {
   })
   @ApiResponse({ status: 200, description: 'Candidates list' })
   async getCandidates(@Request() req: any, @Query() query: SwipeCandidatesQueryDto) {
-    return this.swipeService.getCandidates(req.user.sub, {
-      role: query.role,
-      category: query.category,
-      lat: query.lat,
-      lng: query.lng,
-      radiusKm: query.radiusKm,
-      minRating: query.minRating,
-    });
+    try {
+      return await this.swipeService.getCandidates(req.user.sub, {
+        role: query.role,
+        category: query.category,
+        lat: query.lat,
+        lng: query.lng,
+        radiusKm: query.radiusKm,
+        minRating: query.minRating,
+      });
+    } catch (error) {
+      // Expose actual error for debugging — remove after stabilization
+      throw new Error(`Swipe candidates error: ${(error as Error).message}`);
+    }
   }
 
   @Post('action')
