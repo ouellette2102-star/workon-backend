@@ -47,6 +47,9 @@ export class WorkerProfileResponseDto {
 
   @ApiPropertyOptional({ example: 45 })
   hourlyRate?: number;
+
+  @ApiPropertyOptional({ example: 'Paysagisme' })
+  category?: string;
 }
 
 export class WorkersListResponseDto {

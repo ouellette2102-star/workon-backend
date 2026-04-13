@@ -43,6 +43,10 @@ export class WorkersService {
       where.city = { contains: params.city, mode: 'insensitive' };
     }
 
+    if (params.category) {
+      where.category = { contains: params.category, mode: 'insensitive' };
+    }
+
     const [total, workers] = await Promise.all([
       this.prisma.localUser.count({ where }),
       this.prisma.localUser.findMany({
@@ -56,6 +60,9 @@ export class WorkersService {
           lastName: true,
           city: true,
           pictureUrl: true,
+          category: true,
+          ratingAverage: true,
+          reviewCount: true,
           createdAt: true,
           trustTier: true,
           assignedMissions: {
@@ -68,7 +75,9 @@ export class WorkersService {
 
     const result: WorkerProfileResponseDto[] = workers.map((w) => {
       const completedCount = w.assignedMissions?.length ?? 0;
-      const badges = this.computeBadges(0, completedCount, 0, w.trustTier);
+      const avgRating = w.ratingAverage ?? 0;
+      const revCount = w.reviewCount ?? 0;
+      const badges = this.computeBadges(avgRating, completedCount, revCount, w.trustTier);
 
       return {
         id: w.id,
@@ -77,9 +86,10 @@ export class WorkersService {
         fullName: `${w.firstName} ${w.lastName}`.trim(),
         city: w.city ?? undefined,
         photoUrl: w.pictureUrl ?? undefined,
-        averageRating: 0,
+        category: w.category ?? undefined,
+        averageRating: avgRating,
         completionPercentage: this.computeCompletionPct(completedCount),
-        reviewCount: 0,
+        reviewCount: revCount,
         completedMissions: completedCount,
         badges,
         hourlyRate: undefined,
@@ -101,6 +111,9 @@ export class WorkersService {
         lastName: true,
         city: true,
         pictureUrl: true,
+        category: true,
+        ratingAverage: true,
+        reviewCount: true,
         trustTier: true,
         createdAt: true,
         assignedMissions: {
@@ -115,6 +128,8 @@ export class WorkersService {
     }
 
     const completedCount = w.assignedMissions?.length ?? 0;
+    const avgRating = w.ratingAverage ?? 0;
+    const revCount = w.reviewCount ?? 0;
 
     return {
       id: w.id,
@@ -123,11 +138,12 @@ export class WorkersService {
       fullName: `${w.firstName} ${w.lastName}`.trim(),
       city: w.city ?? undefined,
       photoUrl: w.pictureUrl ?? undefined,
-      averageRating: 0,
+      category: w.category ?? undefined,
+      averageRating: avgRating,
       completionPercentage: this.computeCompletionPct(completedCount),
-      reviewCount: 0,
+      reviewCount: revCount,
       completedMissions: completedCount,
-      badges: this.computeBadges(0, completedCount, 0, w.trustTier),
+      badges: this.computeBadges(avgRating, completedCount, revCount, w.trustTier),
       hourlyRate: undefined,
     };
   }
