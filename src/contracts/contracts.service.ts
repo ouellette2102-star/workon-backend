@@ -49,7 +49,7 @@ export class ContractsService {
    * Créer un contrat pour une mission
    */
   async createContract(
-    clerkUserId: string,
+    userId: string,
     dto: CreateContractDto,
   ): Promise<ContractResponse> {
     // Vérifier que la mission existe
@@ -67,7 +67,8 @@ export class ContractsService {
     }
 
     // Vérifier que l'utilisateur est l'employer de la mission
-    if (mission.authorClient.clerkId !== clerkUserId) {
+    // Support both JWT (id) and legacy Clerk (clerkId) lookup
+    if (mission.authorClient.id !== userId && mission.authorClient.clerkId !== userId) {
       throw new ForbiddenException('Seul l\'employer peut créer un contrat');
     }
 
@@ -110,7 +111,7 @@ export class ContractsService {
    * Récupérer un contrat par ID
    */
   async getContractById(
-    clerkUserId: string,
+    userId: string,
     contractId: string,
   ): Promise<ContractResponse> {
     const contract = await this.prisma.contract.findUnique({
@@ -126,11 +127,10 @@ export class ContractsService {
       throw new NotFoundException('Contrat non trouvé');
     }
 
-    // Vérifier l'accès
-    if (
-      contract.employer?.clerkId !== clerkUserId &&
-      contract.worker?.clerkId !== clerkUserId
-    ) {
+    // Vérifier l'accès — support both JWT (id) and legacy Clerk (clerkId)
+    const isEmployer = contract.employer?.id === userId || contract.employer?.clerkId === userId;
+    const isWorker = contract.worker?.id === userId || contract.worker?.clerkId === userId;
+    if (!isEmployer && !isWorker) {
       throw new ForbiddenException('Accès non autorisé à ce contrat');
     }
 
@@ -140,11 +140,20 @@ export class ContractsService {
   /**
    * Récupérer les contrats d'un utilisateur
    */
-  async getContractsForUser(clerkUserId: string): Promise<ContractResponse[]> {
-    const user = await this.prisma.user.findUnique({
-      where: { clerkId: clerkUserId },
+  async getContractsForUser(userId: string): Promise<ContractResponse[]> {
+    // Support both JWT (id) and legacy Clerk (clerkId) lookup
+    let user = await this.prisma.user.findUnique({
+      where: { id: userId },
       select: { id: true },
     });
+
+    if (!user) {
+      // Fallback: try legacy Clerk ID lookup
+      user = await this.prisma.user.findUnique({
+        where: { clerkId: userId },
+        select: { id: true },
+      });
+    }
 
     if (!user) {
       throw new NotFoundException('Utilisateur non trouvé');
@@ -172,7 +181,7 @@ export class ContractsService {
    * Mettre à jour le statut d'un contrat
    */
   async updateContractStatus(
-    clerkUserId: string,
+    userId: string,
     contractId: string,
     dto: UpdateContractStatusDto,
   ): Promise<ContractResponse> {
@@ -188,8 +197,9 @@ export class ContractsService {
       throw new NotFoundException('Contrat non trouvé');
     }
 
-    const isEmployer = contract.employer?.clerkId === clerkUserId;
-    const isWorker = contract.worker?.clerkId === clerkUserId;
+    // Support both JWT (id) and legacy Clerk (clerkId)
+    const isEmployer = contract.employer?.id === userId || contract.employer?.clerkId === userId;
+    const isWorker = contract.worker?.id === userId || contract.worker?.clerkId === userId;
 
     if (!isEmployer && !isWorker) {
       throw new ForbiddenException('Accès non autorisé');
