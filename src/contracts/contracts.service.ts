@@ -141,29 +141,43 @@ export class ContractsService {
    * Récupérer les contrats d'un utilisateur
    */
   async getContractsForUser(userId: string): Promise<ContractResponse[]> {
-    // Support both JWT (id) and legacy Clerk (clerkId) lookup
-    let user = await this.prisma.user.findUnique({
+    // Support JWT (LocalUser.id), legacy User.id, and Clerk (clerkId)
+    let resolvedId = userId;
+
+    // Try LocalUser first (JWT users)
+    const localUser = await this.prisma.localUser.findUnique({
       where: { id: userId },
       select: { id: true },
     });
 
-    if (!user) {
-      // Fallback: try legacy Clerk ID lookup
-      user = await this.prisma.user.findUnique({
-        where: { clerkId: userId },
+    if (!localUser) {
+      // Fallback: legacy User table
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
         select: { id: true },
       });
-    }
-
-    if (!user) {
-      throw new NotFoundException('Utilisateur non trouvé');
+      if (!user) {
+        const clerkUser = await this.prisma.user.findUnique({
+          where: { clerkId: userId },
+          select: { id: true },
+        });
+        if (!clerkUser) {
+          // No contracts for new users — return empty instead of 404
+          return [];
+        }
+        resolvedId = clerkUser.id;
+      } else {
+        resolvedId = user.id;
+      }
     }
 
     const contracts = await this.prisma.contract.findMany({
       where: {
         OR: [
-          { employerId: user.id },
-          { workerId: user.id },
+          { employerId: resolvedId },
+          { workerId: resolvedId },
+          { localEmployerId: resolvedId },
+          { localWorkerId: resolvedId },
         ],
       },
       include: {
