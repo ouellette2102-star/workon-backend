@@ -21,6 +21,9 @@ const mockPrismaService = {
   user: {
     findUnique: jest.fn(),
   },
+  localUser: {
+    findUnique: jest.fn(),
+  },
 };
 
 describe('ContractsService', () => {
@@ -183,29 +186,30 @@ describe('ContractsService', () => {
   });
 
   describe('getContractsForUser', () => {
-    it('should return contracts for user', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'employer-1' });
+    it('should return contracts for user (LocalUser)', async () => {
+      mockPrismaService.localUser.findUnique.mockResolvedValue({ id: 'employer-1' });
       mockPrismaService.contract.findMany.mockResolvedValue([mockContract]);
 
-      const result = await service.getContractsForUser('clerk-employer');
+      const result = await service.getContractsForUser('employer-1');
 
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe('contract-1');
     });
 
-    it('should throw NotFoundException if user not found', async () => {
+    it('should return empty array if user not found anywhere', async () => {
+      mockPrismaService.localUser.findUnique.mockResolvedValue(null);
       mockPrismaService.user.findUnique.mockResolvedValue(null);
 
-      await expect(
-        service.getContractsForUser('unknown'),
-      ).rejects.toThrow(NotFoundException);
+      const result = await service.getContractsForUser('unknown');
+
+      expect(result).toHaveLength(0);
     });
 
     it('should return empty array if no contracts', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'employer-1' });
+      mockPrismaService.localUser.findUnique.mockResolvedValue({ id: 'employer-1' });
       mockPrismaService.contract.findMany.mockResolvedValue([]);
 
-      const result = await service.getContractsForUser('clerk-employer');
+      const result = await service.getContractsForUser('employer-1');
 
       expect(result).toHaveLength(0);
     });
