@@ -246,12 +246,18 @@ export class MissionsLocalService {
       );
     }
 
-    if (mission.status === 'completed') {
-      throw new BadRequestException('Mission is already completed');
+    if (mission.status === 'completed' || mission.status === 'paid') {
+      throw new BadRequestException('Mission is already completed or paid');
     }
 
     if (mission.status === 'cancelled') {
       throw new BadRequestException('Cannot complete a cancelled mission');
+    }
+
+    if (mission.status !== 'in_progress') {
+      throw new BadRequestException(
+        `Cannot complete mission in status "${mission.status}". Must be "in_progress".`,
+      );
     }
 
     const updated = await this.missionsRepository.updateStatus(
@@ -310,8 +316,8 @@ export class MissionsLocalService {
       );
     }
 
-    if (mission.status === 'completed') {
-      throw new BadRequestException('Cannot cancel a completed mission');
+    if (mission.status === 'completed' || mission.status === 'paid') {
+      throw new BadRequestException('Cannot cancel a completed or paid mission');
     }
 
     if (mission.status === 'cancelled') {
