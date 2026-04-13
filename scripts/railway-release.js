@@ -37,6 +37,7 @@ const KNOWN_PROBLEMATIC = [
   '20251202201222_add_messages_contracts',
   '20260412200000_contract_local_mission_support',
   '20260412300000_add_missing_localuser_columns',
+  '20260413000000_fix_swipe_column_names',
 ];
 
 async function main() {
