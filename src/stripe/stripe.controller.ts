@@ -18,7 +18,7 @@ import { UserRole } from '@prisma/client';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 
 @ApiTags('Payments - Stripe Connect')
-@Controller('api/v1/payments/stripe')
+@Controller('api/v1/stripe')
 export class StripeController {
   constructor(private readonly stripeService: StripeService) {}
 
@@ -28,7 +28,7 @@ export class StripeController {
 
   /**
    * Créer un lien d'onboarding Stripe Connect pour un Worker
-   * GET /api/v1/payments/stripe/connect/onboarding
+   * GET /api/v1/stripe/connect/onboarding
    */
   @Get('connect/onboarding')
   @UseGuards(JwtAuthGuard)
@@ -48,7 +48,7 @@ export class StripeController {
 
   /**
    * Rafraîchir le lien d'onboarding (si expiré)
-   * POST /api/v1/payments/stripe/connect/refresh
+   * POST /api/v1/stripe/connect/refresh
    */
   @Post('connect/refresh')
   @UseGuards(JwtAuthGuard)
@@ -67,7 +67,7 @@ export class StripeController {
 
   /**
    * Vérifier le statut d'onboarding d'un Worker
-   * GET /api/v1/payments/stripe/connect/status
+   * GET /api/v1/stripe/connect/status
    */
   @Get('connect/status')
   @UseGuards(JwtAuthGuard)
@@ -101,7 +101,7 @@ export class StripeController {
 
   /**
    * Créer un paiement Connect (avec split automatique)
-   * POST /api/v1/payments/stripe/connect/intent
+   * POST /api/v1/stripe/connect/intent
    */
   @Post('connect/intent')
   @UseGuards(JwtAuthGuard)
@@ -137,7 +137,7 @@ export class StripeController {
 
   /**
    * Créer un PaymentIntent pour une mission
-   * POST /api/v1/payments/create-intent
+   * POST /api/v1/stripe/create-intent
    */
   @Post('create-intent')
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -156,7 +156,7 @@ export class StripeController {
 
   /**
    * Récupérer l'historique des paiements d'un Worker
-   * GET /api/v1/payments/worker/history
+   * GET /api/v1/stripe/worker/history
    */
   @Get('worker/history')
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -167,7 +167,7 @@ export class StripeController {
 
   /**
    * Webhook Stripe
-   * POST /api/v1/payments/webhook
+   * POST /api/v1/stripe/webhook
    * Note: Ce endpoint ne doit PAS avoir de guards (Stripe l'appelle directement)
    */
   @Post('webhook')
