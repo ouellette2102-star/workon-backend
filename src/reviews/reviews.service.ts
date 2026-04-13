@@ -32,12 +32,15 @@ export class ReviewsService {
     authorId: string,
     dto: CreateReviewDto,
   ): Promise<ReviewResponseDto> {
-    // Verify target user exists
-    const targetUser = await this.prisma.user.findUnique({
+    // Verify target user exists (try LocalUser first, then legacy User)
+    const localTarget = await this.prisma.localUser.findUnique({
+      where: { id: dto.toUserId },
+    });
+    const legacyTarget = localTarget ? null : await this.prisma.user.findUnique({
       where: { id: dto.toUserId },
     });
 
-    if (!targetUser) {
+    if (!localTarget && !legacyTarget) {
       throw new NotFoundException('Utilisateur cible non trouvé');
     }
 
@@ -55,31 +58,35 @@ export class ReviewsService {
       );
     }
 
-    const mission = await this.prisma.mission.findUnique({
+    // Try LocalMission first, then legacy Mission
+    const localMission = await this.prisma.localMission.findUnique({
       where: { id: dto.missionId },
-      select: {
-        id: true,
-        status: true,
-        authorClientId: true,
-        assigneeWorkerId: true,
-      },
+      select: { id: true, status: true, createdByUserId: true, assignedToUserId: true },
+    });
+    const legacyMission = localMission ? null : await this.prisma.mission.findUnique({
+      where: { id: dto.missionId },
+      select: { id: true, status: true, authorClientId: true, assigneeWorkerId: true },
     });
 
+    const mission = localMission || legacyMission;
     if (!mission) {
       throw new NotFoundException('Mission non trouvée');
     }
 
+    // Normalize field names
+    const creatorId = (mission as any).createdByUserId || (mission as any).authorClientId;
+    const workerId = (mission as any).assignedToUserId || (mission as any).assigneeWorkerId;
+    const missionStatus = mission.status;
+
     // Mission must be completed
-    if (mission.status !== 'COMPLETED') {
+    if (missionStatus !== 'COMPLETED' && missionStatus !== 'completed' && missionStatus !== 'paid') {
       throw new BadRequestException(
         'Impossible de laisser un avis avant la complétion de la mission',
       );
     }
 
-    // Author must be a participant (employer or worker)
-    const isParticipant =
-      mission.authorClientId === authorId ||
-      mission.assigneeWorkerId === authorId;
+    // Author must be a participant
+    const isParticipant = creatorId === authorId || workerId === authorId;
 
     if (!isParticipant) {
       throw new ForbiddenException(
@@ -88,9 +95,7 @@ export class ReviewsService {
     }
 
     // Target must be the OTHER participant
-    const isTargetParticipant =
-      mission.authorClientId === dto.toUserId ||
-      mission.assigneeWorkerId === dto.toUserId;
+    const isTargetParticipant = creatorId === dto.toUserId || workerId === dto.toUserId;
 
     if (!isTargetParticipant) {
       throw new BadRequestException(
