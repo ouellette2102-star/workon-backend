@@ -76,23 +76,21 @@ export class SwipeService {
         trustTier: true,
         trustScore: true,
         completionScore: true,
-        receivedReviews: {
-          select: { rating: true },
-          where: { moderation: 'OK' },
-        },
+        ratingAverage: true,
+        reviewCount: true,
       },
-      take: 40, // Fetch more, then rank and trim
-      orderBy: [{ completionScore: 'desc' }, { createdAt: 'desc' }],
+      take: 40,
+      orderBy: [{ createdAt: 'desc' }],
     });
 
-    // Compute average rating and enrich candidates
+    // Enrich candidates with rating data from DB fields
     let enriched = candidates.map((c) => {
-      const reviews = c.receivedReviews || [];
-      const avgRating = reviews.length > 0
-        ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
-        : 0;
-      const { receivedReviews, ...rest } = c;
-      return { ...rest, avgRating: Math.round(avgRating * 10) / 10, reviewCount: reviews.length };
+      const { ratingAverage, reviewCount, ...rest } = c;
+      return {
+        ...rest,
+        avgRating: ratingAverage ?? 0,
+        reviewCount: reviewCount ?? 0,
+      };
     });
 
     // Filter by minimum rating
