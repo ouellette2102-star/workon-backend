@@ -20,7 +20,13 @@ describe('ReviewsService', () => {
     user: {
       findUnique: jest.fn(),
     },
+    localUser: {
+      findUnique: jest.fn(),
+    },
     mission: {
+      findUnique: jest.fn(),
+    },
+    localMission: {
       findUnique: jest.fn(),
     },
     review: {
@@ -80,8 +86,8 @@ describe('ReviewsService', () => {
 
   describe('create', () => {
     it('should create a review successfully', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
-      mockPrisma.mission.findUnique.mockResolvedValue(mockMission);
+      mockPrisma.localUser.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.localMission.findUnique.mockResolvedValue(mockMission);
       mockPrisma.review.findFirst.mockResolvedValue(null);
       mockPrisma.review.create.mockResolvedValue(mockReview);
 
@@ -98,6 +104,7 @@ describe('ReviewsService', () => {
     });
 
     it('should throw NotFoundException when target user not found', async () => {
+      mockPrisma.localUser.findUnique.mockResolvedValue(null);
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
       await expect(
@@ -109,7 +116,7 @@ describe('ReviewsService', () => {
     });
 
     it('should throw BadRequestException for self-review', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.localUser.findUnique.mockResolvedValue(mockUser);
 
       await expect(
         service.create('user_123', {
@@ -120,7 +127,8 @@ describe('ReviewsService', () => {
     });
 
     it('should throw NotFoundException when mission not found', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.localUser.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.localMission.findUnique.mockResolvedValue(null);
       mockPrisma.mission.findUnique.mockResolvedValue(null);
 
       await expect(
@@ -133,8 +141,8 @@ describe('ReviewsService', () => {
     });
 
     it('should throw ConflictException for duplicate review', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
-      mockPrisma.mission.findUnique.mockResolvedValue(mockMission);
+      mockPrisma.localUser.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.localMission.findUnique.mockResolvedValue(mockMission);
       mockPrisma.review.findFirst.mockResolvedValue(mockReview);
 
       await expect(
@@ -147,7 +155,7 @@ describe('ReviewsService', () => {
     });
 
     it('should throw BadRequestException when missionId is not provided', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.localUser.findUnique.mockResolvedValue(mockUser);
 
       await expect(
         service.create('author_1', {
