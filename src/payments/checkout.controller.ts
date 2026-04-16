@@ -103,6 +103,22 @@ export class CheckoutController {
   }
 
   /**
+   * GET /api/v1/payments/invoices/mine
+   * List invoices where the current user is the payer
+   */
+  @Get('invoices/mine')
+  @UseGuards(JwtAuthGuard, ConsentGuard)
+  @ApiOperation({
+    summary: 'List my invoices',
+    description: 'Returns all invoices where the current user is the payer.',
+  })
+  @ApiResponse({ status: 200, description: 'List of invoices' })
+  async listMyInvoices(@Request() req: any) {
+    const userId = req.user.sub || req.user.userId;
+    return this.invoiceService.listInvoicesForUser(userId);
+  }
+
+  /**
    * GET /api/v1/payments/invoice/:id
    * Get invoice details
    */
