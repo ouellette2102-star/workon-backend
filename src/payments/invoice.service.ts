@@ -332,6 +332,30 @@ export class InvoiceService {
     };
   }
 
+  async listInvoicesForUser(userId: string) {
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        OR: [{ payerUserId: userId }, { payerLocalUserId: userId }],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    return invoices.map((invoice) => ({
+      id: invoice.id,
+      missionId: invoice.missionId || invoice.localMissionId,
+      subtotal: invoice.subtotalCents / 100,
+      platformFee: invoice.platformFeeCents / 100,
+      taxes: invoice.taxesCents / 100,
+      total: invoice.totalCents / 100,
+      currency: invoice.currency,
+      status: invoice.status,
+      description: invoice.description,
+      paidAt: invoice.paidAt,
+      createdAt: invoice.createdAt,
+    }));
+  }
+
   /**
    * Handle Stripe webhook event (checkout.session.completed)
    * Updates invoice and mission status
