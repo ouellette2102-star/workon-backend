@@ -19,6 +19,10 @@ async function bootstrap() {
     rawBody: true,
   });
 
+  // Increase JSON body limit for base64 avatar uploads (default 100KB → 10MB)
+  app.useBodyParser('json', { limit: '10mb' });
+  app.useBodyParser('urlencoded', { extended: true, limit: '10mb' });
+
   const configService = app.get(ConfigService);
   // Railway sets PORT environment variable - use 8080 as fallback for Railway
   const port = parseInt(process.env.PORT || '8080', 10);
