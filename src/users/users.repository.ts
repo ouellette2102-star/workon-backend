@@ -128,12 +128,19 @@ export class UsersRepository {
   async update(id: string, updateUserDto: UpdateUserProfileDto) {
     this.logger.log(`Updating user profile: ${id}`);
 
+    // Extract role separately to cast from string to Prisma enum
+    const { role, ...rest } = updateUserDto;
+    const data: Record<string, unknown> = {
+      ...rest,
+      updatedAt: new Date(),
+    };
+    if (role) {
+      data.role = role as any; // Cast string to LocalUserRole enum
+    }
+
     return this.prisma.localUser.update({
       where: { id },
-      data: {
-        ...updateUserDto,
-        updatedAt: new Date(),
-      },
+      data,
       select: {
         id: true,
         email: true,
