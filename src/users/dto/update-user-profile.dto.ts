@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber, IsLatitude, IsLongitude } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsLatitude, IsLongitude, IsIn } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -46,5 +46,15 @@ export class UpdateUserProfileDto {
   @IsLongitude()
   @IsOptional()
   longitude?: number;
+
+  @ApiPropertyOptional({
+    example: 'employer',
+    description: 'Switch role: worker, employer, or residential_client',
+    enum: ['worker', 'employer', 'residential_client'],
+  })
+  @IsString()
+  @IsIn(['worker', 'employer', 'residential_client'])
+  @IsOptional()
+  role?: string;
 }
 
