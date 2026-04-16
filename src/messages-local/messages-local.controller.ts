@@ -77,6 +77,23 @@ export class MessagesLocalController {
   }
 
   /**
+   * POST /api/v1/messages-local/direct
+   * Send a direct message to a user — auto-creates a mission-conversation if needed
+   */
+  @Post('direct')
+  @ApiOperation({
+    summary: 'Send a direct message',
+    description: 'Sends a message to a user. If no mission exists between the two users, creates one automatically.',
+  })
+  @ApiResponse({ status: 201, description: 'Message sent' })
+  sendDirectMessage(
+    @Body() dto: { recipientId: string; content: string },
+    @Request() req: any,
+  ) {
+    return this.messagesService.sendDirectMessage(req.user.sub, dto.recipientId, dto.content);
+  }
+
+  /**
    * PATCH /api/v1/messages-local/read/:missionId
    * Mark messages as read
    */

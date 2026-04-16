@@ -196,6 +196,100 @@ export class MessagesLocalService {
   }
 
   /**
+   * Send a direct message — creates a mission-conversation if none exists
+   */
+  async sendDirectMessage(
+    senderId: string,
+    recipientId: string,
+    content: string,
+  ) {
+    if (!content?.trim()) {
+      throw new BadRequestException('Le message ne peut pas être vide');
+    }
+
+    if (senderId === recipientId) {
+      throw new BadRequestException('Vous ne pouvez pas vous envoyer un message');
+    }
+
+    // Check if a conversation mission already exists between these two users
+    let mission = await this.prisma.localMission.findFirst({
+      where: {
+        OR: [
+          { createdByUserId: senderId, assignedToUserId: recipientId },
+          { createdByUserId: recipientId, assignedToUserId: senderId },
+        ],
+        status: { notIn: ['cancelled'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // If no mission exists, create one with the recipient pre-assigned
+    if (!mission) {
+      const sender = await this.prisma.localUser.findUnique({
+        where: { id: senderId },
+        select: { firstName: true, role: true },
+      });
+      const recipient = await this.prisma.localUser.findUnique({
+        where: { id: recipientId },
+        select: { firstName: true, role: true, category: true },
+      });
+
+      if (!recipient) {
+        throw new BadRequestException('Destinataire introuvable');
+      }
+
+      // Determine who is employer and who is worker
+      const isWorkerSending = sender?.role === 'worker';
+      const creatorId = isWorkerSending ? recipientId : senderId;
+      const workerId = isWorkerSending ? senderId : recipientId;
+
+      mission = await this.prisma.localMission.create({
+        data: {
+          id: `lm_dm_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+          title: `Conversation — ${sender?.firstName || 'Utilisateur'} & ${recipient.firstName}`,
+          description: 'Conversation directe via WorkOn',
+          category: recipient.category || 'other',
+          price: 0,
+          latitude: 45.5017,
+          longitude: -73.5673,
+          city: 'Montreal',
+          createdByUserId: creatorId,
+          assignedToUserId: workerId,
+          status: 'assigned',
+          updatedAt: new Date(),
+        },
+      });
+
+      this.logger.log(`DM mission created: ${mission.id} between ${senderId} and ${recipientId}`);
+    }
+
+    // Now send the message using the existing method
+    const { filtered, wasFiltered } = this.contactFilter.filterMessage(content.trim());
+
+    const senderRole = mission.createdByUserId === senderId ? 'EMPLOYER' : 'WORKER';
+
+    const message = await this.prisma.localMessage.create({
+      data: {
+        id: `lmsg_${crypto.randomUUID().replace(/-/g, '')}`,
+        missionId: mission.id,
+        senderId,
+        senderRole,
+        content: wasFiltered ? filtered : content.trim(),
+      },
+    });
+
+    this.logger.log(`DM sent: ${message.id} from ${senderId} to ${recipientId} via mission ${mission.id}`);
+
+    return {
+      id: message.id,
+      missionId: mission.id,
+      content: message.content,
+      senderRole: message.senderRole,
+      createdAt: message.createdAt,
+    };
+  }
+
+  /**
    * Mark messages as read
    */
   async markAsRead(
