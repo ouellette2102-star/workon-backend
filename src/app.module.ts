@@ -18,6 +18,8 @@ import { ProfileModule } from './profile/profile.module';
 import { MessagesModule } from './messages/messages.module';
 import { NotificationsModule } from './notifications/notifications.module';
 // import { MissionTimeLogsModule } from './mission-time-logs/mission-time-logs.module';
+// TODO: service references missing Prisma fields (MissionTimeLogType, missionTimeLog model,
+// employerId, employer, worker relations) — must be refactored or schema updated before enabling.
 import { StripeModule } from './stripe/stripe.module';
 import { validate } from './config/env.validation';
 import { UsersModule } from './users/users.module';

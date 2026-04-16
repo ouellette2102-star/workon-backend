@@ -8,6 +8,7 @@ import { PaymentsModule } from '../payments/payments.module';
 import { ReputationModule } from '../reputation/reputation.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ContractsModule } from '../contracts/contracts.module';
+import { ComplianceModule } from '../compliance/compliance.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { ContractsModule } from '../contracts/contracts.module';
     ReputationModule,
     NotificationsModule,
     ContractsModule,
+    ComplianceModule,
   ],
   controllers: [MissionsLocalController],
   providers: [MissionsLocalService, MissionsLocalRepository],

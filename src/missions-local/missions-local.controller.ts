@@ -22,16 +22,18 @@ import { MissionsMapQueryDto } from './dto/missions-map-query.dto';
 import { MissionsMapResponseDto } from './dto/mission-map-item.dto';
 import { MissionResponseDto } from './dto/mission-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ConsentGuard, RequireConsent } from '../compliance/guards/consent.guard';
 import { plainToInstance } from 'class-transformer';
 
 @ApiTags('Missions')
 @Controller('api/v1/missions-local')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ConsentGuard)
 @ApiBearerAuth()
 export class MissionsLocalController {
   constructor(private readonly missionsService: MissionsLocalService) {}
 
   @Post('express')
+  @RequireConsent()
   @ApiOperation({
     summary: 'Express Dispatch — create mission + notify nearby workers',
     description:
@@ -54,6 +56,7 @@ export class MissionsLocalController {
   }
 
   @Post()
+  @RequireConsent()
   @ApiOperation({
     summary: 'Create a new mission',
     description: 'Employers and residential clients can create missions',
@@ -143,6 +146,7 @@ export class MissionsLocalController {
   }
 
   @Post(':id/accept')
+  @RequireConsent()
   @ApiOperation({
     summary: 'Accept a mission',
     description: 'Worker accepts an open mission',
@@ -173,6 +177,7 @@ export class MissionsLocalController {
    * Start a mission (assigned -> in_progress)
    */
   @Post(':id/start')
+  @RequireConsent()
   @ApiOperation({
     summary: 'Start a mission',
     description: 'Worker starts working on an assigned mission',
@@ -199,6 +204,7 @@ export class MissionsLocalController {
   }
 
   @Post(':id/complete')
+  @RequireConsent()
   @ApiOperation({
     summary: 'Mark mission as completed',
     description: 'Worker or mission creator marks mission as completed',
@@ -227,6 +233,7 @@ export class MissionsLocalController {
   }
 
   @Post(':id/cancel')
+  @RequireConsent()
   @ApiOperation({
     summary: 'Cancel a mission',
     description: 'Mission creator or admin cancels a mission',
