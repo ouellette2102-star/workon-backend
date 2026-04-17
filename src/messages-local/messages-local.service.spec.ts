@@ -286,6 +286,11 @@ describe('MessagesLocalService', () => {
       expect(result).toHaveLength(1);
       expect(result[0].missionTitle).toBe('Test Mission');
       expect(result[0].myRole).toBe('EMPLOYER');
+      expect(result[0].otherUser).toEqual({
+        id: 'worker_1',
+        firstName: 'Jane',
+        lastName: 'Worker',
+      });
     });
 
     it('should return empty array when no conversations', async () => {
@@ -320,6 +325,11 @@ describe('MessagesLocalService', () => {
       const result = await service.getConversations('worker_1');
 
       expect(result[0].myRole).toBe('WORKER');
+      expect(result[0].otherUser).toEqual({
+        id: 'employer_1',
+        firstName: 'John',
+        lastName: 'Doe',
+      });
     });
   });
 });

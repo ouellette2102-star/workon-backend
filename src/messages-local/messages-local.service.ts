@@ -22,14 +22,23 @@ export interface LocalMessageResponse {
 }
 
 export interface LocalConversation {
-  id: string;
+  // Canonical shape consumed by the frontend conversationListSchema
+  // (src/lib/api-schemas.ts). Do not rename fields without aligning the
+  // Zod schema — mismatches throw and trigger the app error boundary.
   missionId: string;
   missionTitle: string;
-  participantName: string;
-  participantAvatar: string | null;
-  lastMessage: string;
+  otherUser: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  };
+  lastMessage: string | null;
   lastMessageAt: string;
   unreadCount: number;
+  // Legacy fields kept for back-compat; will be dropped once no caller reads them.
+  id: string;
+  participantName: string;
+  participantAvatar: string | null;
   myRole: 'EMPLOYER' | 'WORKER';
 }
 
@@ -452,14 +461,21 @@ export class MessagesLocalService {
           : 'Participant';
 
         return {
-          id: mission.id,
           missionId: mission.id,
           missionTitle: mission.title,
-          participantName,
-          participantAvatar: participant?.pictureUrl || null,
-          lastMessage: lastMessage?.content || '',
-          lastMessageAt: lastMessage?.createdAt.toISOString() || new Date().toISOString(),
+          otherUser: {
+            id: participant?.id ?? '',
+            firstName: participant?.firstName ?? '',
+            lastName: participant?.lastName ?? '',
+          },
+          lastMessage: lastMessage?.content ?? null,
+          lastMessageAt:
+            lastMessage?.createdAt.toISOString() ?? new Date().toISOString(),
           unreadCount,
+          // Legacy fields — retained until all callers migrate to otherUser.
+          id: mission.id,
+          participantName,
+          participantAvatar: participant?.pictureUrl ?? null,
           myRole: isEmployer ? 'EMPLOYER' : 'WORKER',
         } as LocalConversation;
       }),
