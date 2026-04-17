@@ -105,12 +105,27 @@ export class ReviewsService {
       );
     }
 
-    // Check for duplicate review on same mission
+    // Resolve which FK fields to use. An ID can be a LocalUser OR a legacy User.
+    const localAuthor = await this.prisma.localUser.findUnique({
+      where: { id: authorId },
+      select: { id: true },
+    });
+    const authorIsLocal = !!localAuthor;
+    const targetIsLocal = !!localTarget;
+
+    // Check for duplicate review on same mission (matching on whichever author/target
+    // field is populated).
     const existingReview = await this.prisma.review.findFirst({
       where: {
-        authorId,
-        targetUserId: dto.toUserId,
         missionId: dto.missionId,
+        AND: [
+          authorIsLocal
+            ? { localAuthorId: authorId }
+            : { authorId },
+          targetIsLocal
+            ? { localTargetUserId: dto.toUserId }
+            : { targetUserId: dto.toUserId },
+        ],
       },
     });
 
@@ -123,8 +138,12 @@ export class ReviewsService {
     const review = await this.prisma.review.create({
       data: {
         id: uuidv4(),
-        authorId,
-        targetUserId: dto.toUserId,
+        ...(authorIsLocal
+          ? { localAuthorId: authorId }
+          : { authorId }),
+        ...(targetIsLocal
+          ? { localTargetUserId: dto.toUserId }
+          : { targetUserId: dto.toUserId }),
         missionId: dto.missionId,
         rating: dto.rating,
         comment: dto.comment,
@@ -137,6 +156,13 @@ export class ReviewsService {
             userProfile: {
               select: { name: true },
             },
+          },
+        },
+        localAuthor: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
           },
         },
       },
@@ -185,7 +211,7 @@ export class ReviewsService {
   ): Promise<ReviewResponseDto[]> {
     const reviews = await this.prisma.review.findMany({
       where: {
-        targetUserId: userId,
+        OR: [{ targetUserId: userId }, { localTargetUserId: userId }],
         moderation: 'OK',
       },
       orderBy: { createdAt: 'desc' },
@@ -200,6 +226,13 @@ export class ReviewsService {
             },
           },
         },
+        localAuthor: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
       },
     });
 
@@ -212,7 +245,7 @@ export class ReviewsService {
   async getSummaryForUser(userId: string): Promise<RatingSummaryDto> {
     const reviews = await this.prisma.review.findMany({
       where: {
-        targetUserId: userId,
+        OR: [{ targetUserId: userId }, { localTargetUserId: userId }],
         moderation: 'OK',
       },
       select: { rating: true },
@@ -262,6 +295,13 @@ export class ReviewsService {
             },
           },
         },
+        localAuthor: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
       },
     });
 
@@ -277,26 +317,42 @@ export class ReviewsService {
     rating: number;
     comment: string | null;
     createdAt: Date;
-    authorId: string;
+    authorId: string | null;
+    localAuthorId?: string | null;
     missionId: string | null;
     author?: {
       id: string;
       userProfile?: { name: string } | null;
     } | null;
+    localAuthor?: {
+      id: string;
+      firstName: string | null;
+      lastName: string | null;
+    } | null;
   }): ReviewResponseDto {
-    const author: ReviewAuthorDto | undefined = review.author
-      ? {
-          id: review.author.id,
-          fullName: review.author.userProfile?.name ?? undefined,
-        }
-      : undefined;
+    let author: ReviewAuthorDto | undefined;
+    if (review.localAuthor) {
+      const fullName = [review.localAuthor.firstName, review.localAuthor.lastName]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      author = {
+        id: review.localAuthor.id,
+        fullName: fullName.length > 0 ? fullName : undefined,
+      };
+    } else if (review.author) {
+      author = {
+        id: review.author.id,
+        fullName: review.author.userProfile?.name ?? undefined,
+      };
+    }
 
     return {
       id: review.id,
       rating: review.rating,
       comment: review.comment ?? undefined,
       createdAt: review.createdAt,
-      authorId: review.authorId,
+      authorId: review.authorId ?? review.localAuthorId ?? undefined,
       author,
       missionId: review.missionId ?? undefined,
     };
