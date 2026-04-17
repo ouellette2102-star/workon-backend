@@ -9,6 +9,7 @@ import {
 import { LocalMessageRole, LocalMessageStatus } from '@prisma/client';
 import { Logger } from '@nestjs/common';
 import { ContactFilterService } from '../common/security/contact-filter.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('MessagesLocalService', () => {
   let service: MessagesLocalService;
@@ -18,6 +19,8 @@ describe('MessagesLocalService', () => {
     localMission: {
       findUnique: jest.fn(),
       findMany: jest.fn(),
+      findFirst: jest.fn(),
+      create: jest.fn(),
     },
     localMessage: {
       findMany: jest.fn(),
@@ -25,6 +28,13 @@ describe('MessagesLocalService', () => {
       updateMany: jest.fn(),
       count: jest.fn(),
     },
+    localUser: {
+      findUnique: jest.fn(),
+    },
+  };
+
+  const mockNotificationsService = {
+    createLocalNotification: jest.fn().mockResolvedValue(undefined),
   };
 
   const mockMission = {
@@ -58,6 +68,10 @@ describe('MessagesLocalService', () => {
               detectedTypes: [],
             }),
           },
+        },
+        {
+          provide: NotificationsService,
+          useValue: mockNotificationsService,
         },
       ],
     }).compile();
@@ -150,6 +164,61 @@ describe('MessagesLocalService', () => {
       await expect(
         service.createMessage('mission_123', 'employer_1', 'Hello!'),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should create a LocalNotification for the recipient (worker) when employer sends', async () => {
+      mockPrisma.localMission.findUnique
+        .mockResolvedValueOnce(mockMission)
+        .mockResolvedValueOnce(mockMission);
+      mockPrisma.localMessage.create.mockResolvedValue(mockMessage);
+      mockPrisma.localUser.findUnique.mockResolvedValue({ firstName: 'Alice' });
+
+      await service.createMessage('mission_123', 'employer_1', 'Hello worker!');
+
+      expect(mockNotificationsService.createLocalNotification).toHaveBeenCalledWith(
+        'worker_1',
+        'new_message',
+        expect.stringContaining('Alice'),
+        expect.any(String),
+        expect.objectContaining({ missionId: 'mission_123', senderId: 'employer_1' }),
+      );
+    });
+
+    it('should create a LocalNotification for the recipient (employer) when worker sends', async () => {
+      mockPrisma.localMission.findUnique
+        .mockResolvedValueOnce(mockMission)
+        .mockResolvedValueOnce(mockMission);
+      mockPrisma.localMessage.create.mockResolvedValue({
+        ...mockMessage,
+        senderId: 'worker_1',
+        senderRole: LocalMessageRole.WORKER,
+      });
+      mockPrisma.localUser.findUnique.mockResolvedValue({ firstName: 'Bob' });
+
+      await service.createMessage('mission_123', 'worker_1', 'Hello employer!');
+
+      expect(mockNotificationsService.createLocalNotification).toHaveBeenCalledWith(
+        'employer_1',
+        'new_message',
+        expect.stringContaining('Bob'),
+        expect.any(String),
+        expect.objectContaining({ missionId: 'mission_123', senderId: 'worker_1' }),
+      );
+    });
+
+    it('should not throw if notification creation fails (best-effort)', async () => {
+      mockPrisma.localMission.findUnique
+        .mockResolvedValueOnce(mockMission)
+        .mockResolvedValueOnce(mockMission);
+      mockPrisma.localMessage.create.mockResolvedValue(mockMessage);
+      mockPrisma.localUser.findUnique.mockResolvedValue({ firstName: 'Alice' });
+      mockNotificationsService.createLocalNotification.mockRejectedValueOnce(
+        new Error('notif service down'),
+      );
+
+      await expect(
+        service.createMessage('mission_123', 'employer_1', 'Hello!'),
+      ).resolves.toBeDefined();
     });
   });
 
