@@ -170,19 +170,22 @@ export class ReviewsService {
         },
       });
     } catch (err) {
-      // TEMPORARY DIAGNOSTIC LOG — find root cause of prod 500s
+      // TEMPORARY DIAGNOSTIC — expose the error in the response for prod debugging.
+      // Reverted once root cause identified.
       const e = err as any;
-      this.logger.error(
-        `[REVIEW-DIAG] review.create FAILED ` +
-        `authorId=${authorId} authorIsLocal=${authorIsLocal} ` +
-        `toUserId=${dto.toUserId} targetIsLocal=${targetIsLocal} ` +
-        `missionId=${dto.missionId} ` +
-        `code=${e?.code ?? 'none'} ` +
-        `name=${e?.name ?? 'none'} ` +
-        `meta=${JSON.stringify(e?.meta ?? {})} ` +
-        `message=${e?.message ?? String(err)}`,
-      );
-      throw err;
+      const diag = {
+        authorId,
+        authorIsLocal,
+        toUserId: dto.toUserId,
+        targetIsLocal,
+        missionId: dto.missionId,
+        code: e?.code ?? null,
+        name: e?.name ?? null,
+        meta: e?.meta ?? null,
+        message: e?.message ?? String(err),
+      };
+      this.logger.error(`[REVIEW-DIAG] review.create FAILED ${JSON.stringify(diag)}`);
+      throw new BadRequestException({ debug: diag });
     }
 
     // Recompute reputation for the target user. If the legacy review does
