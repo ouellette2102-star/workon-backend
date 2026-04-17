@@ -112,13 +112,16 @@ export class ReviewsService {
     });
     const authorIsLocal = !!localAuthor;
     const targetIsLocal = !!localTarget;
+    const missionIsLocal = !!localMission;
 
     // Check for duplicate review on same mission (matching on whichever author/target
-    // field is populated).
+    // and mission field is populated).
     const existingReview = await this.prisma.review.findFirst({
       where: {
-        missionId: dto.missionId,
         AND: [
+          missionIsLocal
+            ? { localMissionId: dto.missionId }
+            : { missionId: dto.missionId },
           authorIsLocal
             ? { localAuthorId: authorId }
             : { authorId },
@@ -135,59 +138,40 @@ export class ReviewsService {
       );
     }
 
-    let review;
-    try {
-      review = await this.prisma.review.create({
-        data: {
-          id: uuidv4(),
-          ...(authorIsLocal
-            ? { localAuthorId: authorId }
-            : { authorId }),
-          ...(targetIsLocal
-            ? { localTargetUserId: dto.toUserId }
-            : { targetUserId: dto.toUserId }),
-          missionId: dto.missionId,
-          rating: dto.rating,
-          comment: dto.comment,
-          updatedAt: new Date(),
-        },
-        include: {
-          author: {
-            select: {
-              id: true,
-              userProfile: {
-                select: { name: true },
-              },
-            },
-          },
-          localAuthor: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
+    const review = await this.prisma.review.create({
+      data: {
+        id: uuidv4(),
+        ...(authorIsLocal
+          ? { localAuthorId: authorId }
+          : { authorId }),
+        ...(targetIsLocal
+          ? { localTargetUserId: dto.toUserId }
+          : { targetUserId: dto.toUserId }),
+        ...(missionIsLocal
+          ? { localMissionId: dto.missionId }
+          : { missionId: dto.missionId }),
+        rating: dto.rating,
+        comment: dto.comment,
+        updatedAt: new Date(),
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            userProfile: {
+              select: { name: true },
             },
           },
         },
-      });
-    } catch (err) {
-      // TEMPORARY DIAGNOSTIC — expose the error in the response for prod debugging.
-      // Reverted once root cause identified.
-      const e = err as any;
-      const diag = {
-        authorId,
-        authorIsLocal,
-        toUserId: dto.toUserId,
-        targetIsLocal,
-        missionId: dto.missionId,
-        code: e?.code ?? null,
-        name: e?.name ?? null,
-        meta: e?.meta ?? null,
-        message: e?.message ?? String(err),
-      };
-      const debugStr = JSON.stringify(diag);
-      this.logger.error(`[REVIEW-DIAG] review.create FAILED ${debugStr}`);
-      throw new BadRequestException(`REVIEW_DEBUG: ${debugStr}`);
-    }
+        localAuthor: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
 
     // Recompute reputation for the target user. If the legacy review does
     // not reference a LocalUser, the recompute will be a no-op.
@@ -341,6 +325,7 @@ export class ReviewsService {
     authorId: string | null;
     localAuthorId?: string | null;
     missionId: string | null;
+    localMissionId?: string | null;
     author?: {
       id: string;
       userProfile?: { name: string } | null;
@@ -375,7 +360,7 @@ export class ReviewsService {
       createdAt: review.createdAt,
       authorId: review.authorId ?? review.localAuthorId ?? undefined,
       author,
-      missionId: review.missionId ?? undefined,
+      missionId: review.missionId ?? review.localMissionId ?? undefined,
     };
   }
 }

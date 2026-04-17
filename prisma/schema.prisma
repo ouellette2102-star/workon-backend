@@ -171,6 +171,7 @@ model LocalMission {
   offers                LocalOffer[]
   messages              LocalMessage[]
   contract              Contract?          @relation("local_contracts")
+  reviews               Review[]           @relation("review_mission")
 
   @@index([assignedToUserId])
   @@index([category])
@@ -591,6 +592,7 @@ model Review {
   targetUserId      String?
   localTargetUserId String?
   missionId         String?
+  localMissionId    String?
   rating            Int
   comment           String?
   moderation        ReviewModeration @default(OK)
@@ -599,10 +601,12 @@ model Review {
   author            User?            @relation("reviews_authorIdTousers", fields: [authorId], references: [id], onDelete: Cascade)
   localAuthor       LocalUser?       @relation("review_author", fields: [localAuthorId], references: [id], onDelete: Cascade)
   mission           Mission?         @relation(fields: [missionId], references: [id])
+  localMission      LocalMission?    @relation("review_mission", fields: [localMissionId], references: [id], onDelete: SetNull)
   targetUser        User?            @relation("reviews_targetUserIdTousers", fields: [targetUserId], references: [id], onDelete: Cascade)
   localTargetUser   LocalUser?       @relation("review_target", fields: [localTargetUserId], references: [id])
 
   @@index([missionId])
+  @@index([localMissionId])
   @@index([moderation])
   @@index([authorId])
   @@index([localAuthorId])
