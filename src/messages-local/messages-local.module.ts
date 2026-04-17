@@ -3,6 +3,7 @@ import { MessagesLocalController } from './messages-local.controller';
 import { MessagesLocalService } from './messages-local.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { ContactFilterService } from '../common/security/contact-filter.service';
 
 /**
@@ -12,7 +13,7 @@ import { ContactFilterService } from '../common/security/contact-filter.service'
  * contact info (phone, email, social handles) from messages.
  */
 @Module({
-  imports: [PrismaModule, AuthModule],
+  imports: [PrismaModule, AuthModule, NotificationsModule],
   controllers: [MessagesLocalController],
   providers: [MessagesLocalService, ContactFilterService],
   exports: [MessagesLocalService],

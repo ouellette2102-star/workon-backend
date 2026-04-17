@@ -9,6 +9,7 @@ import * as crypto from 'crypto';
 import { LocalMessageRole, LocalMessageStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ContactFilterService } from '../common/security/contact-filter.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export interface LocalMessageResponse {
   id: string;
@@ -45,7 +46,36 @@ export class MessagesLocalService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly contactFilter: ContactFilterService,
+    private readonly notificationsService: NotificationsService,
   ) {}
+
+  private async notifyNewMessage(
+    recipientId: string,
+    senderId: string,
+    missionId: string,
+    messageId: string,
+    preview: string,
+  ): Promise<void> {
+    try {
+      const sender = await this.prisma.localUser.findUnique({
+        where: { id: senderId },
+        select: { firstName: true },
+      });
+      const senderName = sender?.firstName || 'Un utilisateur';
+
+      await this.notificationsService.createLocalNotification(
+        recipientId,
+        'new_message',
+        `Nouveau message de ${senderName}`,
+        preview.length > 80 ? preview.slice(0, 77) + '...' : preview,
+        { missionId, messageId, senderId },
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to create LocalNotification for message ${messageId}: ${err instanceof Error ? err.message : 'unknown'}`,
+      );
+    }
+  }
 
   /**
    * Check if user has access to a mission's chat
@@ -159,7 +189,10 @@ export class MessagesLocalService {
     // Check that mission has an assigned worker (no chat without worker)
     const mission = await this.prisma.localMission.findUnique({
       where: { id: missionId },
-      select: { assignedToUserId: true },
+      select: {
+        assignedToUserId: true,
+        createdByUserId: true,
+      },
     });
 
     if (!mission?.assignedToUserId) {
@@ -183,6 +216,20 @@ export class MessagesLocalService {
     }
 
     this.logger.log(`Message created: ${message.id} for mission ${missionId}`);
+
+    const recipientId =
+      userId === mission.createdByUserId
+        ? mission.assignedToUserId
+        : mission.createdByUserId;
+    if (recipientId && recipientId !== userId) {
+      await this.notifyNewMessage(
+        recipientId,
+        userId,
+        missionId,
+        message.id,
+        message.content,
+      );
+    }
 
     return {
       id: message.id,
@@ -279,6 +326,14 @@ export class MessagesLocalService {
     });
 
     this.logger.log(`DM sent: ${message.id} from ${senderId} to ${recipientId} via mission ${mission.id}`);
+
+    await this.notifyNewMessage(
+      recipientId,
+      senderId,
+      mission.id,
+      message.id,
+      message.content,
+    );
 
     return {
       id: message.id,
