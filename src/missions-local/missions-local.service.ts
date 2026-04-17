@@ -219,6 +219,20 @@ export class MissionsLocalService {
 
     this.logger.log(`Mission ${missionId} started by worker ${userId}`);
 
+    try {
+      await this.notificationsService.createLocalNotification(
+        mission.createdByUserId,
+        'mission_started',
+        'Mission démarrée',
+        `Votre travailleur a commencé la mission "${mission.title}".`,
+        { missionId, workerId: userId },
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to notify mission_started for ${missionId}: ${err instanceof Error ? err.message : 'unknown'}`,
+      );
+    }
+
     return updated;
   }
 
@@ -266,6 +280,20 @@ export class MissionsLocalService {
     );
 
     this.logger.log(`Mission ${missionId} completed by user ${userId}`);
+
+    try {
+      await this.notificationsService.createLocalNotification(
+        mission.createdByUserId,
+        'mission_completed_pay_now',
+        'Mission complétée — paiement requis',
+        `Votre mission "${mission.title}" est terminée. Procédez au paiement pour libérer les fonds.`,
+        { missionId, workerId: mission.assignedToUserId, price: mission.price },
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to notify mission_completed for ${missionId}: ${err instanceof Error ? err.message : 'unknown'}`,
+      );
+    }
 
     // Auto-create invoice for the employer to pay
     try {
@@ -324,6 +352,8 @@ export class MissionsLocalService {
       throw new BadRequestException('Mission is already cancelled');
     }
 
+    const previousAssigneeId = mission.assignedToUserId;
+
     const updated = await this.missionsRepository.updateStatus(
       missionId,
       'cancelled',
@@ -331,6 +361,22 @@ export class MissionsLocalService {
     );
 
     this.logger.log(`Mission ${missionId} cancelled by user ${userId}`);
+
+    if (previousAssigneeId) {
+      try {
+        await this.notificationsService.createLocalNotification(
+          previousAssigneeId,
+          'mission_cancelled',
+          'Mission annulée',
+          `La mission "${mission.title}" a été annulée par le client.`,
+          { missionId, cancelledBy: userId },
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Failed to notify mission_cancelled for ${missionId}: ${err instanceof Error ? err.message : 'unknown'}`,
+        );
+      }
+    }
 
     return updated;
   }
