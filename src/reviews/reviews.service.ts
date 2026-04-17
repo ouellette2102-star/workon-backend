@@ -135,38 +135,55 @@ export class ReviewsService {
       );
     }
 
-    const review = await this.prisma.review.create({
-      data: {
-        id: uuidv4(),
-        ...(authorIsLocal
-          ? { localAuthorId: authorId }
-          : { authorId }),
-        ...(targetIsLocal
-          ? { localTargetUserId: dto.toUserId }
-          : { targetUserId: dto.toUserId }),
-        missionId: dto.missionId,
-        rating: dto.rating,
-        comment: dto.comment,
-        updatedAt: new Date(),
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            userProfile: {
-              select: { name: true },
+    let review;
+    try {
+      review = await this.prisma.review.create({
+        data: {
+          id: uuidv4(),
+          ...(authorIsLocal
+            ? { localAuthorId: authorId }
+            : { authorId }),
+          ...(targetIsLocal
+            ? { localTargetUserId: dto.toUserId }
+            : { targetUserId: dto.toUserId }),
+          missionId: dto.missionId,
+          rating: dto.rating,
+          comment: dto.comment,
+          updatedAt: new Date(),
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              userProfile: {
+                select: { name: true },
+              },
+            },
+          },
+          localAuthor: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
             },
           },
         },
-        localAuthor: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-      },
-    });
+      });
+    } catch (err) {
+      // TEMPORARY DIAGNOSTIC LOG — find root cause of prod 500s
+      const e = err as any;
+      this.logger.error(
+        `[REVIEW-DIAG] review.create FAILED ` +
+        `authorId=${authorId} authorIsLocal=${authorIsLocal} ` +
+        `toUserId=${dto.toUserId} targetIsLocal=${targetIsLocal} ` +
+        `missionId=${dto.missionId} ` +
+        `code=${e?.code ?? 'none'} ` +
+        `name=${e?.name ?? 'none'} ` +
+        `meta=${JSON.stringify(e?.meta ?? {})} ` +
+        `message=${e?.message ?? String(err)}`,
+      );
+      throw err;
+    }
 
     // Recompute reputation for the target user. If the legacy review does
     // not reference a LocalUser, the recompute will be a no-op.
