@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException, NotFoundException } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from '../push/push.service';
 import { DevicesService } from '../devices/devices.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 /**
  * Swipe Discovery Service
@@ -22,6 +23,7 @@ export class SwipeService {
     private readonly prisma: PrismaService,
     private readonly pushService: PushService,
     private readonly devicesService: DevicesService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -321,7 +323,7 @@ export class SwipeService {
 
   /**
    * Create in-app notifications for both users on match.
-   * Uses userId FK on Notification model (references User table).
+   * Writes to LocalNotification (userId FK → LocalUser).
    */
   private async notifyMatch(userId1: string, userId2: string, matchId: string) {
     try {
@@ -330,38 +332,25 @@ export class SwipeService {
         this.prisma.localUser.findUnique({ where: { id: userId2 }, select: { firstName: true } }),
       ]);
 
-      const notifications = [
-        {
-          id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          userId: userId1,
-          type: 'swipe_match',
-          payloadJSON: {
-            matchId,
-            matchedUserId: userId2,
-            matchedUserName: user2?.firstName || 'Utilisateur',
-            message: `Vous avez un match avec ${user2?.firstName || 'un utilisateur'}!`,
-          },
-        },
-        {
-          id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 6)}a`,
-          userId: userId2,
-          type: 'swipe_match',
-          payloadJSON: {
-            matchId,
-            matchedUserId: userId1,
-            matchedUserName: user1?.firstName || 'Utilisateur',
-            message: `Vous avez un match avec ${user1?.firstName || 'un utilisateur'}!`,
-          },
-        },
-      ];
+      const name2 = user2?.firstName || 'un utilisateur';
+      const name1 = user1?.firstName || 'un utilisateur';
 
-      for (const notif of notifications) {
-        await this.prisma.notification.create({ data: notif }).catch(() => {
-          // FK constraint may fail if userId doesn't exist in User table
-          // In that case, log and continue
-          this.logger.warn(`Notification FK failed for ${notif.userId}, logging instead`);
-        });
-      }
+      await Promise.allSettled([
+        this.notificationsService.createLocalNotification(
+          userId1,
+          'swipe_match',
+          'Nouveau match ✨',
+          `Vous avez un match avec ${name2} !`,
+          { matchId, matchedUserId: userId2, matchedUserName: name2 },
+        ),
+        this.notificationsService.createLocalNotification(
+          userId2,
+          'swipe_match',
+          'Nouveau match ✨',
+          `Vous avez un match avec ${name1} !`,
+          { matchId, matchedUserId: userId1, matchedUserName: name1 },
+        ),
+      ]);
 
       this.logger.log(`Match notifications created for match ${matchId}`);
 

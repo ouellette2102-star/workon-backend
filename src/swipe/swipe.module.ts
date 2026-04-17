@@ -5,6 +5,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { PushModule } from '../push/push.module';
 import { DevicesModule } from '../devices/devices.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 /**
  * Swipe Discovery Module
@@ -16,7 +17,7 @@ import { DevicesModule } from '../devices/devices.module';
  * SWIPE = find talent
  */
 @Module({
-  imports: [PrismaModule, AuthModule, PushModule, DevicesModule],
+  imports: [PrismaModule, AuthModule, PushModule, DevicesModule, NotificationsModule],
   controllers: [SwipeController],
   providers: [SwipeService],
   exports: [SwipeService],

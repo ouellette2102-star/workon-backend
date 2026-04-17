@@ -14,6 +14,7 @@ import {
   ReviewAuthorDto,
 } from './dto/review-response.dto';
 import { ReputationService } from '../reputation/reputation.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
@@ -23,6 +24,7 @@ export class ReviewsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly reputationService: ReputationService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -148,6 +150,26 @@ export class ReviewsService {
       this.logger.warn(
         `Failed to recompute reputation for ${dto.toUserId}: ${err instanceof Error ? err.message : String(err)}`,
       );
+    }
+
+    // Notify the reviewed user (LocalUser target only — legacy User targets skipped)
+    if (localTarget) {
+      try {
+        const stars = '⭐'.repeat(Math.max(1, Math.min(5, dto.rating)));
+        await this.notificationsService.createLocalNotification(
+          dto.toUserId,
+          'review_received',
+          `Nouvel avis ${stars}`,
+          dto.comment
+            ? `${dto.rating}/5 — « ${dto.comment.slice(0, 80)}${dto.comment.length > 80 ? '…' : ''} »`
+            : `Vous avez reçu une note de ${dto.rating}/5.`,
+          { reviewId: review.id, missionId: dto.missionId, rating: dto.rating },
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Failed to notify review_received for ${dto.toUserId}: ${err instanceof Error ? err.message : 'unknown'}`,
+        );
+      }
     }
 
     return this.mapToResponse(review);

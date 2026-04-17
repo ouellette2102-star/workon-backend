@@ -481,6 +481,23 @@ export class InvoiceService {
               `Worker ${mission.assignedToUser.id} Stripe account payouts not enabled. ` +
               `Transfer deferred for mission ${localMissionId}. Manual payout required.`,
             );
+            try {
+              await this.notificationsService.createLocalNotification(
+                mission.assignedToUser.id,
+                'payout_failed',
+                'Paiement en attente',
+                'Le client a payé, mais votre compte Stripe Connect n\'est pas finalisé. Complétez votre onboarding pour recevoir vos fonds.',
+                {
+                  invoiceId: invoice.id,
+                  missionId: localMissionId,
+                  reason: 'stripe_payouts_disabled',
+                },
+              );
+            } catch (notifErr) {
+              this.logger.warn(
+                `Failed to notify payout_failed (payouts disabled): ${notifErr instanceof Error ? notifErr.message : 'unknown'}`,
+              );
+            }
             return;
           }
 
@@ -509,6 +526,24 @@ export class InvoiceService {
             `Error: ${payoutErr instanceof Error ? payoutErr.message : String(payoutErr)}. ` +
             `MANUAL PAYOUT REQUIRED.`,
           );
+          try {
+            await this.notificationsService.createLocalNotification(
+              mission.assignedToUser.id,
+              'payout_failed',
+              'Transfert en attente',
+              'Le paiement a été reçu mais le transfert vers votre compte a échoué. Notre équipe va traiter ce cas manuellement.',
+              {
+                invoiceId: invoice.id,
+                missionId: localMissionId,
+                reason: 'transfer_error',
+                error: payoutErr instanceof Error ? payoutErr.message : 'unknown',
+              },
+            );
+          } catch (notifErr) {
+            this.logger.warn(
+              `Failed to notify payout_failed (transfer error): ${notifErr instanceof Error ? notifErr.message : 'unknown'}`,
+            );
+          }
           // Don't fail the webhook — payout can be retried manually
         }
       }

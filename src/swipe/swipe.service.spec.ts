@@ -4,6 +4,7 @@ import { SwipeService } from './swipe.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from '../push/push.service';
 import { DevicesService } from '../devices/devices.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('SwipeService', () => {
   let service: SwipeService;
@@ -53,6 +54,10 @@ describe('SwipeService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: PushService, useValue: mockPushService },
         { provide: DevicesService, useValue: mockDevicesService },
+        {
+          provide: NotificationsService,
+          useValue: { createLocalNotification: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
