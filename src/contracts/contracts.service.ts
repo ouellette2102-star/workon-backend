@@ -10,6 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ContractStatus } from '@prisma/client';
 import { CreateContractDto } from './dto/create-contract.dto';
 import { UpdateContractStatusDto } from './dto/update-contract-status.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export interface ContractResponse {
   id: string;
@@ -43,7 +44,10 @@ export interface ContractResponse {
 export class ContractsService {
   private readonly logger = new Logger(ContractsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   /**
    * Créer un contrat pour une mission
@@ -326,6 +330,21 @@ export class ContractsService {
     });
 
     this.logger.log(`Local contract created: ${contract.id} for LocalMission ${localMissionId}`);
+
+    try {
+      await this.notificationsService.createLocalNotification(
+        localWorkerId,
+        'contract_received',
+        'Contrat reçu',
+        `Un client vous propose un contrat de ${amount} $.`,
+        { contractId: contract.id, localMissionId, amount },
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to create LocalNotification for contract ${contract.id}: ${err instanceof Error ? err.message : 'unknown'}`,
+      );
+    }
+
     return contract;
   }
 

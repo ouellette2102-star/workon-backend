@@ -7,6 +7,7 @@ import {
 import { ContractsService } from './contracts.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ContractStatus } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const mockPrismaService = {
   mission: {
@@ -65,6 +66,10 @@ describe('ContractsService', () => {
       providers: [
         ContractsService,
         { provide: PrismaService, useValue: mockPrismaService },
+        {
+          provide: NotificationsService,
+          useValue: { createLocalNotification: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 

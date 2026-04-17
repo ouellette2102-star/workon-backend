@@ -9,12 +9,16 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { LocalOfferStatus } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class OffersService {
   private readonly logger = new Logger(OffersService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   /**
    * Create a new offer for a mission
@@ -90,6 +94,23 @@ export class OffersService {
     });
 
     this.logger.log(`Offer created: ${id} for mission ${missionId} by worker ${workerId}`);
+
+    try {
+      const workerName =
+        `${offer.worker.firstName || ''} ${offer.worker.lastName || ''}`.trim() ||
+        'Un travailleur';
+      await this.notificationsService.createLocalNotification(
+        mission.createdByUserId,
+        'new_offer',
+        'Nouvelle offre reçue',
+        `${workerName} propose ${price} $ pour "${mission.title}".`,
+        { offerId: id, missionId, workerId, price },
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to create LocalNotification for offer ${id}: ${err instanceof Error ? err.message : 'unknown'}`,
+      );
+    }
 
     return offer;
   }
@@ -246,6 +267,20 @@ export class OffersService {
 
     this.logger.log(`Offer accepted: ${offerId} by user ${userId}`);
 
+    try {
+      await this.notificationsService.createLocalNotification(
+        result.workerId,
+        'offer_accepted',
+        'Offre acceptée',
+        `Votre offre de ${result.price} $ a été acceptée. La mission est maintenant en cours.`,
+        { offerId, missionId: offer.missionId, price: result.price },
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to create LocalNotification for offer acceptance ${offerId}: ${err instanceof Error ? err.message : 'unknown'}`,
+      );
+    }
+
     return result;
   }
 
@@ -363,6 +398,20 @@ export class OffersService {
     });
 
     this.logger.log(`Offer rejected: ${offerId} by user ${userId}`);
+
+    try {
+      await this.notificationsService.createLocalNotification(
+        rejectedOffer.workerId,
+        'offer_rejected',
+        'Offre déclinée',
+        `Votre offre de ${rejectedOffer.price} $ a été déclinée.`,
+        { offerId, missionId: offer.missionId, price: rejectedOffer.price },
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to create LocalNotification for offer rejection ${offerId}: ${err instanceof Error ? err.message : 'unknown'}`,
+      );
+    }
 
     return rejectedOffer;
   }
