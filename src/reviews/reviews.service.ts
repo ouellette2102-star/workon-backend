@@ -184,8 +184,9 @@ export class ReviewsService {
         meta: e?.meta ?? null,
         message: e?.message ?? String(err),
       };
-      this.logger.error(`[REVIEW-DIAG] review.create FAILED ${JSON.stringify(diag)}`);
-      throw new BadRequestException({ debug: diag });
+      const debugStr = JSON.stringify(diag);
+      this.logger.error(`[REVIEW-DIAG] review.create FAILED ${debugStr}`);
+      throw new BadRequestException(`REVIEW_DEBUG: ${debugStr}`);
     }
 
     // Recompute reputation for the target user. If the legacy review does
