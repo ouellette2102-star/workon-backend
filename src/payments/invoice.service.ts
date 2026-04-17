@@ -10,6 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 // InvoiceStatus imported from Prisma but managed internally
 import Stripe from 'stripe';
 import { getAppConfig } from '../config/safe-defaults.config';
+import { NotificationsService } from '../notifications/notifications.service';
 
 /**
  * Invoice calculation result
@@ -49,6 +50,7 @@ export class InvoiceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly notificationsService: NotificationsService,
   ) {
     const appConfig = getAppConfig();
     this.PLATFORM_FEE_RATE = appConfig.payments.platformFeePercent / 100;
@@ -417,6 +419,44 @@ export class InvoiceService {
     });
 
     this.logger.log(`Invoice ${invoiceId} marked as PAID (transaction committed)`);
+
+    // Fire notifications to both parties (best-effort; never fails the webhook)
+    if (localMissionId) {
+      try {
+        const mission = await this.prisma.localMission.findUnique({
+          where: { id: localMissionId },
+          select: {
+            title: true,
+            createdByUserId: true,
+            assignedToUserId: true,
+            price: true,
+          },
+        });
+        if (mission) {
+          const amount = invoice.totalCents / 100;
+          if (mission.assignedToUserId) {
+            await this.notificationsService.createLocalNotification(
+              mission.assignedToUserId,
+              'payout_received',
+              'Paiement reçu',
+              `Paiement de ${mission.price} $ confirmé pour "${mission.title}". Transfert en cours vers votre compte.`,
+              { invoiceId, missionId: localMissionId, amount },
+            );
+          }
+          await this.notificationsService.createLocalNotification(
+            mission.createdByUserId,
+            'mission_paid',
+            'Paiement confirmé',
+            `Votre paiement de ${amount} $ pour "${mission.title}" a été confirmé.`,
+            { invoiceId, missionId: localMissionId, amount },
+          );
+        }
+      } catch (err) {
+        this.logger.warn(
+          `Failed to send paid notifications for invoice ${invoiceId}: ${err instanceof Error ? err.message : 'unknown'}`,
+        );
+      }
+    }
 
     // 4. Auto-payout to worker via Stripe Connect (outside transaction — external call)
     if (localMissionId && this.stripe && session.payment_intent) {

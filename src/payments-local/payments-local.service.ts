@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import Stripe from 'stripe';
+import { NotificationsService } from '../notifications/notifications.service';
 
 /**
  * Payments Service - Stripe PaymentIntent management
@@ -23,6 +24,7 @@ export class PaymentsLocalService {
   constructor(
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
   ) {
     const stripeSecretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     const isDev = this.configService.get<string>('NODE_ENV') !== 'production';
@@ -223,6 +225,30 @@ export class PaymentsLocalService {
       this.logger.log(
         `[Webhook] ✅ Mission ${missionId} marked as PAID (amount: ${paymentIntent.amount / 100} ${paymentIntent.currency.toUpperCase()})`,
       );
+
+      const amount = paymentIntent.amount / 100;
+      try {
+        if (mission.assignedToUserId) {
+          await this.notificationsService.createLocalNotification(
+            mission.assignedToUserId,
+            'payout_received',
+            'Paiement reçu',
+            `Paiement de ${amount} ${paymentIntent.currency.toUpperCase()} confirmé pour "${mission.title}". Transfert en cours.`,
+            { missionId, paymentIntentId: paymentIntent.id, amount },
+          );
+        }
+        await this.notificationsService.createLocalNotification(
+          mission.createdByUserId,
+          'mission_paid',
+          'Paiement confirmé',
+          `Votre paiement de ${amount} ${paymentIntent.currency.toUpperCase()} pour "${mission.title}" a été confirmé.`,
+          { missionId, paymentIntentId: paymentIntent.id, amount },
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Failed to send paid notifications for mission ${missionId}: ${err instanceof Error ? err.message : 'unknown'}`,
+        );
+      }
 
       return mission;
     } catch (error: any) {

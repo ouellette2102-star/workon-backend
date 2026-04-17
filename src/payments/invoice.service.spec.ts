@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { InvoiceService } from './invoice.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   BadRequestException,
   NotFoundException,
@@ -53,6 +54,10 @@ describe('InvoiceService', () => {
         InvoiceService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: ConfigService, useValue: mockConfigService },
+        {
+          provide: NotificationsService,
+          useValue: { createLocalNotification: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 

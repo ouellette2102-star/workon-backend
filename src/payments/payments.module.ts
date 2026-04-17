@@ -9,6 +9,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { ComplianceModule } from '../compliance/compliance.module';
 import { AuditModule } from '../common/audit/audit.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 /**
  * Payments Module
@@ -24,7 +25,7 @@ import { AuditModule } from '../common/audit/audit.module';
  * Note: WebhooksController n'est PAS protégé (machine-to-machine depuis Stripe).
  */
 @Module({
-  imports: [PrismaModule, AuthModule, ComplianceModule, AuditModule],
+  imports: [PrismaModule, AuthModule, ComplianceModule, AuditModule, NotificationsModule],
   controllers: [PaymentsController, WebhooksController, CheckoutController],
   providers: [PaymentsService, InvoiceService, StripeSecurityService],
   exports: [PaymentsService, InvoiceService, StripeSecurityService],

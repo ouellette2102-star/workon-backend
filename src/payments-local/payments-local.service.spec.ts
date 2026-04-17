@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PaymentsLocalService } from './payments-local.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   BadRequestException,
   NotFoundException,
@@ -46,6 +47,10 @@ describe('PaymentsLocalService', () => {
         PaymentsLocalService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: ConfigService, useValue: mockConfigService },
+        {
+          provide: NotificationsService,
+          useValue: { createLocalNotification: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
