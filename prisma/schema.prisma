@@ -446,6 +446,7 @@ model LocalUser {
   sentMessages     LocalMessage[]
   devices          LocalDevice[]
   receivedReviews  Review[]       @relation("review_target")
+  authoredReviews  Review[]       @relation("review_author")
   swipeActions     SwipeAction[]
   proMedia         ProMedia[]
   leads            Lead[]
@@ -585,22 +586,26 @@ model Payment {
 
 model Review {
   id                String           @id
-  authorId          String
-  targetUserId      String
-  localTargetUserId String? // Link to native LocalUser
+  authorId          String?
+  localAuthorId     String?
+  targetUserId      String?
+  localTargetUserId String?
   missionId         String?
   rating            Int
   comment           String?
   moderation        ReviewModeration @default(OK)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime
-  author            User             @relation("reviews_authorIdTousers", fields: [authorId], references: [id], onDelete: Cascade)
+  author            User?            @relation("reviews_authorIdTousers", fields: [authorId], references: [id], onDelete: Cascade)
+  localAuthor       LocalUser?       @relation("review_author", fields: [localAuthorId], references: [id], onDelete: Cascade)
   mission           Mission?         @relation(fields: [missionId], references: [id])
-  targetUser        User             @relation("reviews_targetUserIdTousers", fields: [targetUserId], references: [id], onDelete: Cascade)
+  targetUser        User?            @relation("reviews_targetUserIdTousers", fields: [targetUserId], references: [id], onDelete: Cascade)
   localTargetUser   LocalUser?       @relation("review_target", fields: [localTargetUserId], references: [id])
 
   @@index([missionId])
   @@index([moderation])
+  @@index([authorId])
+  @@index([localAuthorId])
   @@index([targetUserId])
   @@index([localTargetUserId])
   @@map("reviews")

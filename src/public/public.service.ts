@@ -179,14 +179,17 @@ export class PublicService {
       },
     });
 
-    // Reviews are linked to User (Clerk), not LocalUser.
-    // Fetch UserProfile names for author/target User ids.
-    const userIds = [
-      ...new Set([
-        ...reviews.map((r) => r.authorId),
-        ...reviews.map((r) => r.targetUserId),
-      ]),
-    ];
+    // Reviews can reference either legacy User or LocalUser on each side.
+    // Collect non-null IDs for legacy profile lookup (LocalUser names come
+    // from the relation include, not UserProfile).
+    const userIds = Array.from(
+      new Set(
+        [
+          ...reviews.map((r) => r.authorId),
+          ...reviews.map((r) => r.targetUserId),
+        ].filter((id): id is string => !!id),
+      ),
+    );
 
     const profiles = userIds.length
       ? await this.prisma.userProfile.findMany({
@@ -201,8 +204,8 @@ export class PublicService {
       id: r.id,
       rating: r.rating,
       comment: r.comment ?? '',
-      authorName: nameMap.get(r.authorId) ?? null,
-      workerName: nameMap.get(r.targetUserId) ?? null,
+      authorName: r.authorId ? (nameMap.get(r.authorId) ?? null) : null,
+      workerName: r.targetUserId ? (nameMap.get(r.targetUserId) ?? null) : null,
       createdAt: r.createdAt.toISOString(),
     }));
   }

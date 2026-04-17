@@ -120,6 +120,54 @@ describe('ReviewsService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
+    it('should set localAuthorId + localTargetUserId when both sides are LocalUsers', async () => {
+      // localUser.findUnique is called twice: once for target, once for author
+      mockPrisma.localUser.findUnique
+        .mockResolvedValueOnce({ id: 'local_wrk', clerkId: null }) // target exists
+        .mockResolvedValueOnce({ id: 'local_emp' }); // author exists (for the authorIsLocal check)
+      mockPrisma.localMission.findUnique.mockResolvedValue({
+        id: 'mission_local',
+        title: 'Local Mission',
+        status: 'completed',
+        createdByUserId: 'local_emp',
+        assignedToUserId: 'local_wrk',
+      });
+      mockPrisma.review.findFirst.mockResolvedValue(null);
+      mockPrisma.review.create.mockResolvedValue({
+        id: 'review_local',
+        rating: 5,
+        comment: 'ok',
+        createdAt: new Date(),
+        authorId: null,
+        localAuthorId: 'local_emp',
+        targetUserId: null,
+        localTargetUserId: 'local_wrk',
+        missionId: 'mission_local',
+        author: null,
+        localAuthor: { id: 'local_emp', firstName: 'Alice', lastName: 'Employer' },
+      });
+
+      await service.create('local_emp', {
+        toUserId: 'local_wrk',
+        rating: 5,
+        comment: 'ok',
+        missionId: 'mission_local',
+      });
+
+      expect(mockPrisma.review.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            localAuthorId: 'local_emp',
+            localTargetUserId: 'local_wrk',
+          }),
+        }),
+      );
+      // And should NOT have set authorId or targetUserId (legacy paths)
+      const call = mockPrisma.review.create.mock.calls[0][0];
+      expect(call.data.authorId).toBeUndefined();
+      expect(call.data.targetUserId).toBeUndefined();
+    });
+
     it('should throw BadRequestException for self-review', async () => {
       mockPrisma.localUser.findUnique.mockResolvedValue(mockUser);
 
