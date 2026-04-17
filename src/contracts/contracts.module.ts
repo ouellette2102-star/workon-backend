@@ -4,6 +4,7 @@ import { ContractsService } from './contracts.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { ComplianceModule } from '../compliance/compliance.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 /**
  * Contracts Module
@@ -12,7 +13,7 @@ import { ComplianceModule } from '../compliance/compliance.module';
  * Tous les endpoints de contrats sont protégés par @RequireConsent.
  */
 @Module({
-  imports: [PrismaModule, AuthModule, ComplianceModule],
+  imports: [PrismaModule, AuthModule, ComplianceModule, NotificationsModule],
   controllers: [ContractsController],
   providers: [ContractsService],
   exports: [ContractsService],

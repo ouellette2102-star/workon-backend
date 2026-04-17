@@ -8,6 +8,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { LocalOfferStatus } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('OffersService', () => {
   let service: OffersService;
@@ -64,6 +65,10 @@ describe('OffersService', () => {
       providers: [
         OffersService,
         { provide: PrismaService, useValue: mockPrismaService },
+        {
+          provide: NotificationsService,
+          useValue: { createLocalNotification: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
