@@ -1,14 +1,47 @@
 # VERIFIED STATE — WorkOn Production Systems
 
 > Single source of truth. Only facts verified against live systems belong here.
-> Last verified: 2026-04-04T04:10Z (W8 N8N workflow + frontend API URL fixes + CORS verified)
+> Last verified: 2026-04-17T22:55Z — architecture refresh (backend URL corrected from `-31db` to `-8908`, projet Railway identifié, DB schema confirmé)
 
 ---
 
-## Backend (Railway)
+## Architecture active (verified 2026-04-17)
 
-**URL**: https://workon-backend-production-31db.up.railway.app
-**Status**: HEALTHY (verified via /healthz — `{"status":"ok"}`)
+**Frontend (Vercel)**
+- Project: `workonapp` (id `prj_sJgFrCeDynMop1VAwrKJYOrdHTQL`, team `team_EKM6kRSp0l662uk6H4YB6U2l`)
+- Prod domain: `https://workonapp.vercel.app`
+- `NEXT_PUBLIC_API_URL` = `https://workon-backend-production-8908.up.railway.app/api/v1` (confirmed via `.vercel/.env.production.local`)
+
+**Backend (Railway)**
+- URL: **`https://workon-backend-production-8908.up.railway.app`** ← L'ACTIF
+- Project: `modest-abundance` (id `8dc84d35-f3fd-49f4-9b8d-5404f6bd568f`)
+- Service: `workon-backend` (id `6269ee8b-d0a9-423a-a099-e456bd88e695`)
+- Region: `us-west2`, 1 replica, ACTIVE
+- Latest successful deploy: **PR #237** (fix messages-local otherUser shape) — 2026-04-17 ~22:45 UTC
+
+**Postgres (Railway)**
+- Same project `modest-abundance`
+- Service: `Postgres` (id `6eba078b-6d23-4c1d-84ff-a170d1bbf6a7`)
+- Attached via `DATABASE_URL="${{Postgres.DATABASE_URL}}"` (service reference — confirmed via Raw Editor)
+- Volume: `postgres-volume` (id `52a69289-6867-4f2b-aa36-c35b3adba914`)
+
+**Preuves de lien frontend ↔ backend ↔ DB**
+1. Vercel `NEXT_PUBLIC_API_URL` → backend -8908
+2. Backend -8908 CORS_ORIGIN = `https://workonapp.vercel.app,https://workonapp-mathieu-ouellettes-projects.vercel.app` (matches Vercel domains)
+3. Backend `/api/v1/health`: `checks.database.status = ok` (latency 9ms) → service reference résolue
+4. Table `reviews` en prod contient colonnes `localAuthorId, localTargetUserId, localMissionId` + 1 row réel « Final smoke test » créé 2026-04-17 21:37 → migrations 17 avril appliquées sur cette DB
+
+## Legacy (à décommissionner ou documenter)
+
+- **Ancien backend**: `https://workon-backend-production-31db.up.railway.app` (projet `comfortable-benevolence` id `cd93c28a-204c-4c09-991e-da569bd3da87`) — **NON utilisé par Vercel prod**. Uptime 5+ jours, deploys bloqués depuis PR #198, pas de `deployVersion`. Contient aussi `n8n` et un Postgres séparé.
+- **Autre projet**: `efficient-renewal` (id `7c8b6b5c-fba1-487d-853a-f0c9346ff2d7`) — Postgres standalone, 1 service.
+
+---
+
+## Backend -8908 (ACTIVE)
+
+**URL**: https://workon-backend-production-8908.up.railway.app
+**Status**: HEALTHY — `/api/v1/health` → `{"status":"ok","deployVersion":"2026-04-12-audit","checks":{"database":{"status":"ok","latencyMs":9},"stripe":{"status":"ok"},"storage":{"status":"ok"},"signedUrls":{"status":"ok"}}}`
 **Version**: 1.0.0
 
 ### Demand Capture Endpoints (verified E2E 2026-04-03)
@@ -34,6 +67,20 @@
 - `20260403000000_add_demand_capture_system` — LeadStatus enum, leads table, slug/bio/category fields on local_users
 - `20260403010000_add_pro_media` — pro_media table for gallery images
 - Both applied successfully to production PostgreSQL
+
+### Reviews — LocalUser/LocalMission dual-FK (verified 2026-04-17)
+
+**Root cause historique** : Review table had `authorId`/`targetUserId`/`missionId` as legacy-only FKs. Les 71 users prod sont des LocalUsers (`local_xxx`) et les missions actives sont des LocalMissions (`lm_xxx`). Insertion → Prisma P2003.
+
+**Fix (PR #232 + PR #236)** — migrations appliquées sur la DB `modest-abundance/Postgres` :
+- `20260417000000_review_localuser_author` : `authorId`/`targetUserId` → nullable, ajout `localAuthorId` + FK `local_users`, CHECK XOR sur author/target
+- `20260417210000_review_localmission` : ajout `localMissionId` + FK `local_missions` (ON DELETE SET NULL)
+- Service `reviews.service.ts` : détection LocalUser/LocalMission + routing vers le bon FK
+
+**Smoke test prod E2E (2026-04-17 21:37)** : 1 review créé avec `rating=5`, `comment="Final smoke test"`, `localAuthorId=local_1776385987494_…`, `localTargetUserId=local_1776385986645_…`, `localMissionId=lm_84a2a3ea80d940ca`, legacy FKs NULL. Confirme routing LocalAuthor + LocalTarget + LocalMission. Vérifié via Data browser Railway.
+
+**Tests** : 21/21 pass dans `src/reviews/` sur main.
+**PRs** : #232 (localAuthorId), #233–235 (diag logs temp), #236 (localMissionId + cleanup diag).
 
 ### Railway Env Vars (added 2026-04-03)
 | Variable | Value | Status |
