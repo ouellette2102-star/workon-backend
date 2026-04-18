@@ -160,29 +160,48 @@ export class LeadsService {
   }
 
   /**
-   * Get all leads for a professional
+   * Get all leads for a professional.
+   *
+   * Wrapped in try/catch to avoid silent 500s. If the Prisma query fails
+   * (e.g. schema/DB drift, missing column, etc.) we log the error with
+   * the proId + query shape and return an empty list rather than
+   * crashing the worker dashboard.
    */
   async getLeadsByPro(proId: string, status?: LeadStatus) {
+    if (!proId || typeof proId !== 'string') {
+      throw new BadRequestException('proId requis');
+    }
+
     const where: Record<string, unknown> = { userId: proId };
     if (status) where.status = status;
 
-    const leads = await this.prisma.lead.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        name: true,
-        phone: true,
-        email: true,
-        category: true,
-        description: true,
-        status: true,
-        source: true,
-        createdAt: true,
-      },
-    });
+    try {
+      const leads = await this.prisma.lead.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          email: true,
+          category: true,
+          description: true,
+          status: true,
+          source: true,
+          createdAt: true,
+        },
+      });
 
-    return { leads, total: leads.length };
+      return { leads, total: leads.length };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const code = (err as { code?: string })?.code;
+      this.logger.error(
+        `getLeadsByPro failed for proId=${proId} status=${status ?? 'any'}: ${code ?? ''} ${msg}`,
+      );
+      // Degrade gracefully — the dashboard should never crash because leads query fails.
+      return { leads: [], total: 0 };
+    }
   }
 
   /**
