@@ -126,6 +126,75 @@ export class LeadsController {
     return this.leadsService.updateLeadStatus(id, dto);
   }
 
+  // ─── Phase 4: subscriber-facing lead delivery endpoints ────────────
+
+  /**
+   * GET /api/v1/leads/mine — leads delivered to the current subscriber.
+   * Returns { deliveries, usage: { used, limit } }. Empty for FREE users.
+   */
+  @Get('mine')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'My delivered leads (subscribers only)',
+    description:
+      'Returns leads dispatched to the caller by the matching engine. ' +
+      'Limited by monthly quota: CLIENT_PRO/WORKER_PRO = 5, CLIENT_BUSINESS = unlimited.',
+  })
+  @ApiResponse({ status: 200 })
+  async getMyLeads(@Request() req: any) {
+    return this.leadsService.listDeliveredToUser(req.user.sub);
+  }
+
+  /**
+   * PATCH /api/v1/leads/deliveries/:id/open — mark delivery as opened.
+   */
+  @Patch('deliveries/:id/open')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Mark a lead delivery as opened' })
+  async markOpened(@Param('id') id: string, @Request() req: any) {
+    await this.leadsService.markOpened(id, req.user.sub);
+    return { ok: true };
+  }
+
+  /**
+   * POST /api/v1/leads/deliveries/:id/accept — convert delivery to mission.
+   */
+  @Post('deliveries/:id/accept')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Accept a lead delivery (converts to mission)' })
+  @ApiResponse({ status: 201 })
+  @ApiResponse({ status: 409, description: 'Delivery already accepted/declined' })
+  async acceptDelivery(@Param('id') id: string, @Request() req: any) {
+    return this.leadsService.acceptLead(id, req.user.sub);
+  }
+
+  /**
+   * POST /api/v1/leads/deliveries/:id/decline — release for next candidate.
+   */
+  @Post('deliveries/:id/decline')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Decline a lead delivery' })
+  async declineDelivery(@Param('id') id: string, @Request() req: any) {
+    return this.leadsService.declineLead(id, req.user.sub);
+  }
+
+  /**
+   * POST /api/v1/leads/:id/dispatch — admin trigger to re-dispatch a lead.
+   * Used by N8N workflows and the admin reviewer UI.
+   */
+  @Post(':id/dispatch')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Re-dispatch a lead to candidate subscribers' })
+  async dispatchLead(@Param('id') id: string) {
+    return this.leadsService.dispatchLead(id);
+  }
+
   /**
    * POST /api/v1/leads/:id/convert
    * Protected (admin) — manually convert a lead to a mission

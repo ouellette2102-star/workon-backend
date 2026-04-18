@@ -14,6 +14,7 @@ describe('LeadsService', () => {
   const mockPrisma = {
     localUser: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
     },
     lead: {
       create: jest.fn(),
@@ -23,6 +24,20 @@ describe('LeadsService', () => {
       update: jest.fn(),
       count: jest.fn(),
     },
+    leadDelivery: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+      count: jest.fn(),
+    },
+    subscription: {
+      findFirst: jest.fn(),
+    },
+    localMission: {
+      create: jest.fn(),
+    },
+    $transaction: jest.fn().mockImplementation((ops: any) => Promise.all(ops)),
   };
 
   const mockPro = {
@@ -238,6 +253,171 @@ describe('LeadsService', () => {
       await expect(
         service.updateLeadStatus('nonexistent', { status: 'CONTACTED' as any }),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ─── Phase 4 ──────────────────────────────────────────────────────
+
+  describe('listDeliveredToUser', () => {
+    it('returns deliveries + usage (FREE plan = limit 0)', async () => {
+      mockPrisma.subscription.findFirst.mockResolvedValue(null);
+      mockPrisma.leadDelivery.count.mockResolvedValue(0);
+      mockPrisma.leadDelivery.findMany.mockResolvedValue([]);
+      const res = await service.listDeliveredToUser('u1');
+      expect(res.usage).toEqual({ used: 0, limit: 0 });
+      expect(res.deliveries).toEqual([]);
+    });
+
+    it('returns limit=5 for CLIENT_PRO, null for CLIENT_BUSINESS', async () => {
+      mockPrisma.subscription.findFirst.mockResolvedValue({ plan: 'CLIENT_PRO' });
+      mockPrisma.leadDelivery.count.mockResolvedValue(2);
+      mockPrisma.leadDelivery.findMany.mockResolvedValue([]);
+      let res = await service.listDeliveredToUser('u1');
+      expect(res.usage).toEqual({ used: 2, limit: 5 });
+
+      mockPrisma.subscription.findFirst.mockResolvedValue({ plan: 'CLIENT_BUSINESS' });
+      mockPrisma.leadDelivery.count.mockResolvedValue(42);
+      res = await service.listDeliveredToUser('u1');
+      expect(res.usage).toEqual({ used: 42, limit: null });
+    });
+  });
+
+  describe('markOpened', () => {
+    it('sets openedAt on delivery owned by user', async () => {
+      mockPrisma.leadDelivery.findUnique.mockResolvedValue({
+        id: 'ld1',
+        deliveredToUserId: 'u1',
+        openedAt: null,
+      });
+      mockPrisma.leadDelivery.update.mockResolvedValue({});
+      await service.markOpened('ld1', 'u1');
+      expect(mockPrisma.leadDelivery.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ openedAt: expect.any(Date) }),
+        }),
+      );
+    });
+
+    it('is idempotent — skips if already opened', async () => {
+      mockPrisma.leadDelivery.findUnique.mockResolvedValue({
+        id: 'ld1',
+        deliveredToUserId: 'u1',
+        openedAt: new Date(),
+      });
+      await service.markOpened('ld1', 'u1');
+      expect(mockPrisma.leadDelivery.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects when user is not the target', async () => {
+      mockPrisma.leadDelivery.findUnique.mockResolvedValue({
+        id: 'ld1',
+        deliveredToUserId: 'other',
+        openedAt: null,
+      });
+      await expect(service.markOpened('ld1', 'u1')).rejects.toThrow(
+        /Accès|Forbidden/i,
+      );
+    });
+  });
+
+  describe('acceptLead', () => {
+    it('creates a mission from the lead + marks CONVERTED', async () => {
+      mockPrisma.leadDelivery.findUnique.mockResolvedValue({
+        id: 'ld1',
+        deliveredToUserId: 'u1',
+        acceptedAt: null,
+        declinedAt: null,
+        lead: {
+          id: 'lead1',
+          name: 'Client Test',
+          email: 'c@x.io',
+          phone: '5145551111',
+          category: 'cleaning',
+          city: 'Montreal',
+          description: 'Test',
+          budgetCents: 5000,
+          latitude: null,
+          longitude: null,
+          source: 'apollo',
+        },
+      });
+      mockPrisma.localMission.create.mockResolvedValue({ id: 'lm_new' });
+      mockPrisma.leadDelivery.update.mockResolvedValue({});
+      mockPrisma.lead.update.mockResolvedValue({});
+
+      const res = await service.acceptLead('ld1', 'u1');
+      expect(res.mission.id).toBe('lm_new');
+      expect(mockPrisma.localMission.create).toHaveBeenCalled();
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
+    });
+
+    it('throws 409 when already processed', async () => {
+      mockPrisma.leadDelivery.findUnique.mockResolvedValue({
+        id: 'ld1',
+        deliveredToUserId: 'u1',
+        acceptedAt: new Date(),
+        declinedAt: null,
+        lead: { id: 'lead1' },
+      });
+      await expect(service.acceptLead('ld1', 'u1')).rejects.toThrow(
+        ConflictException,
+      );
+    });
+  });
+
+  describe('declineLead', () => {
+    it('marks declinedAt', async () => {
+      mockPrisma.leadDelivery.findUnique.mockResolvedValue({
+        id: 'ld1',
+        deliveredToUserId: 'u1',
+        acceptedAt: null,
+        declinedAt: null,
+      });
+      mockPrisma.leadDelivery.update.mockResolvedValue({});
+      const res = await service.declineLead('ld1', 'u1');
+      expect(res.ok).toBe(true);
+    });
+  });
+
+  describe('dispatchLead', () => {
+    it('creates LeadDelivery rows for matching candidates under quota', async () => {
+      mockPrisma.lead.findUnique.mockResolvedValue({
+        id: 'lead1',
+        categoryId: 'cleaning',
+        category: 'cleaning',
+        city: 'Montreal',
+      });
+      mockPrisma.localUser.findMany.mockResolvedValue([
+        { id: 'u1' },
+        { id: 'u2' },
+      ]);
+      mockPrisma.subscription.findFirst.mockResolvedValue({ plan: 'CLIENT_PRO' });
+      mockPrisma.leadDelivery.count.mockResolvedValue(0);
+      mockPrisma.leadDelivery.create.mockResolvedValue({});
+
+      const res = await service.dispatchLead('lead1');
+      expect(res.dispatched).toBe(2);
+      expect(mockPrisma.leadDelivery.create).toHaveBeenCalledTimes(2);
+    });
+
+    it('skips candidates at quota', async () => {
+      mockPrisma.lead.findUnique.mockResolvedValue({
+        id: 'lead1',
+        categoryId: null,
+        category: null,
+        city: 'Montreal',
+      });
+      mockPrisma.localUser.findMany.mockResolvedValue([
+        { id: 'u1' },
+        { id: 'u2' },
+      ]);
+      mockPrisma.subscription.findFirst.mockResolvedValue({ plan: 'CLIENT_PRO' });
+      mockPrisma.leadDelivery.count.mockResolvedValue(5); // at cap
+      mockPrisma.leadDelivery.create.mockResolvedValue({});
+
+      const res = await service.dispatchLead('lead1');
+      expect(res.dispatched).toBe(0);
+      expect(mockPrisma.leadDelivery.create).not.toHaveBeenCalled();
     });
   });
 });

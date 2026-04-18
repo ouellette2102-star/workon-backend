@@ -4,12 +4,29 @@ import {
   BadRequestException,
   NotFoundException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateLeadStatusDto } from './dto/update-lead-status.dto';
-import { LeadStatus } from '@prisma/client';
+import { LeadStatus, SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
 import * as sgMail from '@sendgrid/mail';
+
+/**
+ * Monthly lead quotas per subscription plan.
+ * FREE = 0 (not sold), PRO plans = 5, BUSINESS = unlimited (Number.POSITIVE_INFINITY)
+ */
+const LEAD_QUOTA: Record<string, number> = {
+  FREE: 0,
+  PRO: 0,
+  PREMIUM: 0,
+  CLIENT_PRO: 5,
+  WORKER_PRO: 5,
+  CLIENT_BUSINESS: Number.POSITIVE_INFINITY,
+};
+
+const MAX_DISPATCH_CANDIDATES = 5;
 
 const GHL_WEBHOOK_URL = process.env.GHL_WEBHOOK_URL;
 const N8N_WEBHOOK_BASE = process.env.N8N_WEBHOOK_BASE;
@@ -660,5 +677,243 @@ export class LeadsService {
     });
 
     this.logger.log(`Client confirmation email sent to ${lead.email} for lead ${lead.id}`);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Phase 4: Leads monetization — dispatch + quotas + convert to mission
+  // ═══════════════════════════════════════════════════════════════════
+
+  /**
+   * Get user's monthly lead quota based on active subscription plan.
+   */
+  private async getUserQuota(userId: string): Promise<number> {
+    const sub = await this.prisma.subscription.findFirst({
+      where: {
+        userId,
+        status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING] },
+      },
+      orderBy: { startedAt: 'desc' },
+      select: { plan: true },
+    });
+    const plan = (sub?.plan as string) || 'FREE';
+    return LEAD_QUOTA[plan] ?? 0;
+  }
+
+  /**
+   * Count leads delivered to the user this calendar month.
+   */
+  private async leadsThisMonth(userId: string): Promise<number> {
+    const start = new Date();
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+    return this.prisma.leadDelivery.count({
+      where: {
+        deliveredToUserId: userId,
+        deliveredAt: { gte: start },
+      },
+    });
+  }
+
+  /**
+   * Leads assigned/delivered to the current user, sorted by newest.
+   * Caller should be subscribed (guard upstream enforces this).
+   */
+  async listDeliveredToUser(userId: string) {
+    const deliveries = await this.prisma.leadDelivery.findMany({
+      where: { deliveredToUserId: userId },
+      orderBy: { deliveredAt: 'desc' },
+      take: 50,
+      include: {
+        lead: {
+          select: {
+            id: true, name: true, phone: true, email: true,
+            category: true, city: true, description: true,
+            budgetCents: true, createdAt: true,
+          },
+        },
+      },
+    });
+    const quota = await this.getUserQuota(userId);
+    const used = await this.leadsThisMonth(userId);
+    return {
+      deliveries,
+      usage: { used, limit: Number.isFinite(quota) ? quota : null },
+    };
+  }
+
+  /**
+   * Mark a delivery as opened (first time user views the lead details).
+   */
+  async markOpened(leadDeliveryId: string, userId: string): Promise<void> {
+    const delivery = await this.prisma.leadDelivery.findUnique({
+      where: { id: leadDeliveryId },
+    });
+    if (!delivery) throw new NotFoundException('Delivery introuvable');
+    if (delivery.deliveredToUserId !== userId) {
+      throw new ForbiddenException('Accès refusé');
+    }
+    if (delivery.openedAt) return;
+    await this.prisma.leadDelivery.update({
+      where: { id: leadDeliveryId },
+      data: { openedAt: new Date() },
+    });
+  }
+
+  /**
+   * Accept a lead delivery — converts the lead into a LocalMission for
+   * the accepting user, marks delivery acceptedAt + convertedToMissionId.
+   */
+  async acceptLead(leadDeliveryId: string, userId: string) {
+    const delivery = await this.prisma.leadDelivery.findUnique({
+      where: { id: leadDeliveryId },
+      include: { lead: true },
+    });
+    if (!delivery) throw new NotFoundException('Delivery introuvable');
+    if (delivery.deliveredToUserId !== userId) {
+      throw new ForbiddenException('Accès refusé');
+    }
+    if (delivery.acceptedAt || delivery.declinedAt) {
+      throw new ConflictException('Délivery déjà traitée');
+    }
+
+    const lead = delivery.lead;
+    const missionId = `lm_lead_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    const mission = await this.prisma.localMission.create({
+      data: {
+        id: missionId,
+        title: `${lead.category ?? 'Service'} — ${lead.city ?? 'à préciser'}`,
+        description:
+          lead.description || `Lead via ${lead.source ?? 'WorkOn'} — ${lead.name}`,
+        category: lead.category ?? 'other',
+        price: (lead.budgetCents ?? 0) / 100,
+        latitude: lead.latitude ?? 45.5017,
+        longitude: lead.longitude ?? -73.5673,
+        city: lead.city ?? 'Montreal',
+        createdByUserId: userId,
+        status: 'open',
+        updatedAt: new Date(),
+        leadId: lead.id,
+        clientName: lead.name,
+        clientEmail: lead.email,
+        clientPhone: lead.phone,
+      },
+    });
+
+    await this.prisma.$transaction([
+      this.prisma.leadDelivery.update({
+        where: { id: leadDeliveryId },
+        data: { acceptedAt: new Date(), convertedToMissionId: mission.id },
+      }),
+      this.prisma.lead.update({
+        where: { id: lead.id },
+        data: {
+          status: LeadStatus.CONVERTED,
+          convertedToMissionId: mission.id,
+        },
+      }),
+    ]);
+
+    this.logger.log(`Lead ${lead.id} accepted by ${userId} → mission ${mission.id}`);
+    return { mission, leadId: lead.id };
+  }
+
+  /**
+   * Decline a delivery. The dispatcher will try the next candidate when
+   * the next /leads/ingest cron runs.
+   */
+  async declineLead(leadDeliveryId: string, userId: string) {
+    const delivery = await this.prisma.leadDelivery.findUnique({
+      where: { id: leadDeliveryId },
+    });
+    if (!delivery) throw new NotFoundException('Delivery introuvable');
+    if (delivery.deliveredToUserId !== userId) {
+      throw new ForbiddenException('Accès refusé');
+    }
+    if (delivery.acceptedAt || delivery.declinedAt) {
+      throw new ConflictException('Délivery déjà traitée');
+    }
+    await this.prisma.leadDelivery.update({
+      where: { id: leadDeliveryId },
+      data: { declinedAt: new Date() },
+    });
+    return { ok: true };
+  }
+
+  /**
+   * Dispatch a lead to up to N subscriber candidates.
+   * Matches on:
+   *   - active subscription (CLIENT_PRO / WORKER_PRO / CLIENT_BUSINESS)
+   *   - remaining monthly quota (BUSINESS = no cap)
+   *   - category match on LocalUser.category (when lead has categoryId)
+   *   - city match on LocalUser.city (when lead has city)
+   *
+   * Returns the number of deliveries created. Called by /leads/ingest
+   * and by the normal lead-creation path when a lead has category+city.
+   */
+  async dispatchLead(leadId: string): Promise<{ dispatched: number }> {
+    const lead = await this.prisma.lead.findUnique({
+      where: { id: leadId },
+      select: { id: true, categoryId: true, category: true, city: true },
+    });
+    if (!lead) throw new NotFoundException('Lead introuvable');
+
+    const categoryFilter =
+      lead.categoryId || lead.category
+        ? { category: lead.categoryId ?? lead.category }
+        : {};
+    const cityFilter = lead.city ? { city: lead.city } : {};
+
+    const candidates = await this.prisma.localUser.findMany({
+      where: {
+        active: true,
+        ...categoryFilter,
+        ...cityFilter,
+        subscriptions: {
+          some: {
+            status: {
+              in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING],
+            },
+            plan: {
+              in: [
+                SubscriptionPlan.CLIENT_PRO,
+                SubscriptionPlan.WORKER_PRO,
+                SubscriptionPlan.CLIENT_BUSINESS,
+              ],
+            },
+          },
+        },
+      },
+      take: MAX_DISPATCH_CANDIDATES * 3,
+      select: { id: true },
+    });
+
+    let dispatched = 0;
+    for (const c of candidates) {
+      if (dispatched >= MAX_DISPATCH_CANDIDATES) break;
+      const quota = await this.getUserQuota(c.id);
+      const used = await this.leadsThisMonth(c.id);
+      if (used >= quota) continue;
+
+      try {
+        await this.prisma.leadDelivery.create({
+          data: {
+            id: `ld_${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`,
+            leadId: lead.id,
+            deliveredToUserId: c.id,
+          },
+        });
+        dispatched++;
+      } catch (err) {
+        // Unique (leadId, deliveredToUserId) already exists — skip
+        const code = (err as { code?: string })?.code;
+        if (code !== 'P2002') throw err;
+      }
+    }
+
+    this.logger.log(
+      `Lead ${lead.id} dispatched to ${dispatched}/${MAX_DISPATCH_CANDIDATES} candidates`,
+    );
+    return { dispatched };
   }
 }
