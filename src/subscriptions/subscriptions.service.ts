@@ -40,7 +40,11 @@ export class SubscriptionsService {
 
   constructor(private readonly prisma: PrismaService) {
     const secretKey = process.env.STRIPE_SECRET_KEY;
-    this.webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    // Distinct from STRIPE_WEBHOOK_SECRET used by /payments-local/webhook —
+    // each Stripe webhook endpoint has its own signing secret.
+    this.webhookSecret =
+      process.env.STRIPE_SUBSCRIPTIONS_WEBHOOK_SECRET ||
+      process.env.STRIPE_WEBHOOK_SECRET;
 
     if (!secretKey) {
       this.logger.warn(
@@ -215,7 +219,7 @@ export class SubscriptionsService {
     const stripe = this.ensureStripe();
     if (!this.webhookSecret) {
       throw new BadRequestException(
-        'STRIPE_WEBHOOK_SECRET not configured on this environment',
+        'STRIPE_SUBSCRIPTIONS_WEBHOOK_SECRET not configured on this environment',
       );
     }
     return stripe.webhooks.constructEvent(
