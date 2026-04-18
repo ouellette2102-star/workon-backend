@@ -44,10 +44,10 @@ const REQUIRED_ENDPOINTS: EndpointContract[] = [
   { method: 'POST', path: '/api/v1/auth/verify-email-otp', description: 'Verify email OTP (PR-B2)', critical: false },
   { method: 'DELETE', path: '/api/v1/auth/account', description: 'Delete account (GDPR)', critical: true },
   
-  // Profile
-  { method: 'GET', path: '/api/v1/profile', description: 'Get user profile', critical: true },
-  { method: 'PATCH', path: '/api/v1/profile', description: 'Update profile', critical: false },
-  
+  // Profile (replaced by /users/me — ProfileModule removed 2026-04-18)
+  { method: 'GET', path: '/api/v1/users/me', description: 'Get current user profile', critical: true },
+  { method: 'PATCH', path: '/api/v1/users/me', description: 'Update profile', critical: false },
+
   // Missions
   { method: 'GET', path: '/api/v1/missions', description: 'List missions', critical: false },
   { method: 'GET', path: '/api/v1/missions-local', description: 'List local missions', critical: false },

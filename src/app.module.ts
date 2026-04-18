@@ -14,8 +14,6 @@ import { PaymentsModule } from './payments/payments.module';
 import { ContractsModule } from './contracts/contracts.module';
 import { AdminModule } from './admin/admin.module';
 import { LoggerModule } from './logger/logger.module';
-import { ProfileModule } from './profile/profile.module';
-import { MessagesModule } from './messages/messages.module';
 import { NotificationsModule } from './notifications/notifications.module';
 // import { MissionTimeLogsModule } from './mission-time-logs/mission-time-logs.module';
 // TODO: service references missing Prisma fields (MissionTimeLogType, missionTimeLog model,
@@ -163,16 +161,15 @@ import { WorkerSkillsModule } from './worker-skills/worker-skills.module';
     // LEGACY (Clerk-based) MODULES - ACTIVE IN PRODUCTION
     // NOTE: Do not remove without explicit release decision.
     // ============================================================
-    // Notifications module (needed by MissionsModule and MessagesModule)
+    // Notifications module (needed by MissionsModule)
     NotificationsModule,
-    // Legacy modules (kept active)
+    // Legacy modules (kept active — still consumed by FE api-client)
     MissionsModule,
-    MessagesModule,
     ContractsModule,
     PaymentsModule,
     StripeModule,
     AdminModule,
-    ProfileModule,
+    // MessagesModule + ProfileModule removed (unused by FE, 2026-04-18)
     // MissionTimeLogsModule,
     // Health check
     HealthModule,
