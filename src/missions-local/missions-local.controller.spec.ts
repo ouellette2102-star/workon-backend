@@ -3,6 +3,7 @@ import { MissionsLocalController } from './missions-local.controller';
 import { MissionsLocalService } from './missions-local.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ConsentGuard } from '../compliance/guards/consent.guard';
+import { MissionQuotaGuard } from '../subscriptions/guards/mission-quota.guard';
 import { LocalMissionStatus } from '@prisma/client';
 
 describe('MissionsLocalController', () => {
@@ -65,6 +66,8 @@ describe('MissionsLocalController', () => {
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: () => true })
       .overrideGuard(ConsentGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(MissionQuotaGuard)
       .useValue({ canActivate: () => true })
       .compile();
 
