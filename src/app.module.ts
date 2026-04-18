@@ -45,6 +45,7 @@ import { SchedulingModule } from './scheduling/scheduling.module';
 import { ProductionConfigModule } from './config/production-config.module';
 import { MessagesLocalModule } from './messages-local/messages-local.module';
 import { ConversationsModule } from './conversations/conversations.module';
+import { BoostsModule } from './boosts/boosts.module';
 import { ChatModule } from './chat/chat.module';
 import { PublicModule } from './public/public.module';
 import { DisputesModule } from './disputes/disputes.module';
@@ -236,6 +237,8 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
     SubscriptionsModule,
     // Conversations — pure DM threads post-swipe-match (Phase 2)
     ConversationsModule,
+    // Boosts — one-shot paid visibility/urgency (Phase 3)
+    BoostsModule,
   ],
   controllers: [AppController],
   providers: [

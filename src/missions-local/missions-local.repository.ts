@@ -95,23 +95,35 @@ export class MissionsLocalRepository {
     const whereClause = Prisma.join(conditions, ' AND ');
 
     // Dynamic ORDER BY — only whitelisted sort keys reach SQL.
-    // trustScore is NULLS LAST so brand-new creators don't float above
-    // experienced ones, and it falls back on distance for tie-breaking.
-    let orderBy: Prisma.Sql;
+    //
+    // Phase 3: active boosts (isUrgent within window, or boostedUntil in
+    // the future) float above everything else. Ties broken by the user-
+    // selected sort. This is the paid-acceleration surface.
+    const boostPriority = Prisma.sql`
+      CASE
+        WHEN ("isUrgent" = true AND ("urgentUntil" IS NULL OR "urgentUntil" > NOW())) THEN 2
+        WHEN ("boostedUntil" IS NOT NULL AND "boostedUntil" > NOW()) THEN 1
+        ELSE 0
+      END DESC
+    `;
+
+    let tieBreaker: Prisma.Sql;
     switch (options?.sort) {
       case 'price':
-        orderBy = Prisma.sql`price DESC`;
+        tieBreaker = Prisma.sql`price DESC`;
         break;
       case 'date':
-        orderBy = Prisma.sql`"createdAt" DESC`;
+        tieBreaker = Prisma.sql`"createdAt" DESC`;
         break;
       case 'trust':
-        orderBy = Prisma.sql`"creatorTrustScore" DESC NULLS LAST, "distanceKm" ASC`;
+        tieBreaker = Prisma.sql`"creatorTrustScore" DESC NULLS LAST, "distanceKm" ASC`;
         break;
       case 'distance':
       default:
-        orderBy = Prisma.sql`"distanceKm" ASC`;
+        tieBreaker = Prisma.sql`"distanceKm" ASC`;
     }
+
+    const orderBy = Prisma.sql`${boostPriority}, ${tieBreaker}`;
 
     const missions = await this.prisma.$queryRaw<any[]>`
       WITH distances AS (
@@ -130,6 +142,9 @@ export class MissionsLocalRepository {
           lm."assignedToUserId",
           lm."createdAt",
           lm."updatedAt",
+          lm."isUrgent",
+          lm."urgentUntil",
+          lm."boostedUntil",
           lu."trustScore"    AS "creatorTrustScore",
           lu."trustTier"     AS "creatorTrustTier",
           lu."ratingAverage" AS "creatorRatingAverage",
@@ -250,8 +265,17 @@ export class MissionsLocalRepository {
         price: true,
         city: true,
         createdAt: true,
+        boostedUntil: true,
+        isUrgent: true,
+        urgentUntil: true,
       },
-      orderBy: { createdAt: 'desc' },
+      // Boost-priority sort: active urgent first, then boosted, then date.
+      // Evaluated vs current time in the service layer after fetch.
+      orderBy: [
+        { isUrgent: 'desc' },
+        { boostedUntil: { sort: 'desc', nulls: 'last' } },
+        { createdAt: 'desc' },
+      ],
       take: Math.min(limit, 500), // Hard cap at 500
     });
 

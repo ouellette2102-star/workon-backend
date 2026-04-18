@@ -317,7 +317,10 @@ describe('MissionsLocalRepository', () => {
           status: 'open',
         },
         select: expect.any(Object),
-        orderBy: { createdAt: 'desc' },
+        orderBy: expect.arrayContaining([
+          expect.objectContaining({ isUrgent: 'desc' }),
+          expect.objectContaining({ createdAt: 'desc' }),
+        ]),
         take: 200,
       });
       expect(result).toHaveLength(1);
