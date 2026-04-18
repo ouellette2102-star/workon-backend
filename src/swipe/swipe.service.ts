@@ -177,6 +177,10 @@ export class SwipeService {
 
         this.logger.log(`Match created: ${match.id} between ${userAId} and ${userBId}`);
 
+        // Auto-create Conversation (pure DM thread) if none exists for this pair.
+        // Idempotent via the unique (participantAId, participantBId) constraint.
+        await this.ensureConversation(userAId, userBId, match.id);
+
         // Notify both users of the match
         await this.notifyMatch(swiperId, candidateId, match.id);
 
@@ -185,6 +189,40 @@ export class SwipeService {
     }
 
     return { action, matched: false };
+  }
+
+  /**
+   * Ensure a Conversation exists for this (userA, userB) pair.
+   * Creates one if missing, does nothing if one already exists.
+   * Called automatically on swipe match so post-match chat is ready.
+   */
+  private async ensureConversation(
+    userAId: string,
+    userBId: string,
+    matchId: string,
+  ): Promise<void> {
+    try {
+      const existing = await this.prisma.conversation.findUnique({
+        where: { participantAId_participantBId: { participantAId: userAId, participantBId: userBId } },
+      });
+      if (existing) return;
+
+      await this.prisma.conversation.create({
+        data: {
+          id: `cv_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`,
+          participantAId: userAId,
+          participantBId: userBId,
+          unlockedVia: 'SWIPE_MATCH',
+          unlockedMatchId: matchId,
+        },
+      });
+      this.logger.log(`Conversation created for match ${matchId}`);
+    } catch (err) {
+      // Non-blocking — match still succeeds if conversation create fails (user can retry sending a message)
+      this.logger.warn(
+        `ensureConversation failed for match ${matchId}: ${err instanceof Error ? err.message : 'unknown'}`,
+      );
+    }
   }
 
   /**

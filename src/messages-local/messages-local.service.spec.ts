@@ -31,6 +31,9 @@ describe('MessagesLocalService', () => {
     localUser: {
       findUnique: jest.fn(),
     },
+    conversation: {
+      findMany: jest.fn().mockResolvedValue([]), // default: no pure DM threads
+    },
   };
 
   const mockNotificationsService = {

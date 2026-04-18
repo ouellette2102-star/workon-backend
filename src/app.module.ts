@@ -44,6 +44,7 @@ import { SecurityModule } from './common/security/security.module';
 import { SchedulingModule } from './scheduling/scheduling.module';
 import { ProductionConfigModule } from './config/production-config.module';
 import { MessagesLocalModule } from './messages-local/messages-local.module';
+import { ConversationsModule } from './conversations/conversations.module';
 import { ChatModule } from './chat/chat.module';
 import { PublicModule } from './public/public.module';
 import { DisputesModule } from './disputes/disputes.module';
@@ -233,6 +234,8 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
     WorkerSkillsModule,
     // Subscriptions - Free Entry + Paid Acceleration monetization (Phase 1)
     SubscriptionsModule,
+    // Conversations — pure DM threads post-swipe-match (Phase 2)
+    ConversationsModule,
   ],
   controllers: [AppController],
   providers: [

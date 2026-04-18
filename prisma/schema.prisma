@@ -199,21 +199,49 @@ enum LocalMessageStatus {
 }
 
 model LocalMessage {
-  id         String             @id
-  missionId  String
-  senderId   String
-  senderRole LocalMessageRole
-  content    String
-  status     LocalMessageStatus @default(SENT)
-  createdAt  DateTime           @default(now())
+  id             String             @id
+  missionId      String?
+  conversationId String?
+  senderId       String
+  senderRole     LocalMessageRole
+  content        String
+  status         LocalMessageStatus @default(SENT)
+  createdAt      DateTime           @default(now())
 
-  mission LocalMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  sender  LocalUser    @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  mission      LocalMission?  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  conversation Conversation?  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       LocalUser      @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
   @@index([missionId])
+  @@index([conversationId])
   @@index([senderId])
   @@index([createdAt])
   @@map("local_messages")
+}
+
+// ============================================
+// CONVERSATIONS - Thread de chat pur (post-swipe-match)
+// ============================================
+
+enum ConversationUnlock {
+  SWIPE_MATCH
+}
+
+model Conversation {
+  id              String   @id
+  participantAId  String
+  participantBId  String
+  unlockedVia     ConversationUnlock @default(SWIPE_MATCH)
+  unlockedMatchId String?  @unique
+  lastMessageAt   DateTime?
+  createdAt       DateTime @default(now())
+
+  messages LocalMessage[]
+
+  @@unique([participantAId, participantBId])
+  @@index([participantAId])
+  @@index([participantBId])
+  @@map("conversations")
 }
 
 // ============================================
