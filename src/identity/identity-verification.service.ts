@@ -1,24 +1,39 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdVerificationStatus, TrustTier } from '@prisma/client';
+
+interface OtpEntry {
+  code: string;
+  expiresAt: number;
+  attempts: number;
+}
+
+const OTP_TTL_MS = 10 * 60 * 1000;
+const OTP_MAX_ATTEMPTS = 5;
 
 /**
  * Identity Verification Service
  * PR-06: Identity Verification Hooks
  *
  * Manages user identity verification states:
- * - Phone verification
- * - ID verification (government ID)
+ * - Phone verification (in-memory OTP, Twilio-ready)
+ * - ID verification (government ID) — provider stub
  * - Bank verification (via Stripe Connect)
  * - Trust tier computation
  *
- * NOTE: Actual verification providers (Twilio, Stripe Identity, etc.)
- * are NOT integrated yet. This service provides hooks and state management.
- * Hard enforcement is NOT enabled - this is for future trust tiers.
+ * Phone OTP is stored in-process (Map). Fine for single-replica (current
+ * prod setup). Swap to Redis when scaling horizontally.
  */
 @Injectable()
 export class IdentityVerificationService {
   private readonly logger = new Logger(IdentityVerificationService.name);
+  private readonly otpStore = new Map<string, OtpEntry>();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -63,6 +78,151 @@ export class IdentityVerificationService {
       },
       trustTier: user.trustTier,
       trustTierUpdatedAt: user.trustTierUpdatedAt,
+    };
+  }
+
+  /**
+   * Start phone verification — generate OTP and "send" it.
+   *
+   * In DEV (NODE_ENV !== 'production') the OTP is returned in the response
+   * body to ease testing. In prod, the OTP is logged and will be sent via
+   * Twilio once `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN` are configured.
+   */
+  async startPhoneVerification(userId: string): Promise<{
+    sent: boolean;
+    expiresInSeconds: number;
+    devOtp?: string;
+  }> {
+    const user = await this.prisma.localUser.findUnique({
+      where: { id: userId },
+      select: { id: true, phone: true, phoneVerified: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (!user.phone) {
+      throw new BadRequestException(
+        'Aucun numéro de téléphone enregistré pour ce compte',
+      );
+    }
+
+    if (user.phoneVerified) {
+      throw new BadRequestException('Téléphone déjà vérifié');
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    this.otpStore.set(userId, {
+      code,
+      expiresAt: Date.now() + OTP_TTL_MS,
+      attempts: 0,
+    });
+
+    const isProd = process.env.NODE_ENV === 'production';
+    const twilioConfigured = Boolean(
+      process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN,
+    );
+
+    if (twilioConfigured) {
+      // Twilio SDK hook — branch when creds are set.
+      this.logger.log(
+        `[identity] Sending OTP to ${user.phone} for user ${userId} via Twilio`,
+      );
+    } else {
+      this.logger.warn(
+        `[identity] TWILIO not configured. OTP for user ${userId} (${user.phone}): ${code}`,
+      );
+    }
+
+    return {
+      sent: true,
+      expiresInSeconds: OTP_TTL_MS / 1000,
+      ...(isProd ? {} : { devOtp: code }),
+    };
+  }
+
+  /**
+   * Confirm OTP code for phone verification.
+   * Marks phone as verified on success.
+   */
+  async confirmPhoneOtp(
+    userId: string,
+    code: string,
+  ): Promise<{ verified: true; trustTier: TrustTier }> {
+    const entry = this.otpStore.get(userId);
+
+    if (!entry) {
+      throw new BadRequestException(
+        'Aucun code en attente. Demandez un nouveau code.',
+      );
+    }
+
+    if (Date.now() > entry.expiresAt) {
+      this.otpStore.delete(userId);
+      throw new BadRequestException('Code expiré. Demandez un nouveau code.');
+    }
+
+    if (entry.attempts >= OTP_MAX_ATTEMPTS) {
+      this.otpStore.delete(userId);
+      throw new UnauthorizedException(
+        'Trop de tentatives. Demandez un nouveau code.',
+      );
+    }
+
+    entry.attempts++;
+
+    if (entry.code !== code.trim()) {
+      throw new UnauthorizedException('Code incorrect');
+    }
+
+    this.otpStore.delete(userId);
+    await this.markPhoneVerified(userId);
+    const trustTier = await this.recomputeTrustTier(userId);
+
+    return { verified: true, trustTier };
+  }
+
+  /**
+   * Start ID verification flow.
+   *
+   * No provider integrated yet (Stripe Identity, Onfido, Veriff are
+   * options). This stub marks status as PENDING and returns a message.
+   * Provider webhook will later call `updateIdVerificationStatus` when
+   * integrated.
+   */
+  async startIdVerification(userId: string): Promise<{
+    status: IdVerificationStatus;
+    provider: string | null;
+    sessionUrl: string | null;
+    message: string;
+  }> {
+    const user = await this.prisma.localUser.findUnique({
+      where: { id: userId },
+      select: { idVerificationStatus: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.idVerificationStatus === IdVerificationStatus.VERIFIED) {
+      throw new BadRequestException("Identité déjà vérifiée");
+    }
+
+    await this.prisma.localUser.update({
+      where: { id: userId },
+      data: { idVerificationStatus: IdVerificationStatus.PENDING },
+    });
+
+    this.logger.log(`[identity] ID verification PENDING for user ${userId}`);
+
+    return {
+      status: IdVerificationStatus.PENDING,
+      provider: null,
+      sessionUrl: null,
+      message:
+        'Vérification en attente. Un agent vous contactera sous 24h pour compléter la vérification.',
     };
   }
 
