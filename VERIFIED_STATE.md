@@ -1,7 +1,7 @@
 # VERIFIED STATE — WorkOn Production Systems
 
 > Single source of truth. Only facts verified against live systems belong here.
-> Last verified: 2026-04-17T22:55Z — architecture refresh (backend URL corrected from `-31db` to `-8908`, projet Railway identifié, DB schema confirmé)
+> Last verified: 2026-04-18T18:45Z — Sprint Phase 0→3 shipped live (auth fixes, subscriptions, conversations polymorphic, boosts).
 
 ---
 
@@ -17,7 +17,7 @@
 - Project: `modest-abundance` (id `8dc84d35-f3fd-49f4-9b8d-5404f6bd568f`)
 - Service: `workon-backend` (id `6269ee8b-d0a9-423a-a099-e456bd88e695`)
 - Region: `us-west2`, 1 replica, ACTIVE
-- Latest successful deploy: **PR #237** (fix messages-local otherUser shape) — 2026-04-17 ~22:45 UTC
+- Latest successful deploy: **PR #244** (Phase 3 boosts) — 2026-04-18 ~18:38 UTC
 
 **Postgres (Railway)**
 - Same project `modest-abundance`
@@ -63,10 +63,113 @@
 | `/api/v1/missions/webhook-ghl` | POST | None (public) | **WORKING** | curl → mission created |
 | `/api/v1/pros/ghl-signup` | POST | `x-ghl-secret` header | **WORKING** | Protected by GHL_WEBHOOK_SECRET env var |
 
-### Database Migrations (verified 2026-04-03)
+### Database Migrations (verified 2026-04-18)
 - `20260403000000_add_demand_capture_system` — LeadStatus enum, leads table, slug/bio/category fields on local_users
 - `20260403010000_add_pro_media` — pro_media table for gallery images
-- Both applied successfully to production PostgreSQL
+- `20260417000000_review_localuser_author` + `20260417210000_review_localmission` — Review dual-FK for LocalUser/LocalMission (PRs #232, #236)
+- `20260418000000_subscriptions_localuser_extended` — Subscription re-linked to LocalUser + 3 new plans + Stripe fields + subscription_events audit table (PR #242)
+- `20260418100000_conversations_polymorphic` — Conversation model + LocalMessage polymorphic (missionId XOR conversationId) + data migration converting 2 legacy `lm_dm_*` stubs (PR #243)
+- `20260418200000_boosts` — LocalMission.boostedUntil/isUrgent/urgentUntil + Boost table + BoostType/BoostStatus enums (PR #244)
+- All applied successfully to production PostgreSQL
+
+---
+
+## Sprint 2026-04-18 — Phase 0 → 3 shipped
+
+### Phase 0 — Stabilisation (PRs #239, #240, #241)
+- `IdentityController` added — 4 KYC endpoints (POST /identity/verify/phone, /confirm, /verify/id/start, GET /identity/status). Phone OTP in-memory store, 10 min TTL, 5 attempts max. Twilio-ready (TWILIO_* env vars trigger real SMS). ID verification = stub PENDING until provider wired.
+- `/leads/pro/:proId` 500 bug fixed — try/catch + authorization guard (`user.sub === proId`).
+- 2 legacy modules removed: `MessagesModule`, `ProfileModule` (Clerk-era, unused by FE). Kept: MissionsModule, PaymentsModule, ContractsModule, AdminModule, MissionPhotosModule (still consumed by FE).
+
+### Phase 1 — Monetization (PR #242)
+- New endpoints: `GET /subscriptions/me`, `POST /subscriptions/checkout`, `POST /subscriptions/cancel`, `POST /subscriptions/webhook`, `GET /usage/missions-count-month`.
+- `MissionQuotaGuard` applied on `POST /missions-local` and `/express`. Free plan = 3 missions/calendar-month → 403 QUOTA_EXCEEDED.
+- Plans : FREE, CLIENT_PRO ($39), WORKER_PRO ($19), CLIENT_BUSINESS ($99).
+- Stripe products created live via API:
+  - `prod_UMKVLWRt3rgMxQ` / `price_1TNbqNCm3RnXcbKHGSPxIJ94` — Client Pro $39
+  - `prod_UMKVdbMLmVlQDK` / `price_1TNbqOCm3RnXcbKH2iy0kb3i` — Worker Pro $19
+  - `prod_UMKVaktU2Oi2RS` / `price_1TNbqQCm3RnXcbKHJzGiLHHV` — Client Business $99
+- Stripe webhook for subs: `we_1TNbqqCm3RnXcbKHUTpicqC5` → `/api/v1/subscriptions/webhook`
+- Events: checkout.session.completed, customer.subscription.*, invoice.paid, invoice.payment_failed
+
+### Phase 1.5 — Frontend monetization + nav (workonfrontweb PRs #113, #114)
+- `/pricing` réécrite avec 4 plans + section Boosts à venir
+- `/settings/subscription` nouvelle page (voir plan + cancel + quota usage)
+- Paywall modal sur `/missions/new` quand quota atteint
+- Mode toggle Pro/Client visible sur `/home` (pills au-dessus du hero)
+- BottomNav FAB rouge : en mode client → `/missions/new` avec "Publier" (avant: /express)
+
+### Phase 2 — Conversation polymorphe (PR #243)
+- `POST /messages-local/direct` → **410 Gone** (endpoint retiré).
+- Nouveau module Conversations: `GET /conversations`, `GET/POST /conversations/:id/messages`, `PATCH /conversations/:id/read`.
+- `LocalMessage` polymorphe: `missionId` OR `conversationId` (CHECK XOR).
+- Auto-create de `Conversation` au swipe match mutuel (hook dans `swipe.service.ts#ensureConversation`).
+- `GET /messages-local/conversations` retourne union mission-chats + conversations pures.
+
+### Phase 2.5 — Frontend conversations (workonfrontweb PR #115)
+- Nouvelle route `/messages/cv/[id]` pour les threads de conversation pure.
+- `conversationSchema` Zod polymorphe (missionId OR conversationId).
+- `ContactWorkerButton` + `/reserve/[workerId]` redirigent vers `/swipe` (contact = swipe-first).
+
+### Phase 3 — Boosts one-shot (PR #244)
+- `URGENT_9` $9 — mission urgente 24h + push aux pros proches (push trigger TODO).
+- `TOP_48H_14` $14 — top map/swipe 48h.
+- `VERIFY_EXPRESS_19` $19 — KYC réviewé sous 24h (reviewer queue TBD).
+- Endpoints: `POST /boosts/mission-urgent`, `/top-visibility`, `/verify-express`, `GET /boosts/mine`, `POST /boosts/webhook`.
+- Flow: POST renvoie `{boostId, clientSecret, amountCents}` → FE confirme via Stripe.js → webhook applique le boost.
+- Tri `isUrgent DESC, boostedUntil DESC, createdAt DESC` ajouté à `missions-local/map` et `nearby`.
+- Stripe boosts webhook: `we_1TNdj2Cm3RnXcbKH2Dus4RYU` → `/api/v1/boosts/webhook`
+
+### Subscription Endpoints (verified E2E 2026-04-18)
+
+| Endpoint | Method | Auth | Status |
+|---|---|---|---|
+| `/api/v1/subscriptions/me` | GET | JWT | **WORKING** (smoke: returns {plan:"FREE"} for new account) |
+| `/api/v1/subscriptions/checkout` | POST | JWT | **WORKING** (smoke: returns cs_live_... URL) |
+| `/api/v1/subscriptions/cancel` | POST | JWT | **WORKING** |
+| `/api/v1/subscriptions/webhook` | POST | Stripe sig | **WORKING** |
+| `/api/v1/usage/missions-count-month` | GET | JWT | **WORKING** (smoke: {used,limit,hasPaidPlan}) |
+
+### Conversation Endpoints (verified E2E 2026-04-18)
+
+| Endpoint | Method | Auth | Status |
+|---|---|---|---|
+| `/api/v1/conversations` | GET | JWT | **WORKING** |
+| `/api/v1/conversations/:id/messages` | GET | JWT | **WORKING** |
+| `/api/v1/conversations/:id/messages` | POST | JWT | **WORKING** |
+| `/api/v1/conversations/:id/read` | PATCH | JWT | **WORKING** |
+| `/api/v1/messages-local/direct` | POST | JWT | **410 Gone** (deprecated) |
+
+### Boost Endpoints (verified E2E 2026-04-18)
+
+| Endpoint | Method | Auth | Status |
+|---|---|---|---|
+| `/api/v1/boosts/mission-urgent` | POST | JWT | **WORKING** (returns clientSecret, amount 900) |
+| `/api/v1/boosts/top-visibility` | POST | JWT | **WORKING** (amount 1400) |
+| `/api/v1/boosts/verify-express` | POST | JWT | **WORKING** (amount 1900) |
+| `/api/v1/boosts/mine` | GET | JWT | **WORKING** |
+| `/api/v1/boosts/webhook` | POST | Stripe sig | **WORKING** (webhook registered live) |
+
+### Identity Endpoints (verified E2E 2026-04-18)
+
+| Endpoint | Method | Auth | Status |
+|---|---|---|---|
+| `/api/v1/identity/verify/phone` | POST | JWT | **WORKING** (generates OTP, logs in dev) |
+| `/api/v1/identity/verify/phone/confirm` | POST | JWT | **WORKING** |
+| `/api/v1/identity/verify/id/start` | POST | JWT | **WORKING** (stub PENDING) |
+| `/api/v1/identity/status` | GET | JWT | **WORKING** |
+
+### Railway env vars added during sprint (2026-04-18)
+
+| Variable | Status | Used by |
+|---|---|---|
+| `STRIPE_PRICE_CLIENT_PRO_MONTHLY` | Set | `/subscriptions/checkout` |
+| `STRIPE_PRICE_WORKER_PRO_MONTHLY` | Set | `/subscriptions/checkout` |
+| `STRIPE_PRICE_CLIENT_BUSINESS_MONTHLY` | Set | `/subscriptions/checkout` |
+| `STRIPE_SUBSCRIPTIONS_WEBHOOK_SECRET` | Set | `/subscriptions/webhook` signature |
+| `STRIPE_BOOSTS_WEBHOOK_SECRET` | Set | `/boosts/webhook` signature |
+| `FEATURE_DISPUTE_SYSTEM_ENABLED` | Set (bonus applied) | — |
+| `FEATURE_SUPPORT_TICKETS_ENABLED` | Set (bonus applied) | — |
 
 ### Reviews — LocalUser/LocalMission dual-FK (verified 2026-04-17)
 
