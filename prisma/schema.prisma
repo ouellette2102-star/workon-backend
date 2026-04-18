@@ -165,6 +165,10 @@ model LocalMission {
   clientName            String?
   clientPhone           String?
   clientEmail           String?
+  // Phase 3: Boosts (paid visibility/urgency)
+  boostedUntil          DateTime?
+  isUrgent              Boolean            @default(false)
+  urgentUntil           DateTime?
   // Relations
   assignedToUser        LocalUser?         @relation("local_missions_assignedToUserIdTolocal_users", fields: [assignedToUserId], references: [id])
   createdByUser         LocalUser          @relation("local_missions_createdByUserIdTolocal_users", fields: [createdByUserId], references: [id], onDelete: Cascade)
@@ -172,6 +176,7 @@ model LocalMission {
   messages              LocalMessage[]
   contract              Contract?          @relation("local_contracts")
   reviews               Review[]           @relation("review_mission")
+  boosts                Boost[]
 
   @@index([assignedToUserId])
   @@index([category])
@@ -180,7 +185,49 @@ model LocalMission {
   @@index([latitude, longitude])
   @@index([status])
   @@index([stripePaymentIntentId])
+  @@index([boostedUntil])
+  @@index([isUrgent, urgentUntil])
   @@map("local_missions")
+}
+
+// ============================================
+// BOOSTS — one-shot paid visibility/urgency upgrades
+// ============================================
+
+enum BoostType {
+  URGENT_9          // +9 CAD: flag mission urgent for 24h + push to nearby pros
+  TOP_48H_14        // +14 CAD: top of map / swipe stack for 48h
+  VERIFY_EXPRESS_19 // +19 CAD: ID verification reviewed within 24h
+}
+
+enum BoostStatus {
+  PENDING       // PaymentIntent created, not yet paid
+  PAID          // payment_intent.succeeded — boost applied
+  FAILED        // payment failed
+  REFUNDED      // refunded later (rare)
+}
+
+model Boost {
+  id                    String       @id
+  userId                String
+  missionId             String?      // null for VERIFY_EXPRESS_19 (account-level)
+  type                  BoostType
+  amountCents           Int
+  currency              String       @default("CAD")
+  stripePaymentIntentId String       @unique
+  status                BoostStatus  @default(PENDING)
+  appliedAt             DateTime?
+  expiresAt             DateTime?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  mission LocalMission? @relation(fields: [missionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([missionId])
+  @@index([status])
+  @@index([type])
+  @@map("boosts")
 }
 
 // ============================================
