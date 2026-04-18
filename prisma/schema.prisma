@@ -508,6 +508,8 @@ model LocalUser {
   longitude         Float? // GPS location
   gallery           String[] @default([]) // Portfolio image URLs
   skills            String[] @default([]) // Selected skill IDs from catalog
+  hourlyRate        Float?    // Worker's base hourly rate in CAD (nullable)
+  jobTitle          String?   // Short free-text title ("Peintre résidentiel", "Mover pro")
   trustScore           Float?    // Computed trust score
   trustScoreUpdatedAt  DateTime? // Last trust score recalculation
   ratingAverage        Float?    // Average review rating
