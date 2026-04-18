@@ -10,6 +10,7 @@ import {
   Logger,
   UseGuards,
   Request,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { LeadsService } from './leads.service';
@@ -91,10 +92,18 @@ export class LeadsController {
   @ApiQuery({ name: 'status', required: false, enum: LeadStatus })
   @ApiResponse({ status: 200, description: 'Leads list' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden — cannot view other pros leads' })
   async getLeadsByPro(
+    @Request() req: { user: { sub: string; role?: string } },
     @Param('proId') proId: string,
     @Query('status') status?: LeadStatus,
   ) {
+    // Authorization: user can only see their own leads. Admins bypass.
+    if (req.user.sub !== proId && req.user.role !== 'admin') {
+      throw new ForbiddenException(
+        'Vous ne pouvez consulter que vos propres demandes',
+      );
+    }
     return this.leadsService.getLeadsByPro(proId, status);
   }
 

@@ -164,6 +164,22 @@ describe('LeadsService', () => {
         }),
       );
     });
+
+    it('should degrade gracefully and return empty list on Prisma error', async () => {
+      mockPrisma.lead.findMany.mockRejectedValue(
+        Object.assign(new Error('schema drift'), { code: 'P2022' }),
+      );
+
+      const result = await service.getLeadsByPro('pro_999');
+
+      expect(result).toEqual({ leads: [], total: 0 });
+    });
+
+    it('should reject missing proId', async () => {
+      await expect(service.getLeadsByPro('' as any)).rejects.toThrow(
+        /requis/,
+      );
+    });
   });
 
   describe('getAllLeads', () => {
