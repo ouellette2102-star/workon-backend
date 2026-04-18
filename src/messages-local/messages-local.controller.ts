@@ -7,6 +7,7 @@ import {
   Param,
   UseGuards,
   Request,
+  GoneException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -77,20 +78,28 @@ export class MessagesLocalController {
   }
 
   /**
-   * POST /api/v1/messages-local/direct
-   * Send a direct message to a user — auto-creates a mission-conversation if needed
+   * POST /api/v1/messages-local/direct — DEPRECATED (410 Gone)
+   *
+   * Removed 2026-04-18 (Phase 2). The old implementation created a fake
+   * LocalMission stub to host a DM thread, polluting /my-missions and
+   * bypassing the match-first rule. Use the swipe + /conversations flow:
+   *  1. POST /swipe/action → match
+   *  2. Server auto-creates a Conversation on mutual LIKE
+   *  3. POST /conversations/:id/messages to chat
    */
   @Post('direct')
   @ApiOperation({
-    summary: 'Send a direct message',
-    description: 'Sends a message to a user. If no mission exists between the two users, creates one automatically.',
+    summary: '[DEPRECATED] Send a direct message — use /conversations/:id/messages',
+    deprecated: true,
   })
-  @ApiResponse({ status: 201, description: 'Message sent' })
-  sendDirectMessage(
-    @Body() dto: { recipientId: string; content: string },
-    @Request() req: any,
-  ) {
-    return this.messagesService.sendDirectMessage(req.user.sub, dto.recipientId, dto.content);
+  @ApiResponse({ status: 410, description: 'Gone — use /conversations instead' })
+  sendDirectMessage() {
+    throw new GoneException({
+      code: 'DEPRECATED_ENDPOINT',
+      message:
+        "POST /messages-local/direct supprimé. Utilisez /swipe + /conversations/:id/messages.",
+      replacement: 'POST /conversations/:id/messages',
+    });
   }
 
   /**

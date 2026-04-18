@@ -25,7 +25,12 @@ export interface LocalConversation {
   // Canonical shape consumed by the frontend conversationListSchema
   // (src/lib/api-schemas.ts). Do not rename fields without aligning the
   // Zod schema — mismatches throw and trigger the app error boundary.
-  missionId: string;
+  //
+  // Polymorphic: exactly one of `missionId` / `conversationId` is set.
+  // - missionId set  → thread is attached to a LocalMission (job chat)
+  // - conversationId → thread is a pure DM (post-swipe-match)
+  missionId: string | null;
+  conversationId: string | null;
   missionTitle: string;
   otherUser: {
     id: string;
@@ -39,7 +44,7 @@ export interface LocalConversation {
   id: string;
   participantName: string;
   participantAvatar: string | null;
-  myRole: 'EMPLOYER' | 'WORKER';
+  myRole: 'EMPLOYER' | 'WORKER' | 'CLIENT';
 }
 
 /**
@@ -156,7 +161,7 @@ export class MessagesLocalService {
     return {
       messages: items.map((msg) => ({
         id: msg.id,
-        missionId: msg.missionId,
+        missionId: msg.missionId as string, // guaranteed non-null: filtered by missionId in the query
         senderId: msg.senderId,
         senderRole: msg.senderRole,
         content: msg.content,
@@ -242,7 +247,7 @@ export class MessagesLocalService {
 
     return {
       id: message.id,
-      missionId: message.missionId,
+      missionId: message.missionId as string, // non-null: mission-chat branch
       senderId: message.senderId,
       senderRole: message.senderRole,
       content: message.content,
@@ -413,10 +418,16 @@ export class MessagesLocalService {
   }
 
   /**
-   * Get all conversations for a user
+   * Get all conversations for a user — returns UNION of:
+   *  - mission-chats (LocalMission with messages)
+   *  - pure Conversation threads (post-swipe-match DM)
+   *
+   * Each item carries EITHER `missionId` OR `conversationId` (the other
+   * is null). Frontend routes to /messages/[missionId] vs
+   * /messages/cv/[conversationId] depending on which is set.
    */
   async getConversations(userId: string): Promise<LocalConversation[]> {
-    // Find missions where user is involved and has messages
+    // ── 1. Mission-chats ────────────────────────────────────────────
     const missions = await this.prisma.localMission.findMany({
       where: {
         OR: [
@@ -437,17 +448,13 @@ export class MessagesLocalService {
       },
     });
 
-    const conversations = await Promise.all(
+    const missionItems = await Promise.all(
       missions.map(async (mission) => {
         const isEmployer = mission.createdByUserId === userId;
         const lastMessage = mission.messages[0];
-
-        // Get the other participant
         const participant = isEmployer
           ? mission.assignedToUser
           : mission.createdByUser;
-
-        // Count unread messages
         const unreadCount = await this.prisma.localMessage.count({
           where: {
             missionId: mission.id,
@@ -455,13 +462,13 @@ export class MessagesLocalService {
             status: { not: LocalMessageStatus.READ },
           },
         });
-
         const participantName = participant
           ? `${participant.firstName} ${participant.lastName}`
           : 'Participant';
 
         return {
           missionId: mission.id,
+          conversationId: null,
           missionTitle: mission.title,
           otherUser: {
             id: participant?.id ?? '',
@@ -472,21 +479,77 @@ export class MessagesLocalService {
           lastMessageAt:
             lastMessage?.createdAt.toISOString() ?? new Date().toISOString(),
           unreadCount,
-          // Legacy fields — retained until all callers migrate to otherUser.
           id: mission.id,
           participantName,
           participantAvatar: participant?.pictureUrl ?? null,
           myRole: isEmployer ? 'EMPLOYER' : 'WORKER',
-        } as LocalConversation;
+        } as unknown as LocalConversation;
       }),
     );
 
-    // Sort by most recent message
-    conversations.sort(
-      (a, b) =>
-        new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime(),
+    // ── 2. Pure Conversation threads (post-match DM) ────────────────
+    const convs = await this.prisma.conversation.findMany({
+      where: {
+        OR: [{ participantAId: userId }, { participantBId: userId }],
+      },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    const convItems = await Promise.all(
+      convs.map(async (c) => {
+        const otherUserId =
+          c.participantAId === userId ? c.participantBId : c.participantAId;
+        const other = await this.prisma.localUser.findUnique({
+          where: { id: otherUserId },
+          select: { id: true, firstName: true, lastName: true, pictureUrl: true },
+        });
+        const unreadCount = await this.prisma.localMessage.count({
+          where: {
+            conversationId: c.id,
+            senderId: { not: userId },
+            status: { not: LocalMessageStatus.READ },
+          },
+        });
+        const last = c.messages[0];
+        const fullName =
+          [other?.firstName, other?.lastName].filter(Boolean).join(' ') ||
+          'Participant';
+        return {
+          missionId: null,
+          conversationId: c.id,
+          missionTitle: fullName,
+          otherUser: {
+            id: other?.id ?? otherUserId,
+            firstName: other?.firstName ?? '',
+            lastName: other?.lastName ?? '',
+          },
+          lastMessage: last?.content ?? null,
+          lastMessageAt:
+            c.lastMessageAt?.toISOString() ??
+            last?.createdAt.toISOString() ??
+            c.createdAt.toISOString(),
+          unreadCount,
+          id: c.id,
+          participantName: fullName,
+          participantAvatar: other?.pictureUrl ?? null,
+          myRole: 'CLIENT',
+        } as unknown as LocalConversation;
+      }),
     );
 
-    return conversations;
+    // ── 3. Merge + sort by most recent ──────────────────────────────
+    const merged = [...missionItems, ...convItems];
+    merged.sort(
+      (a, b) =>
+        new Date((b as any).lastMessageAt).getTime() -
+        new Date((a as any).lastMessageAt).getTime(),
+    );
+
+    return merged;
   }
 }
