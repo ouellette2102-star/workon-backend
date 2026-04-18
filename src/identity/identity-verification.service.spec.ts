@@ -1,7 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { IdentityVerificationService } from './identity-verification.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { IdVerificationStatus, TrustTier } from '@prisma/client';
 
 describe('IdentityVerificationService', () => {
@@ -359,6 +363,139 @@ describe('IdentityVerificationService', () => {
       const result = await service.getMissingVerifications('user-1', TrustTier.PREMIUM);
 
       expect(result).toEqual(['Bank verification']);
+    });
+  });
+
+  describe('startPhoneVerification', () => {
+    it('should generate OTP for user with phone', async () => {
+      mockPrismaService.localUser.findUnique.mockResolvedValue({
+        id: 'user-1',
+        phone: '+15141234567',
+        phoneVerified: false,
+      });
+
+      const result = await service.startPhoneVerification('user-1');
+
+      expect(result.sent).toBe(true);
+      expect(result.expiresInSeconds).toBe(600);
+      // In test (NODE_ENV=test), devOtp is returned
+      expect(result.devOtp).toMatch(/^\d{6}$/);
+    });
+
+    it('should throw NotFoundException when user missing', async () => {
+      mockPrismaService.localUser.findUnique.mockResolvedValue(null);
+      await expect(service.startPhoneVerification('user-x')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should throw BadRequestException when no phone on account', async () => {
+      mockPrismaService.localUser.findUnique.mockResolvedValue({
+        id: 'user-1',
+        phone: null,
+        phoneVerified: false,
+      });
+      await expect(service.startPhoneVerification('user-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException when phone already verified', async () => {
+      mockPrismaService.localUser.findUnique.mockResolvedValue({
+        id: 'user-1',
+        phone: '+15141234567',
+        phoneVerified: true,
+      });
+      await expect(service.startPhoneVerification('user-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('confirmPhoneOtp', () => {
+    it('should confirm valid OTP and mark phone verified', async () => {
+      // Setup: generate OTP via startPhoneVerification
+      mockPrismaService.localUser.findUnique
+        .mockResolvedValueOnce({ id: 'u', phone: '+15141234567', phoneVerified: false }) // startPhone
+        .mockResolvedValueOnce({ phone: '+15141234567', phoneVerified: false }) // markPhoneVerified lookup
+        .mockResolvedValueOnce({ // recomputeTrustTier lookup
+          phoneVerified: true,
+          idVerificationStatus: IdVerificationStatus.NOT_STARTED,
+          bankVerified: false,
+          trustTier: TrustTier.BASIC,
+        });
+      mockPrismaService.localUser.update.mockResolvedValue({});
+
+      const { devOtp } = await service.startPhoneVerification('u');
+      expect(devOtp).toBeDefined();
+
+      const result = await service.confirmPhoneOtp('u', devOtp!);
+      expect(result.verified).toBe(true);
+      expect(result.trustTier).toBe(TrustTier.VERIFIED);
+    });
+
+    it('should throw BadRequestException when no OTP pending', async () => {
+      await expect(service.confirmPhoneOtp('never-started', '123456')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw UnauthorizedException on wrong code', async () => {
+      mockPrismaService.localUser.findUnique.mockResolvedValue({
+        id: 'u2',
+        phone: '+15141234567',
+        phoneVerified: false,
+      });
+
+      await service.startPhoneVerification('u2');
+      await expect(service.confirmPhoneOtp('u2', '000000')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should block after 5 wrong attempts', async () => {
+      mockPrismaService.localUser.findUnique.mockResolvedValue({
+        id: 'u3',
+        phone: '+15141234567',
+        phoneVerified: false,
+      });
+      await service.startPhoneVerification('u3');
+
+      for (let i = 0; i < 5; i++) {
+        await service.confirmPhoneOtp('u3', '000000').catch(() => {});
+      }
+      await expect(service.confirmPhoneOtp('u3', '000000')).rejects.toThrow(
+        /Trop de tentatives|Aucun code/,
+      );
+    });
+  });
+
+  describe('startIdVerification', () => {
+    it('should set status PENDING and return stub session', async () => {
+      mockPrismaService.localUser.findUnique.mockResolvedValue({
+        idVerificationStatus: IdVerificationStatus.NOT_STARTED,
+      });
+      mockPrismaService.localUser.update.mockResolvedValue({});
+
+      const result = await service.startIdVerification('u4');
+
+      expect(result.status).toBe(IdVerificationStatus.PENDING);
+      expect(result.provider).toBeNull();
+      expect(result.sessionUrl).toBeNull();
+      expect(result.message).toMatch(/24h|agent/i);
+      expect(mockPrismaService.localUser.update).toHaveBeenCalledWith({
+        where: { id: 'u4' },
+        data: { idVerificationStatus: IdVerificationStatus.PENDING },
+      });
+    });
+
+    it('should reject if already VERIFIED', async () => {
+      mockPrismaService.localUser.findUnique.mockResolvedValue({
+        idVerificationStatus: IdVerificationStatus.VERIFIED,
+      });
+      await expect(service.startIdVerification('u5')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 });
