@@ -451,6 +451,7 @@ model LocalUser {
   swipeActions     SwipeAction[]
   proMedia         ProMedia[]
   leads            Lead[]
+  subscriptions    Subscription[]
 
   @@index([active])
   @@index([city])
@@ -634,17 +635,36 @@ model Subscription {
   id                   String             @id
   userId               String
   plan                 SubscriptionPlan   @default(FREE)
+  stripeCustomerId     String?
   stripeSubscriptionId String?            @unique
   startedAt            DateTime           @default(now())
+  currentPeriodEnd     DateTime?
   renewsAt             DateTime?
+  canceledAt           DateTime?
   status               SubscriptionStatus @default(ACTIVE)
   createdAt            DateTime           @default(now())
   updatedAt            DateTime
-  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                 LocalUser          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events               SubscriptionEvent[]
 
   @@index([status])
   @@index([userId])
+  @@index([stripeCustomerId])
   @@map("subscriptions")
+}
+
+model SubscriptionEvent {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  stripeEventId  String       @unique
+  type           String
+  processedAt    DateTime     @default(now())
+  payload        Json
+
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+  @@map("subscription_events")
 }
 
 model UserProfile {
@@ -675,7 +695,6 @@ model User {
   notifications           Notification[]
   authoredReviews         Review[]                 @relation("reviews_authorIdTousers")
   receivedReviews         Review[]                 @relation("reviews_targetUserIdTousers")
-  subscriptions           Subscription[]
   userProfile             UserProfile?
   workerProfile           WorkerProfile?
   sentMessages            Message[]
@@ -817,14 +836,21 @@ enum ReviewModeration {
 
 enum SubscriptionPlan {
   FREE
-  PRO
-  PREMIUM
+  PRO               // Legacy — kept for backwards-compat, do not use for new
+  PREMIUM           // Legacy — kept for backwards-compat, do not use for new
+  CLIENT_PRO        // $39/mo — unlimited missions, priority, leads 5/mo
+  WORKER_PRO        // $19/mo — verified badge, boost, priority alerts
+  CLIENT_BUSINESS   // $99/mo — leads unlimited, multi-seats, CSM
 }
 
 enum SubscriptionStatus {
   ACTIVE
-  CANCELLED
+  CANCELLED         // Legacy spelling, kept for backwards-compat
   EXPIRED
+  PAST_DUE          // Stripe: payment failed
+  CANCELED          // Stripe canonical spelling (one L) — used for new events
+  TRIALING
+  INCOMPLETE
 }
 
 enum UserRole {

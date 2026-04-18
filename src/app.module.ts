@@ -54,6 +54,7 @@ import { MissionsMapModule } from './missions-map/missions-map.module';
 import { GhlModule } from './ghl/ghl.module';
 import { AppCacheModule } from './cache/cache.module';
 import { WorkerSkillsModule } from './worker-skills/worker-skills.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -230,6 +231,8 @@ import { WorkerSkillsModule } from './worker-skills/worker-skills.module';
     GhlModule,
     // Worker skills management (select skills from catalog)
     WorkerSkillsModule,
+    // Subscriptions - Free Entry + Paid Acceleration monetization (Phase 1)
+    SubscriptionsModule,
   ],
   controllers: [AppController],
   providers: [

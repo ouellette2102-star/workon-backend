@@ -23,6 +23,7 @@ import { MissionsMapResponseDto } from './dto/mission-map-item.dto';
 import { MissionResponseDto } from './dto/mission-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ConsentGuard, RequireConsent } from '../compliance/guards/consent.guard';
+import { MissionQuotaGuard } from '../subscriptions/guards/mission-quota.guard';
 import { plainToInstance } from 'class-transformer';
 
 @ApiTags('Missions')
@@ -33,17 +34,20 @@ export class MissionsLocalController {
   constructor(private readonly missionsService: MissionsLocalService) {}
 
   @Post('express')
+  @UseGuards(MissionQuotaGuard)
   @RequireConsent()
   @ApiOperation({
     summary: 'Express Dispatch — create mission + notify nearby workers',
     description:
       'Creates an open mission and notifies nearby workers (25km radius). ' +
-      'First worker to accept gets the mission (Uber model).',
+      'First worker to accept gets the mission (Uber model). ' +
+      'Free plan: 3 missions/month max.',
   })
   @ApiResponse({
     status: 201,
     description: 'Mission created, workers notified',
   })
+  @ApiResponse({ status: 403, description: 'Free mission quota exceeded' })
   async expressDispatch(
     @Body() dto: { category: string; description: string; city: string; budget: number; latitude: number; longitude: number },
     @Request() req: any,
@@ -56,10 +60,13 @@ export class MissionsLocalController {
   }
 
   @Post()
+  @UseGuards(MissionQuotaGuard)
   @RequireConsent()
   @ApiOperation({
     summary: 'Create a new mission',
-    description: 'Employers and residential clients can create missions',
+    description:
+      'Employers and residential clients can create missions. ' +
+      'Free plan limited to 3 missions per calendar month.',
   })
   @ApiResponse({
     status: 201,
@@ -69,7 +76,7 @@ export class MissionsLocalController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({
     status: 403,
-    description: 'Only employers and residential clients can create missions',
+    description: 'Free quota exceeded or role not allowed',
   })
   async create(
     @Body() createMissionDto: CreateMissionDto,
