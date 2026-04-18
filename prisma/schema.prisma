@@ -379,8 +379,8 @@ enum LeadStatus {
 
 model Lead {
   id          String     @id @default(cuid())
-  userId      String? // Assigned worker
-  source      String? // "ghl", "web", "referral"
+  userId      String? // Assigned worker (legacy — use deliveries table for new flow)
+  source      String? // "ghl", "web", "referral", "apollo", "facebook"
   name        String
   email       String?
   phone       String?
@@ -389,15 +389,46 @@ model Lead {
   description String?
   status      LeadStatus @default(NEW)
   notes       String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
 
-  user LocalUser? @relation(fields: [userId], references: [id])
+  // Phase 4: geo + category targeting for dispatch to subscribers
+  latitude    Float?
+  longitude   Float?
+  categoryId  String?
+  budgetCents Int?
+
+  convertedToMissionId String?   @unique
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  user        LocalUser?       @relation(fields: [userId], references: [id])
+  deliveries  LeadDelivery[]
 
   @@index([userId])
   @@index([status])
   @@index([source])
+  @@index([categoryId])
+  @@index([latitude, longitude])
   @@map("leads")
+}
+
+model LeadDelivery {
+  id                   String    @id @default(cuid())
+  leadId               String
+  deliveredToUserId    String
+  deliveredAt          DateTime  @default(now())
+  openedAt             DateTime?
+  acceptedAt           DateTime?
+  declinedAt           DateTime?
+  convertedToMissionId String?
+
+  lead        Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  deliveredTo LocalUser @relation("lead_delivery_target", fields: [deliveredToUserId], references: [id], onDelete: Cascade)
+
+  @@unique([leadId, deliveredToUserId])
+  @@index([deliveredToUserId])
+  @@index([leadId])
+  @@index([deliveredAt])
+  @@map("lead_deliveries")
 }
 
 // ============================================
@@ -526,6 +557,7 @@ model LocalUser {
   swipeActions     SwipeAction[]
   proMedia         ProMedia[]
   leads            Lead[]
+  leadDeliveries   LeadDelivery[] @relation("lead_delivery_target")
   subscriptions    Subscription[]
 
   @@index([active])
