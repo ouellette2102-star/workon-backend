@@ -547,5 +547,56 @@ export class MissionsLocalService {
       candidatesNotified: nearbyWorkers.length,
     };
   }
+
+  async addPhoto(
+    missionId: string,
+    userId: string,
+    url: string,
+    meta: { mimeType?: string; size?: number; originalName?: string } = {},
+  ) {
+    const mission = await this.prisma.localMission.findUnique({
+      where: { id: missionId },
+      select: { id: true, createdByUserId: true, assignedToUserId: true },
+    });
+
+    if (!mission) throw new NotFoundException('Mission introuvable');
+
+    const canUpload =
+      mission.createdByUserId === userId || mission.assignedToUserId === userId;
+
+    if (!canUpload) throw new ForbiddenException("Accès refusé");
+
+    return this.prisma.missionPhoto.create({
+      data: {
+        localMissionId: missionId,
+        userId,
+        url,
+        mimeType: meta.mimeType,
+        size: meta.size,
+        originalName: meta.originalName,
+      },
+      select: { id: true, localMissionId: true, userId: true, url: true, createdAt: true },
+    });
+  }
+
+  async getPhotos(missionId: string, userId: string) {
+    const mission = await this.prisma.localMission.findUnique({
+      where: { id: missionId },
+      select: { createdByUserId: true, assignedToUserId: true },
+    });
+
+    if (!mission) throw new NotFoundException('Mission introuvable');
+
+    const canAccess =
+      mission.createdByUserId === userId || mission.assignedToUserId === userId;
+
+    if (!canAccess) throw new ForbiddenException("Accès refusé");
+
+    return this.prisma.missionPhoto.findMany({
+      where: { localMissionId: missionId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, localMissionId: true, userId: true, url: true, createdAt: true },
+    });
+  }
 }
 
