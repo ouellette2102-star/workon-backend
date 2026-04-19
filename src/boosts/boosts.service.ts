@@ -148,6 +148,7 @@ export class BoostsService {
    */
   async applyBoost(boost: {
     id: string;
+    userId: string;
     type: BoostType;
     missionId: string | null;
   }): Promise<void> {
@@ -271,6 +272,7 @@ export class BoostsService {
     if (event.type === 'payment_intent.succeeded') {
       await this.applyBoost({
         id: boost.id,
+        userId: boost.userId,
         type: boost.type,
         missionId: boost.missionId,
       });

@@ -41,10 +41,14 @@ describe('BoostsService', () => {
     });
 
     const mockPrisma = {
-      localUser: { findUnique: jest.fn() },
+      localUser: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       localMission: {
         findUnique: jest.fn(),
         update: jest.fn(),
+      },
+      localNotification: {
+        create: jest.fn().mockResolvedValue({}),
+        createMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       boost: {
         create: jest.fn(),
@@ -143,6 +147,7 @@ describe('BoostsService', () => {
 
       await service.applyBoost({
         id: 'b1',
+        userId: 'u1',
         type: BoostType.TOP_48H_14,
         missionId: 'm1',
       });
@@ -166,6 +171,7 @@ describe('BoostsService', () => {
 
       await service.applyBoost({
         id: 'b2',
+        userId: 'u1',
         type: BoostType.URGENT_9,
         missionId: 'm1',
       });
@@ -185,6 +191,7 @@ describe('BoostsService', () => {
 
       await service.applyBoost({
         id: 'b3',
+        userId: 'u1',
         type: BoostType.VERIFY_EXPRESS_19,
         missionId: null,
       });
