@@ -80,6 +80,8 @@ export class SwipeService {
         completionScore: true,
         ratingAverage: true,
         reviewCount: true,
+        jobTitle: true,
+        hourlyRate: true,
       },
       take: 40,
       orderBy: [{ createdAt: 'desc' }],
