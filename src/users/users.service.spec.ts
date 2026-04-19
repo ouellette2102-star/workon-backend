@@ -43,6 +43,12 @@ describe('UsersService', () => {
     category: null as string | null,
     serviceRadiusKm: null as number | null,
     gallery: [] as string[],
+    // Employer onboarding fields (T44) — workers in this mock stay null.
+    businessName: null as string | null,
+    businessCategory: null as string | null,
+    businessDescription: null as string | null,
+    businessWebsite: null as string | null,
+    onboardingCompletedAt: null as Date | null,
   };
 
   beforeEach(async () => {

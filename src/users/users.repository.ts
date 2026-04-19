@@ -125,6 +125,12 @@ export class UsersRepository {
         category: true,
         serviceRadiusKm: true,
         gallery: true,
+        // Employer onboarding fields (T44)
+        businessName: true,
+        businessCategory: true,
+        businessDescription: true,
+        businessWebsite: true,
+        onboardingCompletedAt: true,
       },
     });
   }
@@ -143,6 +149,39 @@ export class UsersRepository {
     };
     if (role) {
       data.role = role as any; // Cast string to LocalUserRole enum
+    }
+
+    // T44 — Auto-stamp `onboardingCompletedAt` when the employer fills the
+    // minimum viable business fields (businessName + city). Phone is also
+    // part of the contract (enforced at /register step 3 by T05) so we
+    // check it too. We do NOT clear the stamp on later edits.
+    const isEmployerOnboardingPayload =
+      (rest.businessName && rest.businessName.trim().length > 0) ||
+      (rest.businessDescription && rest.businessDescription.trim().length > 0);
+    if (isEmployerOnboardingPayload) {
+      const existing = await this.prisma.localUser.findUnique({
+        where: { id },
+        select: {
+          role: true,
+          businessName: true,
+          phone: true,
+          city: true,
+          onboardingCompletedAt: true,
+        },
+      });
+      const mergedBusinessName = rest.businessName ?? existing?.businessName;
+      const mergedPhone = rest.phone ?? existing?.phone;
+      const mergedCity = rest.city ?? existing?.city;
+      if (
+        existing &&
+        existing.role === 'employer' &&
+        !existing.onboardingCompletedAt &&
+        mergedBusinessName &&
+        mergedPhone &&
+        mergedCity
+      ) {
+        data.onboardingCompletedAt = new Date();
+      }
     }
 
     return this.prisma.localUser.update({
@@ -164,6 +203,12 @@ export class UsersRepository {
         category: true,
         serviceRadiusKm: true,
         gallery: true,
+        // Employer onboarding fields (T44)
+        businessName: true,
+        businessCategory: true,
+        businessDescription: true,
+        businessWebsite: true,
+        onboardingCompletedAt: true,
         createdAt: true,
         updatedAt: true,
       },

@@ -123,6 +123,34 @@ export class UserResponseDto {
   @ApiProperty({ description: 'Portfolio photo URLs', type: [String], required: false })
   gallery?: string[];
 
+  // ── Employer onboarding fields (T44) ─────────────────────────────
+
+  @Expose()
+  @ApiProperty({ description: 'Business name', type: String, nullable: true, required: false })
+  businessName?: string | null;
+
+  @Expose()
+  @ApiProperty({ description: 'Business category slug', type: String, nullable: true, required: false })
+  businessCategory?: string | null;
+
+  @Expose()
+  @ApiProperty({ description: 'Business description', type: String, nullable: true, required: false })
+  businessDescription?: string | null;
+
+  @Expose()
+  @ApiProperty({ description: 'Business website URL', type: String, nullable: true, required: false })
+  businessWebsite?: string | null;
+
+  @Expose()
+  @ApiProperty({
+    description:
+      'When the user completed onboarding (employers: businessName + phone + city present; workers: null unless reused later).',
+    type: Date,
+    nullable: true,
+    required: false,
+  })
+  onboardingCompletedAt?: Date | null;
+
   // hashedPassword is excluded by default via @Exclude() decorator
 }
 
