@@ -29,6 +29,26 @@ export class ReviewsController {
   constructor(private readonly reviewsService: ReviewsService) {}
 
   /**
+   * GET /reviews/pending-for-me
+   * Missions the current user finished as participant (creator or worker)
+   * that still need a review from them. Powers the auto-prompt modal on
+   * /home so users don't have to dig through history to rate.
+   */
+  @Get('pending-for-me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'List missions awaiting a review from the current user',
+    description:
+      'Returns LocalMissions in status completed|paid where the caller ' +
+      'was a participant and has not yet submitted a review. Used by the ' +
+      'frontend to drive the auto-prompt review modal.',
+  })
+  async getPendingForMe(@Request() req: { user: { sub: string } }) {
+    return this.reviewsService.getPendingForLocalUser(req.user.sub);
+  }
+
+  /**
    * GET /reviews/summary?userId=...
    * Returns rating summary for a user.
    */
