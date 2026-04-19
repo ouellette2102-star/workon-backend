@@ -200,6 +200,42 @@ export class ProsService {
     });
   }
 
+  /**
+   * Admin-only: set hourlyRate / jobTitle, and append to LocalUser.gallery.
+   * Used to seed demo showcase workers for the home carousel.
+   * De-duplicates gallery entries.
+   */
+  async seedDemoFields(
+    proId: string,
+    body: { hourlyRate?: number; jobTitle?: string; galleryAppend?: string[] },
+  ) {
+    const pro = await this.prisma.localUser.findUnique({ where: { id: proId } });
+    if (!pro) throw new NotFoundException('Professionnel introuvable');
+
+    const nextGallery = Array.from(
+      new Set([...(pro.gallery ?? []), ...(body.galleryAppend ?? [])]),
+    );
+
+    const updated = await this.prisma.localUser.update({
+      where: { id: proId },
+      data: {
+        hourlyRate: body.hourlyRate ?? pro.hourlyRate,
+        jobTitle: body.jobTitle ?? pro.jobTitle,
+        gallery: nextGallery,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        hourlyRate: true,
+        jobTitle: true,
+        gallery: true,
+      },
+    });
+
+    return { ok: true, updated };
+  }
+
   // ── GHL Webhook Signup (existing) ─────────────────────────
 
   async handleGhlSignup(payload: {

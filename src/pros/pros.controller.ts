@@ -74,6 +74,35 @@ export class ProsController {
   }
 
   /**
+   * PATCH /api/v1/pros/:id/demo-fields
+   * Admin-only: set hourlyRate / jobTitle / gallery on a demo worker so
+   * the home carousel shows a fully-rendered card. Guarded by
+   * ADMIN_SEED_TOKEN env — curl with X-Admin-Token header.
+   *
+   * Payload: { hourlyRate?, jobTitle?, galleryAppend? }
+   * galleryAppend is pushed onto LocalUser.gallery (no duplicates).
+   */
+  @Post(':id/demo-fields')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Admin: seed demo fields on a worker (gated)' })
+  async seedDemoFields(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      hourlyRate?: number;
+      jobTitle?: string;
+      galleryAppend?: string[];
+    },
+    @Headers('x-admin-token') adminToken?: string,
+  ) {
+    const expected = process.env.ADMIN_SEED_TOKEN;
+    if (!expected || adminToken !== expected) {
+      throw new UnauthorizedException('Invalid admin token');
+    }
+    return this.prosService.seedDemoFields(id, body);
+  }
+
+  /**
    * POST /api/v1/pros/ghl-signup
    * Webhook from GHL Forms when a Pro signs up.
    */
