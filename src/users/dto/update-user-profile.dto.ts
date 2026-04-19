@@ -115,5 +115,44 @@ export class UpdateUserProfileDto {
   @IsUrl({}, { each: true })
   @IsOptional()
   gallery?: string[];
+
+  // ── Employer-facing onboarding fields (T44) ───────────────────
+
+  @ApiPropertyOptional({
+    example: 'Nettoyage Pro Montréal Inc.',
+    description: 'Company or sole-prop business name (employers)',
+  })
+  @IsString()
+  @MaxLength(120)
+  @IsOptional()
+  businessName?: string;
+
+  @ApiPropertyOptional({
+    example: 'nettoyage-commercial',
+    description: 'Primary business category slug',
+  })
+  @IsString()
+  @MaxLength(60)
+  @IsOptional()
+  businessCategory?: string;
+
+  @ApiPropertyOptional({
+    example:
+      'Agence de nettoyage commercial établie à Repentigny, 12 clients B2B récurrents.',
+    description: 'Public-facing business description',
+  })
+  @IsString()
+  @MaxLength(1000)
+  @IsOptional()
+  businessDescription?: string;
+
+  @ApiPropertyOptional({
+    example: 'https://nettoyagepro.ca',
+    description: 'Business website URL',
+  })
+  @IsUrl()
+  @MaxLength(200)
+  @IsOptional()
+  businessWebsite?: string;
 }
 

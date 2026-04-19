@@ -544,6 +544,16 @@ model LocalUser {
   skills            String[] @default([]) // Selected skill IDs from catalog
   hourlyRate        Float?    // Worker's base hourly rate in CAD (nullable)
   jobTitle          String?   // Short free-text title ("Peintre résidentiel", "Mover pro")
+
+  // Employer profile fields (T44). All nullable; employers created before
+  // the onboarding flow existed surface as "onboarding incomplete" until
+  // they submit /onboarding/employer.
+  businessName          String?
+  businessCategory      String?
+  businessDescription   String?
+  businessWebsite       String?
+  onboardingCompletedAt DateTime?   // Single source of truth for "onboarding done"
+
   trustScore           Float?    // Computed trust score
   trustScoreUpdatedAt  DateTime? // Last trust score recalculation
   ratingAverage        Float?    // Average review rating

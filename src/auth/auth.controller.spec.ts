@@ -29,6 +29,11 @@ describe('AuthController', () => {
     category: null as string | null,
     serviceRadiusKm: null as number | null,
     gallery: [] as string[],
+    businessName: null as string | null,
+    businessCategory: null as string | null,
+    businessDescription: null as string | null,
+    businessWebsite: null as string | null,
+    onboardingCompletedAt: null as Date | null,
   };
 
   const mockAuthResponse = {
