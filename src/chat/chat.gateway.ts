@@ -43,7 +43,7 @@ interface AuthenticatedSocket extends Socket {
       if (process.env.NODE_ENV === 'production') {
         if (!frontendUrl && !corsOrigin) {
           // Fail-closed in production — same as HTTP CORS in main.ts
-          return 'https://workon.ca';
+          return 'https://workonapp.vercel.app';
         }
         return frontendUrl || corsOrigin;
       }
