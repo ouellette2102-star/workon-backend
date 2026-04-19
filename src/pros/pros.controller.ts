@@ -74,13 +74,14 @@ export class ProsController {
   }
 
   /**
-   * PATCH /api/v1/pros/:id/demo-fields
+   * POST /api/v1/pros/:id/demo-fields
    * Admin-only: set hourlyRate / jobTitle / gallery on a demo worker so
-   * the home carousel shows a fully-rendered card. Guarded by
-   * ADMIN_SEED_TOKEN env — curl with X-Admin-Token header.
+   * the home carousel shows a fully-rendered card. Reuses the existing
+   * ADMIN_SECRET env (same as /admin/seed-catalog). Curl with
+   * X-Admin-Secret header.
    *
    * Payload: { hourlyRate?, jobTitle?, galleryAppend? }
-   * galleryAppend is pushed onto LocalUser.gallery (no duplicates).
+   * galleryAppend is merged into LocalUser.gallery (de-duplicated).
    */
   @Post(':id/demo-fields')
   @HttpCode(200)
@@ -93,11 +94,11 @@ export class ProsController {
       jobTitle?: string;
       galleryAppend?: string[];
     },
-    @Headers('x-admin-token') adminToken?: string,
+    @Headers('x-admin-secret') adminSecret?: string,
   ) {
-    const expected = process.env.ADMIN_SEED_TOKEN;
-    if (!expected || adminToken !== expected) {
-      throw new UnauthorizedException('Invalid admin token');
+    const expected = process.env.ADMIN_SECRET;
+    if (!expected || adminSecret !== expected) {
+      throw new UnauthorizedException('Invalid admin secret');
     }
     return this.prosService.seedDemoFields(id, body);
   }
