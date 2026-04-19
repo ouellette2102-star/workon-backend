@@ -9,7 +9,6 @@ import {
   Headers,
   Req,
   BadRequestException,
-  ServiceUnavailableException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -42,14 +41,9 @@ export class BoostsController {
   @ApiResponse({ status: 200, description: 'PaymentIntent clientSecret returned' })
   async missionUrgent(
     @Request() req: { user: { sub: string } },
-    @Body() _dto: CreateMissionBoostDto,
+    @Body() dto: CreateMissionBoostDto,
   ) {
-    // Push notification infrastructure (Firebase) not yet configured in prod.
-    // Charging users for a service we cannot deliver would be fraudulent.
-    // Re-enable once Firebase FCM is wired up.
-    throw new ServiceUnavailableException(
-      'Cette fonctionnalité est temporairement indisponible. Réessayez plus tard.',
-    );
+    return this.boosts.createBoost(req.user.sub, BoostType.URGENT_9, dto.missionId);
   }
 
   @Post('top-visibility')
@@ -80,15 +74,10 @@ export class BoostsController {
   })
   @ApiResponse({ status: 200, description: 'PaymentIntent clientSecret returned' })
   async verifyExpress(
-    @Request() _req: { user: { sub: string } },
+    @Request() req: { user: { sub: string } },
     @Body() _dto: CreateAccountBoostDto,
   ) {
-    // Reviewer queue and admin UI not yet built.
-    // Charging users with no fulfillment path would be fraudulent.
-    // Re-enable once identity review queue is implemented.
-    throw new ServiceUnavailableException(
-      'Cette fonctionnalité est temporairement indisponible. Réessayez plus tard.',
-    );
+    return this.boosts.createBoost(req.user.sub, BoostType.VERIFY_EXPRESS_19);
   }
 
   @Get('mine')
