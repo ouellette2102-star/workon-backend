@@ -21,6 +21,8 @@ import * as crypto from 'crypto';
 // Allowed MIME types for profile pictures
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+// Keep in sync with MAX_GALLERY in the frontend worker-card-editor.tsx.
+const MAX_GALLERY_ITEMS = 12;
 
 @Injectable()
 export class UsersService {
@@ -300,6 +302,121 @@ export class UsersService {
     );
 
     return updatedUser;
+  }
+
+  /**
+   * Upload a gallery (worker portfolio) photo.
+   * Same validation as the profile picture (JPEG/PNG/WebP, 5 MB).
+   * File lands in uploads/users/<userId>/gallery/; URL appended to
+   * LocalUser.gallery (capped at MAX_GALLERY_ITEMS).
+   */
+  async uploadGalleryPhoto(
+    userId: string,
+    file: Express.Multer.File,
+    baseUrl: string,
+  ) {
+    const user = await this.findById(userId);
+    if (!user) throw new NotFoundException('User not found');
+
+    if (!file) throw new BadRequestException('No file provided');
+    if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      throw new BadRequestException(
+        `Invalid file type. Allowed: ${ALLOWED_MIME_TYPES.join(', ')}`,
+      );
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      throw new BadRequestException(
+        `File too large. Maximum size: ${MAX_FILE_SIZE / 1024 / 1024}MB`,
+      );
+    }
+
+    const existingGallery = Array.isArray(
+      (user as { gallery?: string[] }).gallery,
+    )
+      ? (user as { gallery: string[] }).gallery
+      : [];
+    if (existingGallery.length >= MAX_GALLERY_ITEMS) {
+      throw new BadRequestException(
+        `Gallery is full (max ${MAX_GALLERY_ITEMS} photos). Remove one before uploading another.`,
+      );
+    }
+
+    const galleryDir = path.join(this.uploadsDir, userId, 'gallery');
+    await fs.mkdir(galleryDir, { recursive: true });
+
+    const ext =
+      path.extname(file.originalname).toLowerCase() ||
+      this.getExtFromMime(file.mimetype);
+    const filename = `portfolio_${crypto.randomUUID()}${ext}`;
+    const filepath = path.join(galleryDir, filename);
+    await fs.writeFile(filepath, file.buffer);
+
+    const url = `${baseUrl}/uploads/users/${userId}/gallery/${filename}`;
+    const nextGallery = [...existingGallery, url];
+
+    const updated = await this.usersRepository.update(userId, {
+      gallery: nextGallery,
+    });
+
+    this.logger.log(
+      `Gallery photo uploaded for user ${userId} (${nextGallery.length}/${MAX_GALLERY_ITEMS}): ${filename}`,
+    );
+
+    this.computeCompletionScore(userId).catch((err) =>
+      this.logger.error(
+        `Failed to recompute completion score for ${userId}: ${err.message}`,
+      ),
+    );
+
+    return updated;
+  }
+
+  /**
+   * Remove a gallery photo by URL. Best-effort deletes the underlying
+   * file when it lives under this server's uploads/ tree; external URLs
+   * leave only the DB row gone.
+   */
+  async removeGalleryPhoto(userId: string, url: string) {
+    const user = await this.findById(userId);
+    if (!user) throw new NotFoundException('User not found');
+    if (!url || typeof url !== 'string') {
+      throw new BadRequestException('url is required');
+    }
+
+    const existingGallery = Array.isArray(
+      (user as { gallery?: string[] }).gallery,
+    )
+      ? (user as { gallery: string[] }).gallery
+      : [];
+    if (!existingGallery.includes(url)) {
+      throw new NotFoundException('Photo not found in gallery');
+    }
+
+    const nextGallery = existingGallery.filter((u) => u !== url);
+    const updated = await this.usersRepository.update(userId, {
+      gallery: nextGallery,
+    });
+
+    // Filesystem cleanup — only for our own uploads tree, and only when
+    // the URL includes the owner's userId (guards against poisoned URLs
+    // targeting another user's directory).
+    try {
+      if (url.indexOf(`/uploads/users/${userId}/gallery/`) !== -1) {
+        const filename = path.basename(url);
+        const filepath = path.join(
+          this.uploadsDir,
+          userId,
+          'gallery',
+          filename,
+        );
+        await fs.unlink(filepath);
+      }
+    } catch {
+      // Ignore — the DB row is already gone.
+    }
+
+    this.logger.log(`Gallery photo removed for user ${userId}: ${url}`);
+    return updated;
   }
 
   /**

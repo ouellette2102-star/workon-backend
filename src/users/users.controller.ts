@@ -156,6 +156,95 @@ export class UsersController {
   }
 
   /**
+   * POST /api/v1/users/me/gallery
+   *
+   * Upload a single portfolio photo for the worker gallery. Same image
+   * rules as /me/picture (JPEG/PNG/WebP, 5 MB). URL is appended to
+   * LocalUser.gallery (max 12). Response is the full updated user.
+   */
+  @Post('me/gallery')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Upload a portfolio photo',
+    description:
+      'Append a photo to the worker gallery. JPEG/PNG/WebP, 5 MB max, 12 photos max.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Image file (JPEG, PNG, WebP)',
+        },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Photo uploaded',
+    type: UserResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid file or gallery full' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async uploadGalleryPhoto(
+    @Request() req: any,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const protocol = req.protocol || 'http';
+    const host = req.get('host') || 'localhost:3000';
+    const baseUrl = `${protocol}://${host}`;
+
+    const user = await this.usersService.uploadGalleryPhoto(
+      req.user.sub,
+      file,
+      baseUrl,
+    );
+    return plainToInstance(UserResponseDto, user, {
+      excludeExtraneousValues: true,
+    });
+  }
+
+  /**
+   * DELETE /api/v1/users/me/gallery
+   *
+   * Remove a single photo from the worker gallery by URL. Body:
+   * `{ "url": "<photo-url>" }`. Best-effort deletes the underlying file
+   * when it lives in this server's uploads/ tree.
+   */
+  @Delete('me/gallery')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Remove a portfolio photo from the gallery',
+    description: 'Body: { "url": "<photo-url>" }. Returns the updated user.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Photo removed',
+    type: UserResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'url is required' })
+  @ApiResponse({ status: 404, description: 'Photo not in gallery' })
+  async removeGalleryPhoto(
+    @Request() req: any,
+    @Body() body: { url?: string },
+  ) {
+    const user = await this.usersService.removeGalleryPhoto(
+      req.user.sub,
+      body?.url ?? '',
+    );
+    return plainToInstance(UserResponseDto, user, {
+      excludeExtraneousValues: true,
+    });
+  }
+
+  /**
    * PATCH /api/v1/users/me/avatar
    *
    * Update profile picture via URL (no file upload needed).
