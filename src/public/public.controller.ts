@@ -64,6 +64,19 @@ export class PublicController {
   }
 
   /**
+   * GET /api/v1/public/workers/by-id/:id
+   * Full public profile for a worker by LocalUser ID. Used by the
+   * authenticated app (home carousel, /worker/[id], /reserve/[id]).
+   */
+  @Get('workers/by-id/:id')
+  @ApiOperation({ summary: 'Get worker public profile by ID' })
+  @ApiParam({ name: 'id', example: 'pro_1775246693074_ehand' })
+  async getWorkerById(@Param('id') id: string) {
+    this.logger.log(`Fetching worker profile by id: ${id}`);
+    return this.publicService.getWorkerById(id);
+  }
+
+  /**
    * GET /api/v1/public/workers/:slug
    * Full public profile for a worker by URL slug.
    */

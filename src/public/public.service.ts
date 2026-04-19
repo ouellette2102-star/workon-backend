@@ -116,12 +116,20 @@ export class PublicService {
     }));
   }
 
-  // ── Worker Profile by Slug ──────────────────────────────
+  // ── Worker Profile by Slug or ID ────────────────────────
 
   async getWorkerBySlug(slug: string) {
     const normalizedSlug = slug.toLowerCase().trim();
+    return this.getWorkerByWhere({ slug: normalizedSlug });
+  }
+
+  async getWorkerById(id: string) {
+    return this.getWorkerByWhere({ id });
+  }
+
+  private async getWorkerByWhere(where: { slug?: string; id?: string }) {
     const worker = await this.prisma.localUser.findUnique({
-      where: { slug: normalizedSlug },
+      where: where as { slug: string } | { id: string },
       select: {
         id: true,
         slug: true,
@@ -130,11 +138,15 @@ export class PublicService {
         city: true,
         pictureUrl: true,
         category: true,
+        jobTitle: true,
+        hourlyRate: true,
         bio: true,
         trustTier: true,
         createdAt: true,
         active: true,
         gallery: true,
+        ratingAverage: true,
+        reviewCount: true,
       },
     });
 
@@ -157,8 +169,10 @@ export class PublicService {
       city: worker.city ?? null,
       photoUrl: worker.pictureUrl ?? null,
       sector: worker.category ?? null,
-      ratingAvg: 0,
-      ratingCount: 0,
+      jobTitle: worker.jobTitle ?? null,
+      hourlyRate: worker.hourlyRate ?? null,
+      ratingAvg: worker.ratingAverage ?? 0,
+      ratingCount: worker.reviewCount ?? 0,
       completedMissions,
       badges: this.deriveBadges(worker.trustTier),
       trustTier: worker.trustTier,
