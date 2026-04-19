@@ -138,6 +138,12 @@ describe('UsersService', () => {
       repository.update.mockResolvedValue({
         ...mockUser,
         firstName: 'Updated',
+        hourlyRate: null,
+        jobTitle: null,
+        bio: null,
+        category: null,
+        serviceRadiusKm: null,
+        gallery: [],
       });
 
       const result = await service.updateProfile('user_123', {
