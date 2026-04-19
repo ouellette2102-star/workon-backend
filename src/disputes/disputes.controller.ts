@@ -41,14 +41,16 @@ export class DisputesController {
   @ApiOperation({ summary: 'Open a dispute on a mission' })
   @ApiResponse({ status: 201, description: 'Dispute created' })
   async createDispute(@Request() req: any, @Body() dto: CreateDisputeDto) {
-    const isLocalMission = !!dto.localMissionId;
+    const userId: string = req.user.sub;
+    const isLocalUser = userId?.startsWith('local_');
 
     const dispute = await this.prisma.dispute.create({
       data: {
         id: `disp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         missionId: dto.missionId || undefined,
         localMissionId: dto.localMissionId || undefined,
-        openedById: req.user.sub,
+        openedById: isLocalUser ? undefined : userId,
+        localOpenedById: isLocalUser ? userId : undefined,
         reason: dto.reason,
         updatedAt: new Date(),
       },
@@ -70,6 +72,7 @@ export class DisputesController {
       where: {
         OR: [
           { openedById: userId },
+          { localOpenedById: userId },
           {
             mission: {
               OR: [
@@ -117,6 +120,7 @@ export class DisputesController {
     // Filter: keep disputes where user is opener, or party to mission/localMission
     const filtered = disputes.filter((d) => {
       if (d.openedById === userId) return true;
+      if (d.localOpenedById === userId) return true;
       if (d.missionId) return true; // already filtered by Prisma OR on mission
       if (d.localMissionId) return participatingLocalMissionIds.has(d.localMissionId);
       return false;

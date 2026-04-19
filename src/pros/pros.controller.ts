@@ -7,9 +7,13 @@ import {
   Logger,
   HttpCode,
   Headers,
+  Request,
+  ForbiddenException,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ProsService } from './pros.service';
 import { RegisterProDto } from './dto/register-pro.dto';
 
@@ -59,17 +63,24 @@ export class ProsController {
 
   /**
    * POST /api/v1/pros/:id/media
-   * Add a gallery image to a professional's profile.
+   * Add a gallery image to a professional's own profile.
    */
   @Post(':id/media')
   @HttpCode(201)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Add gallery image to professional profile' })
   @ApiParam({ name: 'id', description: 'Professional LocalUser ID' })
   @ApiResponse({ status: 201, description: 'Media added' })
+  @ApiResponse({ status: 403, description: 'Cannot add media to another user profile' })
   async addMedia(
     @Param('id') id: string,
+    @Request() req: any,
     @Body() body: { imageUrl: string; caption?: string; type?: string },
   ) {
+    if (req.user.sub !== id) {
+      throw new ForbiddenException('Cannot add media to another user profile');
+    }
     return this.prosService.addProMedia(id, body.imageUrl, body.caption, body.type);
   }
 
