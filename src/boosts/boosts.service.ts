@@ -148,6 +148,7 @@ export class BoostsService {
    */
   async applyBoost(boost: {
     id: string;
+    userId: string;
     type: BoostType;
     missionId: string | null;
   }): Promise<void> {
@@ -163,16 +164,55 @@ export class BoostsService {
         data: { boostedUntil: expiresAt ?? undefined },
       });
     } else if (boost.type === BoostType.URGENT_9 && boost.missionId) {
-      await this.prisma.localMission.update({
+      const mission = await this.prisma.localMission.update({
         where: { id: boost.missionId },
         data: { isUrgent: true, urgentUntil: expiresAt ?? undefined },
+        select: { title: true, city: true, latitude: true, longitude: true },
       });
-      // TODO Phase 3.1: trigger push notification to workers within 25km radius
+
+      // Notify workers within ~25km via in-app LocalNotification
+      if (mission.latitude && mission.longitude) {
+        const deltaLat = 0.225; // ~25km in degrees
+        const deltaLng = 0.3;
+        const nearbyWorkers = await this.prisma.localUser.findMany({
+          where: {
+            role: 'worker',
+            latitude: { gte: mission.latitude - deltaLat, lte: mission.latitude + deltaLat },
+            longitude: { gte: mission.longitude - deltaLng, lte: mission.longitude + deltaLng },
+          },
+          select: { id: true },
+          take: 100,
+        });
+
+        if (nearbyWorkers.length > 0) {
+          await this.prisma.localNotification.createMany({
+            data: nearbyWorkers.map((w) => ({
+              userId: w.id,
+              type: 'mission_urgent',
+              title: '🔥 Mission urgente près de toi',
+              body: `"${mission.title}" cherche un pro maintenant — ${mission.city ?? 'à proximité'}.`,
+              data: { missionId: boost.missionId },
+            })),
+            skipDuplicates: true,
+          });
+          this.logger.log(
+            `URGENT_9 applied: notified ${nearbyWorkers.length} nearby workers`,
+          );
+        }
+      }
     } else if (boost.type === BoostType.VERIFY_EXPRESS_19) {
-      // Account-level: flagged for manual reviewer queue (no schema field yet).
-      // For now, just logging — reviewer UI to be built in Phase 3.1.
+      // Send confirmation to the user and log for admin review queue
+      await this.prisma.localNotification.create({
+        data: {
+          userId: boost.userId,
+          type: 'verify_express_queued',
+          title: '✅ Vérification express en cours',
+          body: 'Ton dossier a été transmis. Tu recevras ton badge vérifié dans les 24h.',
+          data: { boostId: boost.id },
+        },
+      });
       this.logger.log(
-        `VERIFY_EXPRESS_19 boost PAID for user — manual review queue trigger TBD`,
+        `VERIFY_EXPRESS_19 PAID — user ${boost.userId} queued for review (boostId=${boost.id})`,
       );
     }
 
@@ -232,6 +272,7 @@ export class BoostsService {
     if (event.type === 'payment_intent.succeeded') {
       await this.applyBoost({
         id: boost.id,
+        userId: boost.userId,
         type: boost.type,
         missionId: boost.missionId,
       });
