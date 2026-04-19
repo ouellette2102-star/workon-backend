@@ -122,17 +122,19 @@ enum ConsentType {
 }
 
 model Dispute {
-  id             String        @id
-  missionId      String?       @unique
-  localMissionId String? // Link to native LocalMission
-  openedById     String
-  reason         String
-  status         DisputeStatus @default(OPEN)
-  resolution     String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime
-  mission        Mission?      @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  openedBy       User          @relation(fields: [openedById], references: [id], onDelete: Cascade)
+  id              String        @id
+  missionId       String?       @unique
+  localMissionId  String? // Link to native LocalMission
+  openedById      String? // Clerk User ID (legacy)
+  localOpenedById String? // LocalUser ID (native system)
+  reason          String
+  status          DisputeStatus @default(OPEN)
+  resolution      String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime
+  mission         Mission?      @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  openedBy        User?         @relation(fields: [openedById], references: [id], onDelete: Cascade)
+  localOpenedBy   LocalUser?    @relation("dispute_local_opener", fields: [localOpenedById], references: [id], onDelete: SetNull)
 
   // PR-00: Trust foundation relations
   evidence DisputeEvidence[]
@@ -542,6 +544,7 @@ model LocalUser {
   notifications LocalNotification[]
   contractsAsEmployer Contract[] @relation("contracts_localEmployer")
   contractsAsWorker   Contract[] @relation("contracts_localWorker")
+  disputesOpened      Dispute[]  @relation("dispute_local_opener")
 
   @@map("local_users")
 }

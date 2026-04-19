@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UnauthorizedException } from '@nestjs/common';
 import { ProsController } from './pros.controller';
 import { ProsService } from './pros.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 describe('ProsController (ghl-signup webhook auth)', () => {
   let controller: ProsController;
@@ -16,7 +17,10 @@ describe('ProsController (ghl-signup webhook auth)', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ProsController],
       providers: [{ provide: ProsService, useValue: prosService }],
-    }).compile();
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<ProsController>(ProsController);
     process.env = { ...ORIGINAL_ENV };
