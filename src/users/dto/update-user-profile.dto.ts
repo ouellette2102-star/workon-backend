@@ -1,4 +1,17 @@
-import { IsOptional, IsString, IsNumber, IsLatitude, IsLongitude, IsIn } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsNumber,
+  IsLatitude,
+  IsLongitude,
+  IsIn,
+  IsArray,
+  ArrayMaxSize,
+  MaxLength,
+  Min,
+  Max,
+  IsUrl,
+} from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -56,5 +69,51 @@ export class UpdateUserProfileDto {
   @IsIn(['worker', 'employer', 'residential_client'])
   @IsOptional()
   role?: string;
+
+  // ── Worker-facing profile fields ──────────────────────────
+
+  @ApiPropertyOptional({ example: 45, description: 'Hourly rate in CAD (worker)' })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(10000)
+  @IsOptional()
+  hourlyRate?: number;
+
+  @ApiPropertyOptional({ example: 'Paysagiste résidentiel', description: 'Short public title under the name' })
+  @IsString()
+  @MaxLength(80)
+  @IsOptional()
+  jobTitle?: string;
+
+  @ApiPropertyOptional({ example: '10 ans d\'expérience en aménagement paysager résidentiel', description: 'Public bio' })
+  @IsString()
+  @MaxLength(1000)
+  @IsOptional()
+  bio?: string;
+
+  @ApiPropertyOptional({ example: 'paysagement', description: 'Primary service category slug' })
+  @IsString()
+  @MaxLength(60)
+  @IsOptional()
+  category?: string;
+
+  @ApiPropertyOptional({ example: 25, description: 'Service radius in km' })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(500)
+  @IsOptional()
+  serviceRadiusKm?: number;
+
+  @ApiPropertyOptional({
+    description: 'Replace portfolio photo URLs (gallery). Max 12 URLs.',
+    type: [String],
+  })
+  @IsArray()
+  @ArrayMaxSize(12)
+  @IsUrl({}, { each: true })
+  @IsOptional()
+  gallery?: string[];
 }
 

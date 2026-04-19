@@ -150,6 +150,13 @@ export class UsersRepository {
         city: true,
         pictureUrl: true,
         role: true,
+        // Worker-facing public fields (writable via UpdateUserProfileDto)
+        jobTitle: true,
+        hourlyRate: true,
+        bio: true,
+        category: true,
+        serviceRadiusKm: true,
+        gallery: true,
         createdAt: true,
         updatedAt: true,
       },
