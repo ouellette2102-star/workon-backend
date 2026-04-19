@@ -90,7 +90,7 @@ export class MissionPhotosService {
 
     return photos.map((photo) => ({
       id: photo.id,
-      missionId: photo.missionId,
+      missionId: photo.missionId ?? missionId,
       userId: photo.userId,
       url: photo.url,
       createdAt: photo.createdAt.toISOString(),
@@ -157,7 +157,7 @@ export class MissionPhotosService {
 
       results.push({
         id: photo.id,
-        missionId: photo.missionId,
+        missionId: photo.missionId ?? missionId,
         userId: photo.userId,
         url: photo.url,
         createdAt: photo.createdAt.toISOString(),
@@ -213,7 +213,7 @@ export class MissionPhotosService {
 
     // Seul l'uploader ou l'auteur de la mission peut supprimer
     const isUploader = photo.userId === clerkUserId;
-    const isAuthor = photo.mission.authorClient.clerkId === clerkUserId;
+    const isAuthor = photo.mission?.authorClient.clerkId === clerkUserId;
 
     if (!isUploader && !isAuthor) {
       throw new ForbiddenException(

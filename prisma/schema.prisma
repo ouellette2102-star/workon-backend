@@ -179,6 +179,7 @@ model LocalMission {
   contract              Contract?          @relation("local_contracts")
   reviews               Review[]           @relation("review_mission")
   boosts                Boost[]
+  photos                MissionPhoto[]     @relation("local_mission_photos")
 
   @@index([assignedToUserId])
   @@index([category])
@@ -1033,20 +1034,23 @@ enum ContractStatus {
 // ============================================
 
 model MissionPhoto {
-  id           String   @id @default(cuid())
-  missionId    String
-  userId       String
-  url          String
-  path         String?
-  mimeType     String?
-  size         Int?
-  originalName String?
-  createdAt    DateTime @default(now())
+  id             String   @id @default(cuid())
+  missionId      String?
+  localMissionId String?
+  userId         String
+  url            String
+  path           String?
+  mimeType       String?
+  size           Int?
+  originalName   String?
+  createdAt      DateTime @default(now())
 
   // Relations
-  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  mission      Mission?      @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  localMission LocalMission? @relation("local_mission_photos", fields: [localMissionId], references: [id], onDelete: Cascade)
 
   @@index([missionId])
+  @@index([localMissionId])
   @@index([userId])
   @@map("mission_photos")
 }

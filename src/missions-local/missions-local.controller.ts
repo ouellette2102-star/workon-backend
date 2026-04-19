@@ -7,6 +7,8 @@ import {
   Query,
   UseGuards,
   Request,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -325,6 +327,31 @@ export class MissionsLocalController {
     return plainToInstance(MissionResponseDto, mission, {
       excludeExtraneousValues: true,
     });
+  }
+
+  @Post(':id/photos')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Add a photo URL to a local mission' })
+  @ApiResponse({ status: 201, description: 'Photo added' })
+  @ApiResponse({ status: 403, description: 'Not a participant of this mission' })
+  @ApiResponse({ status: 404, description: 'Mission not found' })
+  async addPhoto(
+    @Param('id') id: string,
+    @Body() body: { url: string; mimeType?: string; originalName?: string; size?: number },
+    @Request() req: any,
+  ) {
+    return this.missionsService.addPhoto(id, req.user.sub, body.url, {
+      mimeType: body.mimeType,
+      size: body.size,
+      originalName: body.originalName,
+    });
+  }
+
+  @Get(':id/photos')
+  @ApiOperation({ summary: 'List photos of a local mission' })
+  @ApiResponse({ status: 200, description: 'Photos list' })
+  async getPhotos(@Param('id') id: string, @Request() req: any) {
+    return this.missionsService.getPhotos(id, req.user.sub);
   }
 }
 
