@@ -94,6 +94,35 @@ export class UserResponseDto {
   })
   updatedAt: Date;
 
+  // ── Worker-facing profile fields (editable via PATCH /users/me) ──
+  // Added 2026-04-19 so the FE worker-card editor round-trips its own
+  // saved values instead of reading them as undefined and overwriting
+  // the DB with empty strings on save.
+
+  @Expose()
+  @ApiProperty({ description: 'Worker short title', type: String, nullable: true, required: false })
+  jobTitle?: string | null;
+
+  @Expose()
+  @ApiProperty({ description: 'Hourly rate in CAD', type: Number, nullable: true, required: false })
+  hourlyRate?: number | null;
+
+  @Expose()
+  @ApiProperty({ description: 'Public bio', type: String, nullable: true, required: false })
+  bio?: string | null;
+
+  @Expose()
+  @ApiProperty({ description: 'Primary service category', type: String, nullable: true, required: false })
+  category?: string | null;
+
+  @Expose()
+  @ApiProperty({ description: 'Service radius km', type: Number, nullable: true, required: false })
+  serviceRadiusKm?: number | null;
+
+  @Expose()
+  @ApiProperty({ description: 'Portfolio photo URLs', type: [String], required: false })
+  gallery?: string[];
+
   // hashedPassword is excluded by default via @Exclude() decorator
 }
 

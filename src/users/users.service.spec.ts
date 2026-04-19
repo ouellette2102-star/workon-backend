@@ -37,6 +37,12 @@ describe('UsersService', () => {
     active: true,
     createdAt: new Date(),
     updatedAt: new Date(),
+    jobTitle: null as string | null,
+    hourlyRate: null as number | null,
+    bio: null as string | null,
+    category: null as string | null,
+    serviceRadiusKm: null as number | null,
+    gallery: [] as string[],
   };
 
   beforeEach(async () => {
