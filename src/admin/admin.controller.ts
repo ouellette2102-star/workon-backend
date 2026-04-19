@@ -1,5 +1,21 @@
-import { Controller, Post, UseGuards, Request, Headers, UnauthorizedException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiHeader } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Param,
+  Post,
+  UseGuards,
+  Request,
+  Headers,
+  UnauthorizedException,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiHeader,
+  ApiParam,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -8,6 +24,10 @@ import { AdminAction } from '../auth/decorators/admin-action.decorator';
 import { UserRole } from '@prisma/client';
 import { CatalogService } from '../catalog/catalog.service';
 import { ConfigService } from '@nestjs/config';
+import {
+  RefundInvoiceDto,
+  RefundInvoiceResponseDto,
+} from './dto/refund-invoice.dto';
 
 /**
  * Admin Controller
@@ -41,6 +61,41 @@ export class AdminController {
   })
   async reconcilePayments(@Request() req: any) {
     return this.adminService.reconcilePayments(req.user.sub);
+  }
+
+  /**
+   * POST /api/v1/admin/invoices/:id/refund
+   * Emergency refund path. Full runbook at docs/runbooks/admin-refund.md.
+   */
+  @Post('invoices/:id/refund')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @AdminAction({
+    action: 'refund_invoice',
+    description: 'Refund a paid invoice via Stripe (emergency path)',
+  })
+  @ApiOperation({
+    summary: 'Refund a paid invoice',
+    description: `Admin-only emergency refund path. Creates a Stripe refund on the invoice's
+PaymentIntent, appends an entry to invoice metadata, and marks the invoice REFUNDED.
+See docs/runbooks/admin-refund.md for operational guidance including when to flip
+\`reverseWorkerTransfer\` and how to handle partial refunds.`,
+  })
+  @ApiParam({ name: 'id', description: 'Invoice ID' })
+  @ApiResponse({
+    status: 201,
+    description: 'Refund created',
+    type: RefundInvoiceResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invoice not PAID or amount invalid' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  @ApiResponse({ status: 503, description: 'Stripe not configured' })
+  async refundInvoice(
+    @Param('id') invoiceId: string,
+    @Body() dto: RefundInvoiceDto,
+    @Request() req: any,
+  ): Promise<RefundInvoiceResponseDto> {
+    return this.adminService.refundInvoice(invoiceId, dto, req.user.sub);
   }
 
   /**
