@@ -29,6 +29,7 @@ describe('ReviewsService', () => {
     },
     localMission: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
     },
     review: {
       create: jest.fn(),
@@ -339,6 +340,111 @@ describe('ReviewsService', () => {
       const result = await service.findOne('review_1');
 
       expect(result.author?.fullName).toBeUndefined();
+    });
+  });
+
+  describe('getPendingForLocalUser', () => {
+    it('filters to completed|paid missions where viewer was a participant and sets counterpart correctly', async () => {
+      mockPrisma.localMission.findMany.mockResolvedValue([
+        {
+          id: 'lm_1',
+          title: 'Peinture salon',
+          status: 'paid',
+          paidAt: new Date('2026-04-18T12:00:00Z'),
+          updatedAt: new Date('2026-04-18T12:05:00Z'),
+          createdByUserId: 'viewer',
+          assignedToUserId: 'worker_9',
+          createdByUser: {
+            id: 'viewer',
+            firstName: 'Jean',
+            lastName: 'Client',
+          },
+          assignedToUser: {
+            id: 'worker_9',
+            firstName: 'Anna',
+            lastName: 'Worker',
+          },
+        },
+        {
+          id: 'lm_2',
+          title: 'Déneigement',
+          status: 'completed',
+          paidAt: null,
+          updatedAt: new Date('2026-04-17T09:00:00Z'),
+          createdByUserId: 'employer_5',
+          assignedToUserId: 'viewer',
+          createdByUser: {
+            id: 'employer_5',
+            firstName: 'Paul',
+            lastName: 'Boss',
+          },
+          assignedToUser: {
+            id: 'viewer',
+            firstName: 'Jean',
+            lastName: 'Client',
+          },
+        },
+      ]);
+
+      const out = await service.getPendingForLocalUser('viewer');
+
+      // Confirm findMany was called with the right filter skeleton
+      const call = mockPrisma.localMission.findMany.mock.calls[0][0];
+      expect(call.where.status.in).toEqual(['completed', 'paid']);
+      expect(call.where.OR).toEqual([
+        { createdByUserId: 'viewer' },
+        { assignedToUserId: 'viewer' },
+      ]);
+      expect(call.where.reviews.none.localAuthorId).toBe('viewer');
+
+      // Mapping
+      expect(out).toHaveLength(2);
+      expect(out[0]).toMatchObject({
+        missionId: 'lm_1',
+        missionTitle: 'Peinture salon',
+        missionStatus: 'paid',
+        counterpartUserId: 'worker_9',
+        counterpartName: 'Anna Worker',
+        counterpartRoleRelativeToViewer: 'worker',
+      });
+      expect(out[1]).toMatchObject({
+        missionId: 'lm_2',
+        counterpartUserId: 'employer_5',
+        counterpartName: 'Paul Boss',
+        counterpartRoleRelativeToViewer: 'employer',
+      });
+      // missionCompletedAt falls back to updatedAt when paidAt is null
+      expect(out[1].missionCompletedAt).toEqual(
+        new Date('2026-04-17T09:00:00Z'),
+      );
+    });
+
+    it('skips missions without a resolved counterpart (data integrity guard)', async () => {
+      mockPrisma.localMission.findMany.mockResolvedValue([
+        {
+          id: 'lm_orphan',
+          title: 'Orphan',
+          status: 'completed',
+          paidAt: null,
+          updatedAt: new Date(),
+          createdByUserId: 'viewer',
+          assignedToUserId: null,
+          createdByUser: {
+            id: 'viewer',
+            firstName: 'Me',
+            lastName: null,
+          },
+          assignedToUser: null,
+        },
+      ]);
+      const out = await service.getPendingForLocalUser('viewer');
+      expect(out).toEqual([]);
+    });
+
+    it('handles empty result set gracefully', async () => {
+      mockPrisma.localMission.findMany.mockResolvedValue([]);
+      const out = await service.getPendingForLocalUser('viewer');
+      expect(out).toEqual([]);
     });
   });
 });

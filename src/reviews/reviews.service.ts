@@ -363,5 +363,83 @@ export class ReviewsService {
       missionId: review.missionId ?? review.localMissionId ?? undefined,
     };
   }
+
+  /**
+   * Missions the current LocalUser wrapped up (as creator or worker) without
+   * having left a review yet. Powers the auto-prompt modal on /home so users
+   * don't have to dig through history to rate.
+   *
+   * LocalMission is the active prod model; we intentionally skip the legacy
+   * User/Mission side because those users no longer authenticate via the
+   * current frontend.
+   */
+  async getPendingForLocalUser(userId: string): Promise<
+    Array<{
+      missionId: string;
+      missionTitle: string;
+      missionStatus: string;
+      missionCompletedAt: Date | null;
+      counterpartUserId: string;
+      counterpartName: string | null;
+      counterpartRoleRelativeToViewer: 'worker' | 'employer';
+    }>
+  > {
+    const missions = await this.prisma.localMission.findMany({
+      where: {
+        status: { in: ['completed', 'paid'] },
+        OR: [
+          { createdByUserId: userId },
+          { assignedToUserId: userId },
+        ],
+        // Exclude missions where the current user already wrote a review
+        reviews: {
+          none: { localAuthorId: userId },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 25,
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        paidAt: true,
+        updatedAt: true,
+        createdByUserId: true,
+        assignedToUserId: true,
+        createdByUser: {
+          select: { id: true, firstName: true, lastName: true },
+        },
+        assignedToUser: {
+          select: { id: true, firstName: true, lastName: true },
+        },
+      },
+    });
+
+    return missions
+      .map((m) => {
+        const viewerIsCreator = m.createdByUserId === userId;
+        const counterpart = viewerIsCreator ? m.assignedToUser : m.createdByUser;
+        if (!counterpart) return null;
+        const fullName = [counterpart.firstName, counterpart.lastName]
+          .filter(Boolean)
+          .join(' ')
+          .trim();
+        return {
+          missionId: m.id,
+          missionTitle: m.title,
+          missionStatus: m.status,
+          // LocalMission has no dedicated completedAt; fall back to paidAt
+          // (the canonical "terminated" timestamp for paid missions) or
+          // updatedAt for completed-but-unpaid ones.
+          missionCompletedAt: m.paidAt ?? m.updatedAt,
+          counterpartUserId: counterpart.id,
+          counterpartName: fullName.length > 0 ? fullName : null,
+          counterpartRoleRelativeToViewer: viewerIsCreator
+            ? ('worker' as const)
+            : ('employer' as const),
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+  }
 }
 
