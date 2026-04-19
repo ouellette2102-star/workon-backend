@@ -18,11 +18,17 @@ describe('AuthController', () => {
     lastName: 'User',
     phone: '+1234567890',
     city: 'Paris',
-    pictureUrl: null,
+    pictureUrl: null as string | null,
     role: LocalUserRole.worker,
     active: true,
     createdAt: new Date(),
     updatedAt: new Date(),
+    jobTitle: null as string | null,
+    hourlyRate: null as number | null,
+    bio: null as string | null,
+    category: null as string | null,
+    serviceRadiusKm: null as number | null,
+    gallery: [] as string[],
   };
 
   const mockAuthResponse = {

@@ -118,6 +118,13 @@ export class UsersRepository {
         active: true,
         createdAt: true,
         updatedAt: true,
+        // Worker-facing public fields — round-tripped by the /profile editor
+        jobTitle: true,
+        hourlyRate: true,
+        bio: true,
+        category: true,
+        serviceRadiusKm: true,
+        gallery: true,
       },
     });
   }
