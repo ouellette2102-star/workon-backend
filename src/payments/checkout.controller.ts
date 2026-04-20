@@ -103,6 +103,31 @@ export class CheckoutController {
   }
 
   /**
+   * POST /api/v1/payments/booking-checkout/:bookingId
+   * Create a Stripe Checkout Session for a booking deposit (50%)
+   */
+  @Post('booking-checkout/:bookingId')
+  @UseGuards(JwtAuthGuard, ConsentGuard)
+  @ApiOperation({ summary: 'Create booking deposit checkout session' })
+  @ApiParam({ name: 'bookingId', description: 'Booking ID' })
+  @ApiResponse({ status: 201, description: 'Checkout session created', type: CheckoutResponseDto })
+  @ApiResponse({ status: 400, description: 'Booking has no price or invalid state' })
+  @ApiResponse({ status: 403, description: 'Not the booking client' })
+  @ApiResponse({ status: 404, description: 'Booking not found' })
+  async createBookingCheckout(
+    @Request() req: any,
+    @Param('bookingId') bookingId: string,
+  ): Promise<CheckoutResponseDto> {
+    const userId = req.user.sub || req.user.userId;
+    const result = await this.invoiceService.createBookingCheckoutSession(bookingId, userId);
+    return {
+      invoiceId: result.invoiceId,
+      checkoutUrl: result.checkoutUrl,
+      sessionId: result.sessionId,
+    };
+  }
+
+  /**
    * GET /api/v1/payments/invoices/mine
    * List invoices where the current user is the payer
    */
