@@ -578,5 +578,112 @@ export class InvoiceService {
 
     this.logger.log(`Invoice ${invoiceId} cancelled (session expired)`);
   }
+
+  /**
+   * Create a Stripe Checkout Session for a Booking deposit (50%)
+   */
+  async createBookingCheckoutSession(
+    bookingId: string,
+    payerLocalUserId: string,
+  ): Promise<CheckoutResult> {
+    this.ensureStripeConfigured();
+
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    if (booking.localClientId !== payerLocalUserId && booking.clientId !== payerLocalUserId) {
+      throw new ForbiddenException('Only the booking client can pay');
+    }
+
+    if (booking.price <= 0) {
+      throw new BadRequestException('Booking has no price set');
+    }
+
+    const DEPOSIT_RATE = 0.5;
+    const subtotalCents = Math.round(booking.price * 100);
+    const depositCents = Math.round(subtotalCents * DEPOSIT_RATE);
+    const platformFeeCents = Math.round(depositCents * this.PLATFORM_FEE_RATE);
+    const totalDepositCents = depositCents + platformFeeCents;
+
+    const appPublicUrl = this.configService.get<string>('APP_PUBLIC_URL') || 'http://localhost:3000';
+    const successUrl = `${appPublicUrl}/payments/success?session_id={CHECKOUT_SESSION_ID}&booking_id=${bookingId}`;
+    const cancelUrl = `${appPublicUrl}/reserve`;
+
+    // Create invoice record for the deposit
+    const invoice = await this.prisma.invoice.create({
+      data: {
+        payerLocalUserId,
+        payerUserId: payerLocalUserId,
+        subtotalCents: depositCents,
+        platformFeeCents,
+        totalCents: totalDepositCents,
+        currency: 'CAD',
+        description: `Dépôt (50%) — ${booking.title}`,
+        status: 'PROCESSING',
+        metadata: { bookingId: booking.id, type: 'booking_deposit' },
+      },
+    });
+
+    const session = await this.stripe!.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      line_items: [
+        {
+          price_data: {
+            currency: 'cad',
+            product_data: {
+              name: `Dépôt 50% — ${booking.title}`,
+              description: `Retenu en escrow jusqu'à complétion`,
+            },
+            unit_amount: depositCents,
+          },
+          quantity: 1,
+        },
+        {
+          price_data: {
+            currency: 'cad',
+            product_data: {
+              name: 'WorkOn Platform Fee (15%)',
+            },
+            unit_amount: platformFeeCents,
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        invoiceId: invoice.id,
+        bookingId: booking.id,
+        payerLocalUserId,
+        type: 'booking_deposit',
+      },
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+    });
+
+    await this.prisma.invoice.update({
+      where: { id: invoice.id },
+      data: { stripeCheckoutSessionId: session.id },
+    });
+
+    // Mark booking as awaiting payment
+    await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: 'PENDING' },
+    });
+
+    this.logger.log(`Booking deposit checkout created: ${session.id} for booking ${bookingId}`);
+
+    return {
+      invoiceId: invoice.id,
+      checkoutUrl: session.url!,
+      sessionId: session.id,
+    };
+  }
 }
 
